@@ -1,11 +1,5 @@
-(require 'asdf)
-(require 'asdf-install)
 
-
-(asdf:oos 'asdf:load-op :yacc)
-(asdf:oos 'asdf:load-op :cl-lex)
-(use-package '#:yacc)
-(use-package '#:cl-lex)
+(in-package :cl-meld)
 
 (define-string-lexer meld-lexer
  	("type"			(return (values :type $@)))
@@ -38,13 +32,12 @@
 	  (definitions statements (lambda (x y) (list :definitions x :statements y))))
 
 	(definitions
-	 ()
 	 (definition #'list)
-	 (definition definitions #'cons)
-	 )
+	 (definition definitions #'cons))
 
 	(definition
-	 (:type const :lparen type-args :rparen :dot (lambda (ty const l typs r d)
+	 (:type const :lparen type-args :rparen :dot #'(lambda (ty const l typs r d)
+																								(declare (ignore ty l r d))
 																									(list const typs))))
 
 	(type-args
@@ -52,25 +45,24 @@
 	 (atype comma type-args #'cons))
 
 	(atype
-	 (:type-int (lambda (x) :type-int))
-	 (:type-catom (lambda (x) :type-catom)))
+	 (:type-int #'(lambda (x) (declare (ignore x)) :type-int))
+	 (:type-catom #'(lambda (x) (declare (ignore x)):type-catom)))
 
 	(statements
-	 ()
 	 (statement #'list)
 	 (statement statements #'cons))
 	(statement
-		(terms :arrow terms :dot (lambda (conc y perm w) (list perm '-> conc))))
+		(terms :arrow terms :dot #'(lambda (conc y perm w) (declare (ignore y w)) (list perm '-> conc))))
 
 	(terms
 	 	(term #'list)
-		(term :comma terms (lambda (x y z) (cons x z))))
+		(term :comma terms #'(lambda (x y z) (declare (ignore y)) (cons x z))))
 	(term
-	 	(const :lparen args :rparen (lambda (x y z w) (list x z))))
+	 	(const :lparen args :rparen #'(lambda (x y z w) (declare (ignore y w)) (list x z))))
 
 	(args
 	 	(arg #'list)
-		(arg :comma args (lambda (x y z) (cons x z))))
+		(arg :comma args (lambda (x y z) (declare (ignore y)) (cons x z))))
 	(arg
 	 	variable
 		const
@@ -86,12 +78,11 @@
 type a(int).
 type b(catom).
 
-a(Ac) :- b(A), c(A).
+a(A) :- b(A), c(A).
 
 c(Node) :-
 	d(Node),
 	e(Node, 3).
-
 
  ")
 
