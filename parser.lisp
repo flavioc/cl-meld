@@ -4,6 +4,7 @@
 (define-string-lexer meld-lexer
  	("type"			(return (values :type $@)))
 	("int"			(return (values :type-int $@)))
+	("float"       (return (values :type-float $@)))
 	("catom"		(return (values :type-catom $@)))
 	("node"     (return (values :type-node $@)))
 	(":-"           (return (values :arrow  $@)))
@@ -48,7 +49,7 @@
  	(:start-symbol program)
 	(:terminals (:const :type :variable :number :lparen :rparen
 								:bar :arrow :dot :comma :type-int :type-node
-								:type-catom :plus :minus :mul :mod :div
+								:type-catom :type-float :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal))
 	(program
 	  (definitions statements (lambda (x y) (list :definitions x :clauses y))))
@@ -68,6 +69,7 @@
 
 	(atype
 	 (:type-int #'(lambda (x) (declare (ignore x)) :type-int))
+	 (:type-float #'(lambda (x) (declare (ignore x)) :type-float))
 	 (:type-catom #'(lambda (x) (declare (ignore x)) :type-node))
 	 (:type-node #'(lambda (x) (declare (ignore x)) :type-node)))
 
@@ -129,10 +131,12 @@
 
 (defparameter *code* "
 type a(node, catom).
-type b(node, int).
+type b(node, float).
 type c(node).
+type d(node).
+type e(node).
 
-a(A) :- b(A,(2+3) - (1 * 2 % 3)), c(A), 2 >= 3, 3 < 4.
+a(A, A) :- b(A,((B-2)+3)+1), d(A), 2 < 3.
 
 c(Node) :-
 	d(Node),

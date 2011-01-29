@@ -10,6 +10,12 @@
                   syms)
       ,@body))
       
+      
+(defmacro dolist2 ((el1 ls1) (el2 ls2) &body body)
+   `(loop for ,el1 in ,ls1
+          for ,el2 in ,ls2
+          do ,@body))
+          
 (defmacro with-optional-counter (id &body body)
    (if (null id)
       body
