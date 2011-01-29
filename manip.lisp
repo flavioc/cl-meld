@@ -13,11 +13,12 @@
    (rest (assoc-if #'(lambda (sub) (string-equal pred sub))
             defs)))
             
+(defparameter *all-types* '(:type-int :type-float :type-bool :type-node))
+
 (defun type-int-p (type) (eq :type-int type))
 (defun type-node-p (type) (eq :type-node type))
 (defun type-bool-p (type) (eq :type-bool type))
 (defun type-float-p (type) (eq :type-float type))
-(defun type-any-p (type) (eq :type-any type))
 
 (defun has-constraints (subgoals) (some #'constraint-p subgoals))
 

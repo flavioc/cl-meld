@@ -30,7 +30,7 @@
    (let (typ-res)
       (cond
          ((var-p expr)
-            (setf typ-res (if forced-type `(,forced-type) '(:type-any)))
+            (setf typ-res (if forced-type `(,forced-type) *all-types*))
             (setf typ-res (force-constraint constraints (var-name expr) typ-res)))
          ((int-p expr)
             (format t "int forced type ~A~%" forced-type)
@@ -63,13 +63,9 @@
       (> (count t (list num bool node)) 1)))
             
 (defun merge-types (ls types)
-   (cond
-      ((and (one-elem-p types) (type-any-p (first types))) ls)
-      ((and (one-elem-p ls) (type-any-p (first ls))) types)
-      (t
-         (let ((ret (intersection ls types)))
-            (if (invalid-type-combination-p ret)
-               nil ret)))))
+   (let ((ret (intersection ls types)))
+      (if (invalid-type-combination-p ret)
+         nil ret)))
 (defun merge-type (ls type) (merge-types ls `(,type)))
 
                
