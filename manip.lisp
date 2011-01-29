@@ -1,0 +1,12 @@
+
+(defun definitions (code) (second code))
+(defun clauses (code) (fourth code))
+(defun clause-head (clause) (third clause))
+(defun clause-body (clause) (first clause))
+(defun subgoal-name (subgoal) (first subgoal))
+(defun subgoal-args (subgoal) (second subgoal))
+(defun arg-type (arg) (first arg))
+(defun arg-val (arg) (second arg))
+(defun lookup-definition (code pred)
+   (rest (assoc-if #'(lambda (name) (string-equal pred name))
+            (definitions code))))
