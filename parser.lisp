@@ -5,32 +5,51 @@
  	("type"			(return (values :type $@)))
 	("int"			(return (values :type-int $@)))
 	("catom"		(return (values :type-catom $@)))
+	("node"     (return (values :type-node $@)))
 	(":-"           (return (values :arrow  $@)))
 	("\\("			(return (values :lparen $@)))
 	("\\)"			(return (values :rparen $@)))
 	("\\."          (return (values :dot $@)))
 	("\\,"          (return (values :comma $@)))
+	("\\+"          (return (values :plus $@)))
+	("\\-"          (return (values :minus $@)))
+	("\\*"          (return (values :mul $@)))
+	("\\%"          (return (values :mod $@)))
+	("\\/"          (return (values :div $@)))
+	("\\<="         (return (values :lesser-equal $@)))
+	("\\<"          (return (values :lesser $@)))
+	("\\>"          (return (values :greater $@)))
+	("\\>="         (return (values :greater-equal $@)))
 	("\\d+"		(return (values :number $@)))
 	("_"				(return (values :variable $@)))
  	("[a-z]+"		(return (values :const $@)))
 	("'\\w+'"		(return (values :const $@)))
 	("[A-Z]([A-Z]|[a-z])*"	(return (values :variable $@))))
 
-(defun str->sym (str)
- (values (intern str)))
+(defun str->sym (str) (values (intern str)))
 
 (defun make-var (var)
  (if (eq var '_)
 	:placeholder
 	`(:var ,var)))
 	
-(defun make-int (int)
-   (list :int (parse-integer int)))
+(defun make-int (int) (list :int (parse-integer int)))
+(defun make-plus (e1 p e2) (list :plus e1 e2))
+(defun make-minus (e1 m e2) (list :minus e1 e2))
+(defun make-mul (e1 m e2) (list :mul e1 e2))
+(defun make-mod (e1 m e2) (list :mod e1 e2))
+(defun make-div (e1 d e2) (list :div e1 e2))
+(defun make-lesser (e1 l e2) (list :lesser e1 e2))
+(defun make-lesser-equal (e1 l e2) (list :lesser-equal e1 e2))
+(defun make-greater (e1 g e2) (list :greater e1 e2))
+(defun make-greater-equal (e1 g e2) (list :greater-equal e1 e2))
 			
 (define-parser meld-parser
  	(:start-symbol program)
 	(:terminals (:const :type :variable :number :lparen :rparen
-								:bar :arrow :dot :comma :type-int :type-catom))
+								:bar :arrow :dot :comma :type-int :type-node
+								:type-catom :plus :minus :mul :mod :div
+								:lesser :lesser-equal :greater :greater-equal))
 	(program
 	  (definitions statements (lambda (x y) (list :definitions x :clauses y))))
 
@@ -49,47 +68,75 @@
 
 	(atype
 	 (:type-int #'(lambda (x) (declare (ignore x)) :type-int))
-	 (:type-catom #'(lambda (x) (declare (ignore x)):type-catom)))
+	 (:type-catom #'(lambda (x) (declare (ignore x)) :type-node))
+	 (:type-node #'(lambda (x) (declare (ignore x)) :type-node)))
 
 	(statements
 	 (statement #'list)
 	 (statement statements #'cons))
+	 
 	(statement
-		(terms :arrow terms :dot #'(lambda (conc y perm w) (declare (ignore y w)) (list perm '-> conc))))
+		(head-terms :arrow body-terms :dot #'(lambda (conc y perm w) (declare (ignore y w)) (list perm '-> conc))))
 
-	(terms
-	 	(term #'list)
-		(term :comma terms #'(lambda (x y z) (declare (ignore y)) (cons x z))))
+   (head-terms
+      (term #'list)
+      (term :comma head-terms #'(lambda (x y z) (declare (ignore y)) (cons x z))))
+   
+   (body-terms
+      (body-term #'list)
+      (body-term :comma body-terms #'(lambda (x y z) (declare (ignore y)) (cons x z))))
+   
+   (body-term
+      (term #'identity)
+      (constraint #'identity))
+      
 	(term
 	 	(const :lparen args :rparen #'(lambda (x y z w) (declare (ignore y w)) (list x z))))
 
+   (constraint
+      (cmp #'(lambda (c) (list :constraint c))))
+      
 	(args
-	 	(arg #'list)
-		(arg :comma args (lambda (x y z) (declare (ignore y)) (cons x z))))
-	(arg
-	 	variable
-		const
-		(:number #'(lambda (int) (list :int (parse-integer int)))))
+	 	(expr #'list)
+		(expr :comma args (lambda (x y z) (declare (ignore y)) (cons x z))))
 
+	(expr
+	   variable
+		const
+		(:number #'make-int)
+	   (:lparen expr :rparen #'(lambda (l expr r) expr))
+	   (expr :minus expr #'make-minus)
+	   (expr :mul expr #'make-mul)
+	   (expr :mod expr #'make-mod)
+	   (expr :div expr #'make-div)
+	   (expr :plus expr #'make-plus))
+
+   (cmp
+      (expr :lesser expr #'make-lesser)
+      (expr :lesser-equal expr #'make-lesser-equal)
+      (expr :greater expr #'make-greater)
+      (expr :greater-equal expr #'make-greater-equal))
+      
 	(variable
 	 (:variable (lambda (x) (make-var (str->sym x)))))
 
 	(const
 	 (:const #'identity)))
 
-(defparameter *code* "
-type a(int, catom).
-type b(catom, int).
-type c(catom).
+(defun parse-meld (str)
+ (let ((lexer (meld-lexer str)))
+	(parse-with-lexer lexer meld-parser)))
 
-a(A) :- b(A,2), c(A).
+(defparameter *code* "
+type a(node, catom).
+type b(node, int).
+type c(node).
+
+a(A) :- b(A,(2+3) - (1 * 2 % 3)), c(A), 2 >= 3, 3 < 4.
 
 c(Node) :-
 	d(Node),
 	e(Node).
 ")
 
-(defun parse-meld (str)
- (let ((lexer (meld-lexer str)))
-	(parse-with-lexer lexer meld-parser)))
-
+(defparameter *parsed* (parse-meld *code*))

@@ -9,7 +9,27 @@
                      `(,s (gensym)))
                   syms)
       ,@body))
-
+      
+(defmacro with-optional-counter (id &body body)
+   (if (null id)
+      body
+      `(let ((,id 0))
+         ,@body
+         (incf ,id))))
+      
+(defmacro dolist-filter ((el list filter &optional id) &body body)
+   `(let (,@(if id `((,id 0))))
+      (dolist (,el ,list)
+         (when (,filter ,el)
+            ,@(if id `((incf ,id)))
+            ,@body))))
+         
+(defmacro dolist-count ((el list &optional id) &body body)
+   `(let (,@(if id `((,id 0))))
+      (dolist (,el ,list)
+         ,@(if id `((incf ,id)))
+         ,@body)))
+         
 ;; Meld related code
 
 (defmacro do-definitions (code (name types) &body body)
@@ -30,18 +50,16 @@
                ,@(if id `((incf ,id)))
                ,@rest)))))
                
-(defmacro do-subgoals (subgoals (name args) &body body)
+(defmacro do-subgoals (subgoals (name args &optional id) &body body)
    (with-gensyms (el)
-      `(dolist (,el ,subgoals)
-         (let ((,name (subgoal-name ,el))
-               (,args (subgoal-args ,el)))
+      `(dolist-filter (,el ,subgoals subgoal-p ,id)
+            (let ((,name (subgoal-name ,el))
+                  (,args (subgoal-args ,el)))
+               ,@body))))
+               
+(defmacro do-constraints (constraints (expr &optional id) &body body)
+   (with-gensyms (el)
+      `(dolist-filter (,el ,constraints constraint-p ,id)
+         (let ((,expr (constraint-expr ,el)))
             ,@body))))
             
-(defmacro do-args (args (typ val &optional id) &body body)
-   (with-gensyms (el)
-      `(let (,@(if id `((,id 0))))
-         (dolist (,el ,args)
-            (let ((,typ (arg-type ,el))
-                  (,val (arg-val ,el)))
-               ,@(if id `((incf ,id)))
-               ,@body)))))
