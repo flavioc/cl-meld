@@ -10,6 +10,10 @@
                   syms)
       ,@body))
       
+(defmacro iff (test thing)
+   (with-gensyms (ret)
+      `(let ((,ret ,thing))
+         (when (,test ,ret) ,ret))))
       
 (defmacro dolist2 ((el1 ls1) (el2 ls2) &body body)
    `(loop for ,el1 in ,ls1
