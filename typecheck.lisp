@@ -9,6 +9,11 @@
    (unless (type-node-p (first typs))
       (error 'type-invalid-error
          :text (concatenate 'string "first argument of tuple " name " must be of type 'node'"))))
+         
+(defun no-types-p (ls) (null ls))
+(defun merge-types (ls types) (intersection ls types))
+(defun valid-type-combination-p (types)
+   (equal-or types (:type-int) (:type-float) (:type-int :type-float) (:type-bool) (:type-node)))
 
 (defun set-type (expr typs)
    (cond
@@ -17,10 +22,8 @@
          
 (defun do-get-type (expr forced-types)
    (cond
-      ((var-p expr)
-         (force-constraint (var-name expr) forced-types))
-      ((int-p expr)
-         (intersection forced-types '(:type-int :type-float)))
+      ((var-p expr) (force-constraint (var-name expr) forced-types))
+      ((int-p expr) (merge-types forced-types '(:type-int :type-float)))
       ((op-p expr)
          (let* ((op1 (op-op1 expr)) (op2 (op-op2 expr)) (op (op-op expr))
                 (typ-oper (type-operands op forced-types)) (typ-op (type-op op forced-types)))
@@ -36,13 +39,6 @@
          (error 'type-invalid-error :text "type error"))
       (set-type expr types)
       types))
-      
-(defun no-types-p (ls) (null ls))
-(defun valid-type-combination-p (types)
-   (equal-or types (:type-int) (:type-float) (:type-int :type-float) (:type-bool) (:type-node)))
-            
-(defun merge-types (ls types) (intersection ls types))
-(defun merge-type (ls type) (merge-types ls `(,type)))
                
 (defun force-constraint (var new-types)
    (multiple-value-bind (types ok) (gethash var *constraints*)
@@ -50,8 +46,7 @@
          (setf new-types (merge-types types new-types))
          (when (no-types-p new-types)
             (error 'type-invalid-error :text "type error")))
-      (setf (gethash var *constraints*) new-types)
-      new-types))
+      (setf (gethash var *constraints*) new-types)))
       
 (defun do-type-check-subgoal (defs name args)
    (let ((definition (lookup-definition defs name)))
