@@ -139,11 +139,10 @@ type c(node).
 type d(node).
 type e(node).
 
-a(A, A) :- b(A,((B-2)+3)+1), d(A), 2 < 3.
+a(A, A) :- b(A,((B-2)+3)+1), d(A), B < 3.
 
 c(Node) :-
 	d(Node),
-	2 == 2,
 	e(Node).
 ")
 
