@@ -74,5 +74,11 @@
             (intersection '(:type-bool) forced-types)
             '(:type-bool)))))
             
+(defun type-oper-op (op forced-types)
+   (case op
+      ((:plus :minus :mul :div :mod)
+         (intersection '(:type-int :type-float) forced-types))
+      ((:equal :lesser :lesser-equal :greater :greater-equal) '(:type-bool))))
+            
 (defun var-name (val) (second val))
 (defun int-val (val) (second val))

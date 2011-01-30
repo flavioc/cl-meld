@@ -34,7 +34,7 @@
                   (setf t2 (get-type op2 t1)))
                (when (< (length t2) (length t1))
                   (setf t1 (get-type op1 t2)))
-               typ-op)))))
+               (type-oper-op op t1))))))
             
 (defun get-type (expr forced-types)
    (let ((types (do-get-type expr forced-types)))
@@ -58,7 +58,8 @@
       (when (not (= (length definition) (length args)))
          (error 'type-invalid-error :text "invalid number of arguments"))
       (dolist2 (arg args) (forced-type definition)
-         (get-type arg `(,forced-type)))))
+         (unless (one-elem-p (get-type arg `(,forced-type)))
+            (error 'type-invalid-error :text "type error")))))
                   
 (defun do-type-check-constraints (expr)
    (let ((typs (get-type expr '(:type-bool))))
