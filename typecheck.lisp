@@ -1,7 +1,8 @@
 (define-condition type-invalid-error (error)
    ((text :initarg :text :reader text)))
-   
+
 (defparameter *constraints* nil)
+(defparameter *defined* nil)
 
 (defun check-home-argument (name typs)
    (when (null typs)
@@ -42,7 +43,7 @@
          (error 'type-invalid-error :text "type error"))
       (set-type expr types)
       types))
-               
+
 (defun force-constraint (var new-types)
    (multiple-value-bind (types ok) (gethash var *constraints*)
       (when ok
@@ -59,20 +60,68 @@
          (error 'type-invalid-error :text "invalid number of arguments"))
       (dolist2 (arg args) (forced-type definition)
          (unless (one-elem-p (get-type arg `(,forced-type)))
-            (error 'type-invalid-error :text "type error")))))
+            (error 'type-invalid-error :text "type error"))
+         (when (var-p arg)
+            (variable-is-defined arg)))))
                   
 (defun do-type-check-constraints (expr)
+   (unless (has-variables-defined expr)
+      (error 'type-invalid-error :text "all variables must be defined"))
    (let ((typs (get-type expr '(:type-bool))))
       (unless (and (one-elem-p typs) (type-bool-p (first typs)))
          (error 'type-invalid-error :text "constraint must be of type bool"))))
-   
+
+(defun all-variables (expr)
+   (cond
+      ((var-p expr) (list expr))
+      ((int-p expr) nil)
+      ((op-op expr) (union (all-variables (op-op1 expr)) (all-variables (op-op2 expr)) :test #'equal ))))
+         
+(defun update-assignment (assignments assign)
+   (let* ((var (assignment-var assign)) (var-name (var-name var)))
+      (multiple-value-bind (forced-types ok) (gethash var-name *constraints*)
+         (let ((ty (get-type (assignment-expr assign) (if ok forced-types *all-types*))))
+            (variable-is-defined var)
+            (force-constraint var-name ty)
+            (set-type var ty)
+            (dolist (used-var (all-variables (assignment-expr assign)))
+               (letwhen (other (find-if #'(lambda (a)
+                                             (and (var-eq-p used-var (assignment-var a))
+                                                   (not (one-elem-p (expr-type (assignment-var a))))))
+                                    assignments))
+                  (update-assignment assignments other)))))))
+
+(defun do-type-check-assignments (body)
+   (let ((assignments (get-assignments body)))
+      (unless (every #'(lambda (a) (not (variable-defined-p a))) (get-assignment-vars assignments))
+         (error 'type-invalid-error :text "some variables are already defined"))
+      (loop until (every #'(lambda (a) (typed-var-p (assignment-var a))) assignments)
+            for assign = (find-if #'(lambda (a)
+                                       (and (not (typed-var-p (assignment-var a)))
+                                          (has-variables-defined (assignment-expr a))))
+                              assignments)
+            do (unless assign
+                  (error 'type-invalid-error :text "undefined variables"))
+               (when (> (count-if #'(lambda (a)
+                                       (var-eq-p (assignment-var assign) a))
+                              (get-assignment-vars assignments))
+                        1)
+                  (error 'type-invalid-error :text "cannot set multiple variables"))
+               (update-assignment assignments assign))))
+                        
+(defun variable-is-defined (var) (unless (has-elem-p *defined* (var-name var)) (push (var-name var) *defined*)))
+(defun variable-defined-p (var) (has-elem-p *defined* (var-name var)))
+(defun has-variables-defined (expr) (every #'variable-defined-p (all-variables expr)))
+
 (defun type-check (code)
    (do-definitions code (name typs)
       (check-home-argument name typs))
    (do-clauses code (head body)
       (let ((*constraints* (make-hash-table))
+            (*defined* nil)
             (definitions (definitions code)))
          (do-subgoals (append head body) (name args)
             (do-type-check-subgoal definitions name args))
+         (do-type-check-assignments body)
          (do-constraints body (expr)
             (do-type-check-constraints expr)))))  

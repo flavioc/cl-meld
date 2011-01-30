@@ -42,6 +42,10 @@
          
 (defmacro equal-or (ls &body rest)
    `(or ,@(mapcar #'(lambda (el) `(equal ',el ,ls)) rest)))
+   
+(defmacro letwhen ((var code) &body body)
+   `(let ((,var ,code))
+      (when ,var ,@body)))
          
 ;; Meld related code
 
@@ -76,3 +80,9 @@
          (let ((,expr (constraint-expr ,el)))
             ,@body))))
             
+(defmacro do-assignments (assignments (var expr &optional id) &body body)
+   (with-gensyms (el)
+      `(dolist-filter (,el ,assignments assignment-p ,id)
+         (let ((,var (assignment-var ,el))
+               (,expr (assignment-expr ,el)))
+            ,@body))))

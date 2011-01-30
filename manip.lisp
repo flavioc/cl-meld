@@ -5,9 +5,26 @@
 (defun clause-body (clause) (first clause))
 (defun constraint-p (ls) (tagged-p ls :constraint))
 (defun constraint-expr (ls) (second ls))
-(defun subgoal-p (ls) (and (listp ls) (not (constraint-p ls))))
-(defun subgoal-name (subgoal) (first subgoal))
-(defun subgoal-args (subgoal) (second subgoal))
+
+(defun assignment-p (ls) (tagged-p ls :assign))
+(defun assignment-var (ls) (second ls))
+(defun assignment-expr (ls) (third ls))
+
+(defun subgoal-p (ls) (tagged-p ls :subgoal))
+(defun subgoal-name (subgoal) (second subgoal))
+(defun subgoal-args (subgoal) (third subgoal))
+
+(defun get-assignments (body) (remove-if-not #'assignment-p body))
+(defun get-assignment-vars (assignments) (mapcar #'assignment-var assignments))
+
+(defun typed-var-p (var) (= (length var) 3))
+
+(defun var-eq-p (v1 v2) (equal (var-name v1) (var-name v2)))
+
+(defun expr-type (expr)
+   (cond
+      ((or (var-p expr) (int-p expr)) (third expr))
+      ((op-op expr) (fourth expr))))
 
 (defun lookup-definition (defs pred)
    (rest (assoc-if #'(lambda (sub) (string-equal pred sub))
@@ -21,6 +38,7 @@
 (defun type-float-p (type) (eq :type-float type))
 
 (defun has-constraints (subgoals) (some #'constraint-p subgoals))
+(defun has-assignments (subgoals) (some #'assignment-p subgoals))
 
 (defmacro define-ops (&rest symbs)
    `(progn

@@ -5,24 +5,25 @@
  	("type"			(return (values :type $@)))
 	("int"			(return (values :type-int $@)))
 	("float"       (return (values :type-float $@)))
-	("catom"		(return (values :type-catom $@)))
-	("node"     (return (values :type-node $@)))
-	(":-"           (return (values :arrow  $@)))
+	("catom"		   (return (values :type-catom $@)))
+	("node"        (return (values :type-node $@)))
+	(":-"          (return (values :arrow  $@)))
 	("\\("			(return (values :lparen $@)))
 	("\\)"			(return (values :rparen $@)))
-	("\\."          (return (values :dot $@)))
-	("\\,"          (return (values :comma $@)))
-	("\\+"          (return (values :plus $@)))
-	("\\-"          (return (values :minus $@)))
-	("\\*"          (return (values :mul $@)))
-	("\\%"          (return (values :mod $@)))
-	("\\/"          (return (values :div $@)))
-	("\\<="         (return (values :lesser-equal $@)))
-	("\\<"          (return (values :lesser $@)))
-	("\\>"          (return (values :greater $@)))
-	("\\>="         (return (values :greater-equal $@)))
-	("\\=="         (return (values :equal $@)))
-	("\\d+"		(return (values :number $@)))
+	("\\."         (return (values :dot $@)))
+	("\\,"         (return (values :comma $@)))
+	("\\+"         (return (values :plus $@)))
+	("\\-"         (return (values :minus $@)))
+	("\\*"         (return (values :mul $@)))
+	("\\%"         (return (values :mod $@)))
+	("\\/"         (return (values :div $@)))
+	("\\<="        (return (values :lesser-equal $@)))
+	("\\<"         (return (values :lesser $@)))
+	("\\>"         (return (values :greater $@)))
+	("\\>="        (return (values :greater-equal $@)))
+	("\\=="        (return (values :equal $@)))
+	("\\="         (return (values :assign $@)))
+	("\\d+"		   (return (values :number $@)))
 	("_"				(return (values :variable $@)))
  	("[a-z]+"		(return (values :const $@)))
 	("'\\w+'"		(return (values :const $@)))
@@ -36,23 +37,24 @@
 	`(:var ,var)))
 	
 (defun make-int (int) (list :int (parse-integer int)))
-(defun make-plus (e1 p e2) (list :plus e1 e2))
-(defun make-minus (e1 m e2) (list :minus e1 e2))
-(defun make-mul (e1 m e2) (list :mul e1 e2))
-(defun make-mod (e1 m e2) (list :mod e1 e2))
-(defun make-div (e1 d e2) (list :div e1 e2))
-(defun make-lesser (e1 l e2) (list :lesser e1 e2))
-(defun make-lesser-equal (e1 l e2) (list :lesser-equal e1 e2))
-(defun make-greater (e1 g e2) (list :greater e1 e2))
-(defun make-greater-equal (e1 g e2) (list :greater-equal e1 e2))
-(defun make-equal (e1 e e2) (list :equal e1 e2))
+
+(defmacro define-makes (&rest symbs)
+   `(progn ,@(mapcar #'(lambda (sym)
+         `(defun ,(intern (concatenate 'string "MAKE-" (symbol-name sym))) (a b c)
+               (declare (ignore b))
+               (list ,sym a c)))
+            symbs)))
+
+(define-makes :plus :minus :mul :mod :div
+      :lesser :lesser-equal :greater :greater-equal :equal :assign)
 			
 (define-parser meld-parser
  	(:start-symbol program)
 	(:terminals (:const :type :variable :number :lparen :rparen
 								:bar :arrow :dot :comma :type-int :type-node
 								:type-catom :type-float :plus :minus :mul :mod :div
-								:lesser :lesser-equal :greater :greater-equal :equal))
+								:lesser :lesser-equal :greater :greater-equal :equal
+								:assign))
 	(program
 	  (definitions statements (lambda (x y) (list :definitions x :clauses y))))
 
@@ -92,13 +94,17 @@
    
    (body-term
       (term #'identity)
+      (assignment #'identity)
       (constraint #'identity))
       
 	(term
-	 	(const :lparen args :rparen #'(lambda (x y z w) (declare (ignore y w)) (list x z))))
+	 	(const :lparen args :rparen #'(lambda (x y z w) (declare (ignore y w)) (list :subgoal x z))))
 
    (constraint
       (cmp #'(lambda (c) (list :constraint c))))
+      
+   (assignment
+      (variable :assign expr #'make-assign))
       
 	(args
 	 	(expr #'list)
@@ -139,11 +145,12 @@ type c(node).
 type d(node).
 type e(node).
 
-a(A, A) :- b(A,((B-2)+3)+1), d(A), (1 + (2 - (B * 3) )) < 3.
+a(A, A) :- b(A,B), d(A), F = B + G, G = 2, G == B.
 
 c(Node) :-
 	d(Node),
-	e(Node).
+	e(Node),
+	(1 + (2 - (3 * 3) )) < 3.
 ")
 
 (defparameter *parsed* (parse-meld *code*))
