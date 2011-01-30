@@ -18,8 +18,8 @@
 (defun get-assignment-vars (assignments) (mapcar #'assignment-var assignments))
 
 (defun typed-var-p (var) (= (length var) 3))
-
-(defun var-eq-p (v1 v2) (equal (var-name v1) (var-name v2)))
+(defun typed-op-p (op) (= (length op) 4))
+(defun typed-int-p (i) (= (length i) 3))
 
 (defun expr-type (expr)
    (cond
@@ -32,10 +32,15 @@
             
 (defparameter *all-types* '(:type-int :type-float :type-bool :type-node))
 
-(defun type-int-p (type) (eq :type-int type))
-(defun type-node-p (type) (eq :type-node type))
-(defun type-bool-p (type) (eq :type-bool type))
-(defun type-float-p (type) (eq :type-float type))
+(defun var-eq-p (v1 v2) (equal (var-name v1) (var-name v2)))
+
+(defmacro deftype-p (&rest types)
+   `(progn
+         ,@(mapcar #'(lambda (x) `(defun ,(intern (concatenate 'string "TYPE-" (symbol-name x) "-P")) (ty)
+                                       (eq ,(intern (concatenate 'string "TYPE-" (symbol-name x)) "KEYWORD") ty)))
+                  types)))
+
+(deftype-p int node bool float)
 
 (defun has-constraints (subgoals) (some #'constraint-p subgoals))
 (defun has-assignments (subgoals) (some #'assignment-p subgoals))
@@ -70,33 +75,39 @@
       (:greater ">")
       (:greater-equal ">=")))
       
+(defmacro eq-or (sym &rest symbols)
+   `(or ,@(mapcar #'(lambda (s) `(eq ,sym ,s)) symbols)))
+   
+(defun eq-arith-p (sym) (eq-or sym :plus :minus :mul :div :mod))
+(defun eq-cmp-p (sym) (eq-or sym :equal :lesser :lesser-equal :greater :greater-equal))
+      
 (defun type-operands (op &optional forced-types)
-   (case op
-      ((:plus :minus :mul :div :mod)
+   (cond
+      ((eq-arith-p op)
          (if forced-types
             (intersection forced-types '(:type-int :type-float))
             '(:type-int :type-float)))
-      ((:equal :lesser :lesser-equal :greater :greater-equal)
+      ((eq-cmp-p op)
          (if (or forced-types
                  (not (has-elem-p forced-types :type-bool)))
             '(:type-int :type-float)))))
-            
+
 (defun type-op (op &optional forced-types)
-   (case op
-      ((:plus :minus :mul :div :mod)
+   (cond
+      ((eq-arith-p op)
          (if forced-types
             (intersection '(:type-int :type-float) forced-types)
             '(:type-int :type-float)))
-      ((:equal :lesser :lesser-equal :greater :greater-equal)
+      ((eq-cmp-p op)
          (if forced-types
             (intersection '(:type-bool) forced-types)
             '(:type-bool)))))
             
 (defun type-oper-op (op forced-types)
-   (case op
-      ((:plus :minus :mul :div :mod)
+   (cond
+      ((eq-arith-p op)
          (intersection '(:type-int :type-float) forced-types))
-      ((:equal :lesser :lesser-equal :greater :greater-equal) '(:type-bool))))
+      ((eq-cmp-p op) '(:type-bool))))
             
 (defun var-name (val) (second val))
 (defun int-val (val) (second val))

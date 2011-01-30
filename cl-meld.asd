@@ -24,6 +24,18 @@
 		 			         :depends-on ("package"
 		 			                      "manip"
 		 			                      "macros"))
+		 			(:file "localize"
+		 			         :depends-on ("package"
+		 			                      "manip"
+		 			                      "macros"))
+		 			(:file "compile"
+		 			         :depends-on ("package"
+		 			                      "manip"
+		 			                      "macros"))
+		 			(:file "meld"
+		 			         :depends-on ("parser"
+		 			                      "localize"
+		 			                      "compile"))
 		 			(:file "print"
 		 			         :depends-on ("package"
 		 			                      "manip"))

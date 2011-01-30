@@ -124,4 +124,5 @@
             (do-type-check-subgoal definitions name args))
          (do-type-check-assignments body)
          (do-constraints body (expr)
-            (do-type-check-constraints expr)))))  
+            (do-type-check-constraints expr))))
+   code)

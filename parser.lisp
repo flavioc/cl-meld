@@ -137,20 +137,3 @@
 (defun parse-meld (str)
  (let ((lexer (meld-lexer str)))
 	(parse-with-lexer lexer meld-parser)))
-
-(defparameter *code* "
-type a(node, catom).
-type b(node, float).
-type c(node).
-type d(node).
-type e(node).
-
-a(A, A) :- b(A,B), d(A), F = B + G, G = 2, G == B.
-
-c(Node) :-
-	d(Node),
-	e(Node),
-	(1 + (2 - (3 * 3) )) < 3.
-")
-
-(defparameter *parsed* (parse-meld *code*))
