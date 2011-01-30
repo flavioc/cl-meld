@@ -40,6 +40,9 @@
          ,@(if id `((incf ,id)))
          ,@body)))
          
+(defmacro equal-or (ls &body rest)
+   `(or ,@(mapcar #'(lambda (el) `(equal ',el ,ls)) rest)))
+         
 ;; Meld related code
 
 (defmacro do-definitions (code (name types) &body body)
