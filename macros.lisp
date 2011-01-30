@@ -55,7 +55,7 @@
                   (,body (clause-body ,el)))
                ,@(if id `((incf ,id)))
                ,@rest)))))
-               
+
 (defmacro do-subgoals (subgoals (name args &optional id) &body body)
    (with-gensyms (el)
       `(dolist-filter (,el ,subgoals subgoal-p ,id)

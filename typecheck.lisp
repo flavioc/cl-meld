@@ -26,32 +26,24 @@
          ((op-p expr) (setf (cdddr expr) (list typs))))))
          
 (defun make-constraints () (make-hash-table))
-(defun get-type (constraints expr &optional forced-type) ;; XXX: use forced-types
+(defun get-type (constraints expr &optional forced-types)
    (let (typ-res)
       (cond
          ((var-p expr)
-            (setf typ-res (if forced-type `(,forced-type) *all-types*))
+            (setf typ-res (if forced-types forced-types *all-types*))
             (setf typ-res (force-constraint constraints (var-name expr) typ-res)))
          ((int-p expr)
-            (format t "int forced type ~A~%" forced-type)
+            (format t "int forced type ~A~%" forced-types)
             (setf typ-res
-               (case forced-type
-                  (:type-float '(:type-float))
-                  (:type-int '(:type-int))
-                  (nil '(:type-int :type-float))
-                  (otherwise nil))))
+               (intersection forced-types '(:type-int :type-float))))
          ((op-p expr)
             (let* ((op1 (op-op1 expr)) (op2 (op-op2 expr)) (op (op-op expr))
-                  (typ-op (type-operands op forced-type)))
-               (setf typ-res (type-op op forced-type))
+                  (typ-op (type-operands op forced-types)))
+               (setf typ-res (type-op op forced-types))
                (when (or (no-types-p typ-op) (no-types-p typ-res))
-                  (princ "but here")
                   (error 'type-invalid-error :text "no types error for result or operands"))
-               (let* ((new-forced-type (if (null forced-type) nil (first typ-op)))
-                     (typ1 (get-type constraints op1 new-forced-type)) (typ2 (get-type constraints op2 new-forced-type))
-                     (m1 (merge-types typ1 typ-op)) (m2 (merge-types typ2 typ-op))) ; XXX: remove
-                  (when (or (no-types-p m1) (no-types-p m2))
-                     (error 'type-invalid-error :text "type error"))))))
+               (get-type constraints op1 typ-op)
+               (get-type constraints op2 typ-op))))
          (set-type expr typ-res)
          typ-res))
 
@@ -87,12 +79,12 @@
          (when (not (= (length definition) (length args)))
             (error 'type-number-of-args-invalid-error :text "invalid number of arguments"))
          (dolist2 (arg args) (forced-type definition)
-            (let ((res-type (get-type constraints arg forced-type)))
+            (let ((res-type (get-type constraints arg `(,forced-type))))
                (when (no-types-p res-type)
                   (error 'type-invalid-error :text "type error")))))))
                   
 (defun do-type-check-constraints (constraints expr)
-   (let ((typs (get-type constraints expr :type-bool)))
+   (let ((typs (get-type constraints expr '(:type-bool))))
       (unless (and (one-elem-p typs) (type-bool-p (first typs)))
          (error 'type-invalid-error :text "constraint must be of type bool"))))
    

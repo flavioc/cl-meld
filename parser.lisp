@@ -21,6 +21,7 @@
 	("\\<"          (return (values :lesser $@)))
 	("\\>"          (return (values :greater $@)))
 	("\\>="         (return (values :greater-equal $@)))
+	("\\=="         (return (values :equal $@)))
 	("\\d+"		(return (values :number $@)))
 	("_"				(return (values :variable $@)))
  	("[a-z]+"		(return (values :const $@)))
@@ -44,13 +45,14 @@
 (defun make-lesser-equal (e1 l e2) (list :lesser-equal e1 e2))
 (defun make-greater (e1 g e2) (list :greater e1 e2))
 (defun make-greater-equal (e1 g e2) (list :greater-equal e1 e2))
+(defun make-equal (e1 e e2) (list :equal e1 e2))
 			
 (define-parser meld-parser
  	(:start-symbol program)
 	(:terminals (:const :type :variable :number :lparen :rparen
 								:bar :arrow :dot :comma :type-int :type-node
 								:type-catom :type-float :plus :minus :mul :mod :div
-								:lesser :lesser-equal :greater :greater-equal))
+								:lesser :lesser-equal :greater :greater-equal :equal))
 	(program
 	  (definitions statements (lambda (x y) (list :definitions x :clauses y))))
 
@@ -114,6 +116,7 @@
 	   (expr :plus expr #'make-plus))
 
    (cmp
+      (expr :equal expr #'make-equal)
       (expr :lesser expr #'make-lesser)
       (expr :lesser-equal expr #'make-lesser-equal)
       (expr :greater expr #'make-greater)
@@ -140,6 +143,7 @@ a(A, A) :- b(A,((B-2)+3)+1), d(A), 2 < 3.
 
 c(Node) :-
 	d(Node),
+	2 == 2,
 	e(Node).
 ")
 

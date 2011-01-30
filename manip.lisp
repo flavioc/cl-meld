@@ -30,14 +30,14 @@
          symbs)))
          
 (define-ops :int :var :plus :minus :mul :div :mod
-            :lesser :lesser-equal :greater :greater-equal)
+            :equal :lesser :lesser-equal :greater :greater-equal)
 
 (defun op-op (val) (tagged-tag val))
 (defun op-op1 (val) (second val))
 (defun op-op2 (val) (third val))
 
 (defun op-p (val)
-   (any (plus-p minus-p mul-p div-p mod-p lesser-p lesser-equal-p greater-p greater-equal-p) val))
+   (any (plus-p minus-p mul-p div-p mod-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p) val))
    
 (defun op-to-string (op)
    (case op
@@ -46,34 +46,33 @@
       (:mul "*")
       (:div "/")
       (:mod "%")
+      (:equal "==")
       (:lesser "<")
       (:lesser-equal "<=")
       (:greater ">")
       (:greater-equal ">=")))
       
-(defun type-operands (op &optional forced-type)
+(defun type-operands (op &optional forced-types)
    (case op
       ((:plus :minus :mul :div :mod)
-         (case forced-type
-            (:type-int '(:type-int))
-            (:type-float '(:type-float))
-            (otherwise '(:type-int :type-float))))
-      ((:lesser :lesser-equal :greater :greater-equal)
-         (case forced-type
-            ((:type-node :type-int :type-float) nil)
-            (otherwise '(:type-int :type-float))))))
-      
-(defun type-op (op &optional forced-type)
+         (if forced-types
+            (intersection forced-types '(:type-int :type-float))
+            '(:type-int :type-float)))
+      ((:equal :lesser :lesser-equal :greater :greater-equal)
+         (if (or forced-types
+                 (not (has-elem-p forced-types :type-bool)))
+            '(:type-int :type-float)))))
+            
+(defun type-op (op &optional forced-types)
    (case op
       ((:plus :minus :mul :div :mod)
-         (case forced-type
-            (:type-int '(:type-int))
-            (:type-float '(:type-float))
-            (otherwise '(:type-int :type-float))))
-      ((:lesser :lesser-equal :greater :greater-equal)
-         (case forced-type
-            ((:type-node :type-float :type-int) nil)
-            (otherwise '(:type-bool))))))
+         (if forced-types
+            (intersection '(:type-int :type-float) forced-types)
+            '(:type-int :type-float)))
+      ((:equal :lesser :lesser-equal :greater :greater-equal)
+         (if forced-types
+            (intersection '(:type-bool) forced-types)
+            '(:type-bool)))))
             
 (defun var-name (val) (second val))
 (defun int-val (val) (second val))
