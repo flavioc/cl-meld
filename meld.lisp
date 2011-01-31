@@ -7,7 +7,7 @@ type c(node).
 type d(node).
 type e(node).
 
-a(A, A) :- b(A,B), d(A), F = B + G, G = 2, G == B.
+a(A, A) :- b(A,B), d(A), A = 2, F = B + G, G = 2, G = B.
 
 c(Node) :-
 	d(Node),

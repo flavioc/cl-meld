@@ -31,21 +31,10 @@
 
 (defun str->sym (str) (values (intern str)))
 
-(defun make-var (var)
+(defun make-var-parser (var)
  (if (eq var '_)
 	:placeholder
-	`(:var ,var)))
-
-(defmacro define-makes (&rest symbs)
-   `(on-top-level
-      ,@(mapcar #'(lambda (sym)
-         `(defun ,(intern (concatenate 'string "MAKE-" (symbol-name sym))) (a b c)
-               (declare (ignore b))
-               (list ,sym a c)))
-            symbs)))
-
-(define-makes :plus :minus :mul :mod :div
-      :lesser :lesser-equal :greater :greater-equal :equal :assign)
+	(make-var var)))
 			
 (define-parser meld-parser
    (:muffle-conflicts t)
@@ -129,7 +118,7 @@
       (expr :greater-equal expr #'make-greater-equal))
       
 	(variable
-	 (:variable (lambda (x) (make-var (str->sym x)))))
+	 (:variable (lambda (x) (make-var-parser (str->sym x)))))
 
 	(const
 	 (:const #'identity)))

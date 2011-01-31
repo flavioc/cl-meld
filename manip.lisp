@@ -1,5 +1,18 @@
 (in-package :cl-meld)
 
+(defmacro define-makes (&rest symbs)
+   `(on-top-level
+      ,@(mapcar #'(lambda (sym)
+         `(defun ,(intern (concatenate 'string "MAKE-" (symbol-name sym))) (a b c)
+               (declare (ignore b))
+               (list ,sym a c)))
+            symbs)))
+
+(define-makes :plus :minus :mul :mod :div
+      :lesser :lesser-equal :greater :greater-equal :equal :assign)
+      
+(defun make-var (var) `(:var ,var))
+
 (defmacro define-ops (&rest symbs)
    `(on-top-level
       ,@(mapcar #'(lambda (sy)

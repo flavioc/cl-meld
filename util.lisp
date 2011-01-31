@@ -16,3 +16,5 @@
 
 (defmacro any (predicates val)
    `(or ,@(mapcar (lambda (pred) `(,pred ,val)) predicates)))
+   
+(defun dunion (l1 l2) (union l1 l2 :test #'equal))
