@@ -1,4 +1,3 @@
-
 (defpackage #:meld-asd
  (:use :cl :asdf))
 
@@ -9,17 +8,20 @@
  :version "0.0"
  :author "Flavio Cruz"
  :description "Meld compiler"
- :depends-on (:cl-lex :yacc)
+ :depends-on (:cl-lex :yacc :alexandria)
  :components ((:file "parser"
-		 						:depends-on ("package"))
+		 						:depends-on ("package"
+		 						             "macros"
+		 						             "manip"))
 		 			(:file "util"
-		 			         :depends-on ("package"))
+		 			         :depends-on ("package"
+		 			                       "macros"))
 		 			(:file "manip"
 		 			         :depends-on ("package"
-		 			                      "util"))
+		 			                      "util"
+		 			                      "macros"))
 		 			(:file "macros"
-		 			         :depends-on ("package"
-		 			                      "manip"))
+		 			         :depends-on ("package"))
 		 			(:file "typecheck"
 		 			         :depends-on ("package"
 		 			                      "manip"

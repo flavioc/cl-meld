@@ -1,3 +1,4 @@
+(in-package :cl-meld)
 
 (defparameter *code* "
 type a(node, catom).
@@ -23,6 +24,6 @@ counter(A, N + 1) :- counter(A, N), N <= 2.
 
 (defun compile-vm (code)
    (let ((ast (parse-meld code)))
-      (compile (localize (type-check ast)))))
+      (compile-ast (localize (type-check ast)))))
       
 (defparameter *ast* (compile-vm *code*))

@@ -1,4 +1,31 @@
+(in-package :cl-meld)
 
+(defmacro define-ops (&rest symbs)
+   `(on-top-level
+      ,@(mapcar #'(lambda (sy)
+            `(defun ,(intern (concatenate 'string (symbol-name sy) "-P")) (val)
+                  (tagged-p val ,sy)))
+         symbs)))
+         
+(define-ops :int :var :plus :minus :mul :div :mod
+            :equal :lesser :lesser-equal :greater :greater-equal)
+            
+(defun op-op (val) (tagged-tag val))
+(defun op-op1 (val) (second val))
+(defun op-op2 (val) (third val))
+
+(defun op-p (val)
+   (any (plus-p minus-p mul-p div-p mod-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p) val))
+
+(defun int-val (val) (second val))
+
+(defun var-name (val) (second val))
+(defun var-eq-p (v1 v2) (equal (var-name v1) (var-name v2)))
+
+(defun typed-var-p (var) (= (length var) 3))
+(defun typed-op-p (op) (= (length op) 4))
+(defun typed-int-p (i) (= (length i) 3))
+            
 (defun definitions (code) (second code))
 (defun clauses (code) (fourth code))
 (defun clause-head (clause) (third clause))
@@ -17,10 +44,6 @@
 (defun get-assignments (body) (remove-if-not #'assignment-p body))
 (defun get-assignment-vars (assignments) (mapcar #'assignment-var assignments))
 
-(defun typed-var-p (var) (= (length var) 3))
-(defun typed-op-p (op) (= (length op) 4))
-(defun typed-int-p (i) (= (length i) 3))
-
 (defun expr-type (expr)
    (cond
       ((or (var-p expr) (int-p expr)) (third expr))
@@ -32,35 +55,16 @@
             
 (defparameter *all-types* '(:type-int :type-float :type-bool :type-node))
 
-(defun var-eq-p (v1 v2) (equal (var-name v1) (var-name v2)))
-
 (defmacro deftype-p (&rest types)
-   `(progn
-         ,@(mapcar #'(lambda (x) `(defun ,(intern (concatenate 'string "TYPE-" (symbol-name x) "-P")) (ty)
-                                       (eq ,(intern (concatenate 'string "TYPE-" (symbol-name x)) "KEYWORD") ty)))
+   `(on-top-level
+         ,@(mapcar #'(lambda (x) `(defun ,(format-symbol t "TYPE-~A-P" (symbol-name x)) (ty)
+                                       (eq ,(format-symbol "KEYWORD" "TYPE-~A" (symbol-name x)) ty)))
                   types)))
 
 (deftype-p int node bool float)
 
 (defun has-constraints (subgoals) (some #'constraint-p subgoals))
 (defun has-assignments (subgoals) (some #'assignment-p subgoals))
-
-(defmacro define-ops (&rest symbs)
-   `(progn
-      ,@(mapcar #'(lambda (sy)
-            `(defun ,(intern (concatenate 'string (symbol-name sy) "-P")) (val)
-                  (tagged-p val ,sy)))
-         symbs)))
-         
-(define-ops :int :var :plus :minus :mul :div :mod
-            :equal :lesser :lesser-equal :greater :greater-equal)
-
-(defun op-op (val) (tagged-tag val))
-(defun op-op1 (val) (second val))
-(defun op-op2 (val) (third val))
-
-(defun op-p (val)
-   (any (plus-p minus-p mul-p div-p mod-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p) val))
    
 (defun op-to-string (op)
    (case op
@@ -108,6 +112,3 @@
       ((eq-arith-p op)
          (intersection '(:type-int :type-float) forced-types))
       ((eq-cmp-p op) '(:type-bool))))
-            
-(defun var-name (val) (second val))
-(defun int-val (val) (second val))

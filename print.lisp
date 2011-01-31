@@ -1,3 +1,4 @@
+(in-package :cl-meld)
 
 (defun print-val (val &optional (hide-pars nil))
    (cond
@@ -8,9 +9,9 @@
       ((op-p val)
          (unless hide-pars
             (format t "("))
-         (print-val (plus-op1 val))
+         (print-val (op-op1 val))
          (format t (op-to-string (op-op val)))
-         (print-val (plus-op2 val))
+         (print-val (op-op2 val))
          (unless hide-pars
             (format t ")")))))
    

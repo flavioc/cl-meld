@@ -1,3 +1,5 @@
+(in-package :cl-meld)
+
 (define-condition type-invalid-error (error)
    ((text :initarg :text :reader text)))
 
@@ -15,35 +17,22 @@
 (defun merge-types (ls types) (intersection ls types))
 (defun valid-type-combination-p (types)
    (equal-or types (:type-int) (:type-float) (:type-int :type-float) (:type-bool) (:type-node)))
+   
+(defun all-variables (expr)
+   (cond
+      ((var-p expr) (list expr))
+      ((int-p expr) nil)
+      ((op-op expr) (union (all-variables (op-op1 expr)) (all-variables (op-op2 expr)) :test #'equal ))))
+      
+(defun variable-is-defined (var) (unless (has-elem-p *defined* (var-name var)) (push (var-name var) *defined*)))
+(defun variable-defined-p (var) (has-elem-p *defined* (var-name var)))
+(defun has-variables-defined (expr) (every #'variable-defined-p (all-variables expr)))
 
 (defun set-type (expr typs)
    (cond
       ((or (var-p expr) (int-p expr)) (setf (cddr expr) (list (try-one typs))))
       ((op-p expr) (setf (cdddr expr) (list (try-one typs))))))
-         
-(defun do-get-type (expr forced-types)
-   (cond
-      ((var-p expr) (force-constraint (var-name expr) forced-types))
-      ((int-p expr) (merge-types forced-types '(:type-int :type-float)))
-      ((op-p expr)
-         (let* ((op1 (op-op1 expr)) (op2 (op-op2 expr)) (op (op-op expr))
-                (typ-oper (type-operands op forced-types)) (typ-op (type-op op forced-types)))
-            (when (no-types-p typ-op)
-               (error 'type-invalid-error :text "no types error for result or operands"))
-            (let ((t1 (get-type op1 typ-oper)) (t2 (get-type op2 typ-oper)))
-               (when (< (length t1) (length t2))
-                  (setf t2 (get-type op2 t1)))
-               (when (< (length t2) (length t1))
-                  (setf t1 (get-type op1 t2)))
-               (type-oper-op op t1))))))
-            
-(defun get-type (expr forced-types)
-   (let ((types (do-get-type expr forced-types)))
-      (when (no-types-p types)
-         (error 'type-invalid-error :text "type error"))
-      (set-type expr types)
-      types))
-
+      
 (defun force-constraint (var new-types)
    (multiple-value-bind (types ok) (gethash var *constraints*)
       (when ok
@@ -51,6 +40,28 @@
          (when (no-types-p new-types)
             (error 'type-invalid-error :text "type error")))
       (setf (gethash var *constraints*) new-types)))
+         
+(defun get-type (expr forced-types)
+   (labels ((do-get-type (expr forced-types)
+            (cond
+               ((var-p expr) (force-constraint (var-name expr) forced-types))
+               ((int-p expr) (merge-types forced-types '(:type-int :type-float)))
+               ((op-p expr)
+                  (let* ((op1 (op-op1 expr)) (op2 (op-op2 expr)) (op (op-op expr))
+                         (typ-oper (type-operands op forced-types)) (typ-op (type-op op forced-types)))
+                     (when (no-types-p typ-op)
+                        (error 'type-invalid-error :text "no types error for result or operands"))
+                     (let ((t1 (get-type op1 typ-oper)) (t2 (get-type op2 typ-oper)))
+                        (when (< (length t1) (length t2))
+                           (setf t2 (get-type op2 t1)))
+                        (when (< (length t2) (length t1))
+                           (setf t1 (get-type op1 t2)))
+                        (type-oper-op op t1)))))))
+      (let ((types (do-get-type expr forced-types)))
+         (when (no-types-p types)
+            (error 'type-invalid-error :text "type error"))
+         (set-type expr types)
+         types)))
       
 (defun do-type-check-subgoal (defs name args)
    (let ((definition (lookup-definition defs name)))
@@ -70,12 +81,6 @@
    (let ((typs (get-type expr '(:type-bool))))
       (unless (and (one-elem-p typs) (type-bool-p (first typs)))
          (error 'type-invalid-error :text "constraint must be of type bool"))))
-
-(defun all-variables (expr)
-   (cond
-      ((var-p expr) (list expr))
-      ((int-p expr) nil)
-      ((op-op expr) (union (all-variables (op-op1 expr)) (all-variables (op-op2 expr)) :test #'equal ))))
          
 (defun update-assignment (assignments assign)
    (let* ((var (assignment-var assign)) (var-name (var-name var)))
@@ -85,10 +90,10 @@
             (force-constraint var-name ty)
             (set-type var ty)
             (dolist (used-var (all-variables (assignment-expr assign)))
-               (letwhen (other (find-if #'(lambda (a)
+               (when-let ((other (find-if #'(lambda (a)
                                              (and (var-eq-p used-var (assignment-var a))
                                                    (not (one-elem-p (expr-type (assignment-var a))))))
-                                    assignments))
+                                    assignments)))
                   (update-assignment assignments other)))))))
 
 (defun do-type-check-assignments (body)
@@ -108,10 +113,6 @@
                         1)
                   (error 'type-invalid-error :text "cannot set multiple variables"))
                (update-assignment assignments assign))))
-                        
-(defun variable-is-defined (var) (unless (has-elem-p *defined* (var-name var)) (push (var-name var) *defined*)))
-(defun variable-defined-p (var) (has-elem-p *defined* (var-name var)))
-(defun has-variables-defined (expr) (every #'variable-defined-p (all-variables expr)))
 
 (defun type-check (code)
    (do-definitions code (name typs)

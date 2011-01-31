@@ -35,11 +35,10 @@
  (if (eq var '_)
 	:placeholder
 	`(:var ,var)))
-	
-(defun make-int (int) (list :int (parse-integer int)))
 
 (defmacro define-makes (&rest symbs)
-   `(progn ,@(mapcar #'(lambda (sym)
+   `(on-top-level
+      ,@(mapcar #'(lambda (sym)
          `(defun ,(intern (concatenate 'string "MAKE-" (symbol-name sym))) (a b c)
                (declare (ignore b))
                (list ,sym a c)))
@@ -49,6 +48,7 @@
       :lesser :lesser-equal :greater :greater-equal :equal :assign)
 			
 (define-parser meld-parser
+   (:muffle-conflicts t)
  	(:start-symbol program)
 	(:terminals (:const :type :variable :number :lparen :rparen
 								:bar :arrow :dot :comma :type-int :type-node
@@ -64,12 +64,12 @@
 
 	(definition
 	 (:type const :lparen type-args :rparen :dot #'(lambda (ty const l typs r d)
-																								(declare (ignore ty l r d))
-																									`(,const . ,typs))))
+																		(declare (ignore ty l r d))
+																		`(,const . ,typs))))
 
 	(type-args
 	 (atype #'list)
-	 (atype :comma type-args #'(lambda (ty comma ls) (cons ty ls))))
+	 (atype :comma type-args #'(lambda (ty comma ls) (declare (ignore comma)) (cons ty ls))))
 
 	(atype
 	 (:type-int #'(lambda (x) (declare (ignore x)) :type-int))
@@ -80,7 +80,7 @@
 	(statements
 	 (statement #'list)
 	 (statement statements #'cons))
-	 
+
 	(statement
 		(head-terms :arrow body-terms :dot #'(lambda (conc y perm w) (declare (ignore y w)) (list perm '-> conc))))
 
@@ -113,8 +113,8 @@
 	(expr
 	   variable
 		const
-		(:number #'make-int)
-	   (:lparen expr :rparen #'(lambda (l expr r) expr))
+		(:number #'(lambda (int) (list :int (parse-integer int))))
+	   (:lparen expr :rparen #'(lambda (l expr r) (declare (ignore l r)) expr))
 	   (expr :minus expr #'make-minus)
 	   (expr :mul expr #'make-mul)
 	   (expr :mod expr #'make-mod)

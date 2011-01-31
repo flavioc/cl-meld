@@ -1,14 +1,15 @@
+(in-package :cl-meld)
 
 ;; Several macro utilities
 
 (defmacro mac (expr)
  `(pprint (macroexpand-1 ',expr)))
  
-(defmacro with-gensyms (syms &body body)
-   `(let ,(mapcar #'(lambda (s)
-                     `(,s (gensym)))
-                  syms)
-      ,@body))
+(defmacro ensure-bool (form) `(if ,form t nil))
+ 
+(defmacro on-top-level (&rest forms)
+   `(eval-when (:compile-toplevel :load-toplevel :execute)
+         ,@forms))
       
 (defmacro iff (test thing)
    (with-gensyms (ret)
@@ -42,10 +43,6 @@
          
 (defmacro equal-or (ls &body rest)
    `(or ,@(mapcar #'(lambda (el) `(equal ',el ,ls)) rest)))
-   
-(defmacro letwhen ((var code) &body body)
-   `(let ((,var ,code))
-      (when ,var ,@body)))
          
 ;; Meld related code
 

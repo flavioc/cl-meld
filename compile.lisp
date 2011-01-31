@@ -1,3 +1,4 @@
+(in-package :cl-meld)
 
-(defun compile (code)
+(defun compile-ast (code)
    code)
