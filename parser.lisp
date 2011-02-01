@@ -21,8 +21,7 @@
 	("\\<"         (return (values :lesser $@)))
 	("\\>"         (return (values :greater $@)))
 	("\\>="        (return (values :greater-equal $@)))
-	("\\=="        (return (values :equal $@)))
-	("\\="         (return (values :assign $@)))
+	("\\="         (return (values :equal $@)))
 	("\\d+"		   (return (values :number $@)))
 	("_"				(return (values :variable $@)))
  	("[a-z]+"		(return (values :const $@)))
@@ -42,8 +41,7 @@
 	(:terminals (:const :type :variable :number :lparen :rparen
 								:bar :arrow :dot :comma :type-int :type-node
 								:type-catom :type-float :plus :minus :mul :mod :div
-								:lesser :lesser-equal :greater :greater-equal :equal
-								:assign))
+								:lesser :lesser-equal :greater :greater-equal :equal))
 	(program
 	  (definitions statements (lambda (x y) (list :definitions x :clauses y))))
 
@@ -54,7 +52,7 @@
 	(definition
 	 (:type const :lparen type-args :rparen :dot #'(lambda (ty const l typs r d)
 																		(declare (ignore ty l r d))
-																		`(,const . ,typs))))
+																		(make-definition const typs))))
 
 	(type-args
 	 (atype #'list)
@@ -83,7 +81,6 @@
    
    (body-term
       (term #'identity)
-      (assignment #'identity)
       (constraint #'identity))
       
 	(term
@@ -91,9 +88,6 @@
 
    (constraint
       (cmp #'(lambda (c) (list :constraint c))))
-      
-   (assignment
-      (variable :assign expr #'make-assign))
       
 	(args
 	 	(expr #'list)

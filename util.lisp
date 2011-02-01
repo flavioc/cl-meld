@@ -13,8 +13,11 @@
       ls))
 
 (defun has-elem-p (list el) (ensure-bool (member el list)))
+(defun has-test-elem-p (list el test) (ensure-bool (member el list :test test)))
 
 (defmacro any (predicates val)
    `(or ,@(mapcar (lambda (pred) `(,pred ,val)) predicates)))
    
 (defun dunion (l1 l2) (union l1 l2 :test #'equal))
+
+(defun mapfilter (trans f l) (mapcar trans (remove-if-not f l)))

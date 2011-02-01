@@ -12,6 +12,10 @@
       :lesser :lesser-equal :greater :greater-equal :equal :assign)
       
 (defun make-var (var) `(:var ,var))
+(defun make-definition (name typs &rest options) `(:definition ,name ,typs ,options))
+(defun definition-name (def) (second def))
+(defun definition-types (def) (third def))
+(defun definition-options (def) (fourth def))
 
 (defmacro define-ops (&rest symbs)
    `(on-top-level
@@ -40,6 +44,10 @@
 (defun typed-int-p (i) (= (length i) 3))
             
 (defun definitions (code) (second code))
+(defun set-definitions (code new-defs)
+   (setf (second code) new-defs))
+(defsetf definitions set-definitions)
+  
 (defun clauses (code) (fourth code))
 (defun clause-head (clause) (third clause))
 (defun clause-body (clause) (first clause))
@@ -56,6 +64,8 @@
 
 (defun get-assignments (body) (remove-if-not #'assignment-p body))
 (defun get-assignment-vars (assignments) (mapcar #'assignment-var assignments))
+(defun get-subgoals (code) (remove-if-not #'subgoal-p code))
+(defun get-constraints (code) (remove-if-not #'constraint-p code))
 
 (defun expr-type (expr)
    (cond
@@ -63,9 +73,11 @@
       ((op-op expr) (fourth expr))))
 
 (defun lookup-definition (defs pred)
-   (rest (assoc-if #'(lambda (sub) (string-equal pred sub))
-            defs)))
-            
+   (let ((result (find-if #'(lambda (d) (string-equal pred (definition-name d))) defs)))
+      (if result
+         (definition-types result)
+         nil)))
+         
 (defparameter *all-types* '(:type-int :type-float :type-bool :type-node))
 
 (defmacro deftype-p (&rest types)

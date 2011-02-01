@@ -10,6 +10,11 @@
 (defmacro on-top-level (&rest forms)
    `(eval-when (:compile-toplevel :load-toplevel :execute)
          ,@forms))
+         
+(defmacro with-var (var &body body)
+   `(let (,var)
+      ,@body
+      ,var))
       
 (defmacro iff (test thing)
    (with-gensyms (ret)
@@ -46,12 +51,13 @@
          
 ;; Meld related code
 
-(defmacro do-definitions (code (name types) &body body)
+(defmacro do-definitions (code (name types &optional options) &body body)
    (with-gensyms (el defs)
       `(let ((,defs (definitions ,code)))
          (dolist (,el ,defs)
-            (let ((,name (first ,el))
-                  (,types (rest ,el)))
+            (let ((,name (definition-name ,el))
+                  (,types (definition-types ,el))
+                  ,@(if options `((,options (definition-options ,el)))))
                ,@body)))))
 
 (defmacro do-clauses (code (head body &optional id) &body rest)
@@ -71,10 +77,10 @@
                   (,args (subgoal-args ,el)))
                ,@body))))
                
-(defmacro do-constraints (constraints (expr &optional id) &body body)
+(defmacro do-constraints (constraints (expr &optional orig id) &body body)
    (with-gensyms (el)
       `(dolist-filter (,el ,constraints constraint-p ,id)
-         (let ((,expr (constraint-expr ,el)))
+         (let ((,expr (constraint-expr ,el)) ,@(if orig `((,orig ,el))))
             ,@body))))
             
 (defmacro do-assignments (assignments (var expr &optional id) &body body)
