@@ -10,12 +10,24 @@
 
 (define-makes :plus :minus :mul :mod :div
       :lesser :lesser-equal :greater :greater-equal :equal :assign)
-      
+   
+(defun make-clause (perm conc &rest options) `(:clause ,perm ,conc ,options))
+(defun clause-head (clause) (third clause))
+(defun clause-body (clause) (second clause))
+(defun set-clause-body (clause new-body)
+   (setf (second clause) new-body))
+(defsetf clause-body set-clause-body)
+
+(defun clause-options (clause) (fourth clause))
+(defun clause-add-option (clause opt) (push opt (fourth clause))) 
+
+(defun make-subgoal (name args) (list :subgoal name args))
 (defun make-var (var) `(:var ,var))
 (defun make-definition (name typs &rest options) `(:definition ,name ,typs ,options))
 (defun definition-name (def) (second def))
 (defun definition-types (def) (third def))
 (defun definition-options (def) (fourth def))
+(defun definition-add-option (def opt) (push opt (fourth def)))
 
 (defmacro define-ops (&rest symbs)
    `(on-top-level
@@ -49,8 +61,10 @@
 (defsetf definitions set-definitions)
   
 (defun clauses (code) (fourth code))
-(defun clause-head (clause) (third clause))
-(defun clause-body (clause) (first clause))
+(defun set-clauses (code new-clauses)
+   (setf (fourth code) new-clauses))
+(defsetf clauses set-clauses)
+
 (defun constraint-p (ls) (tagged-p ls :constraint))
 (defun constraint-expr (ls) (second ls))
 
@@ -62,9 +76,9 @@
 (defun subgoal-name (subgoal) (second subgoal))
 (defun subgoal-args (subgoal) (third subgoal))
 
-(defun get-assignments (body) (remove-if-not #'assignment-p body))
+(defun get-assignments (body) (filter #'assignment-p body))
 (defun get-assignment-vars (assignments) (mapcar #'assignment-var assignments))
-(defun get-subgoals (code) (remove-if-not #'subgoal-p code))
+(defun get-subgoals (code) (filter #'subgoal-p code))
 (defun get-constraints (code) (remove-if-not #'constraint-p code))
 
 (defun expr-type (expr)
@@ -137,3 +151,16 @@
       ((eq-arith-p op)
          (intersection '(:type-int :type-float) forced-types))
       ((eq-cmp-p op) '(:type-bool))))
+      
+
+(defun all-variables (expr)
+ (cond
+   ((subgoal-p expr) (reduce #'(lambda (old arg) (dunion old (all-variables arg))) (subgoal-args expr) :initial-value nil))
+   ((constraint-p expr) (all-variables (constraint-expr expr)))
+   ((assignment-p expr) (dunion (list (assignment-var expr)) (all-variables (assignment-expr expr))))
+   ((var-p expr) (list expr))
+   ((int-p expr) nil)
+   ((op-p expr) (dunion (all-variables (op-op1 expr)) (all-variables (op-op2 expr))))
+   ((listp expr) (reduce #'(lambda (old arg) (dunion old (all-variables arg))) expr :initial-value nil))))
+   
+(defun all-variable-names (expr) (mapcar #'var-name (all-variables expr)))

@@ -20,4 +20,19 @@
    
 (defun dunion (l1 l2) (union l1 l2 :test #'equal))
 
-(defun mapfilter (trans f l) (mapcar trans (remove-if-not f l)))
+(defmacro filter (&rest args) `(remove-if-not ,@args))
+
+(defun mapfilter (trans f l) (mapcar trans (filter f l)))
+
+(defun enumerate (a b)
+   (if (> a b)
+      nil
+      (cons a (enumerate (1+ a) b))))
+      
+(defun delete-all (from ls) (dolist (el ls) (setf from (delete el from :test #'equal))) from)
+(defun remove-all (from ls) (reduce #L(remove !2 !1 :test #'equal) ls :initial-value from))
+
+(defmacro push-all (ls to)
+   (with-gensyms (el)
+      `(dolist (,el ,ls)
+         (push ,el ,to))))

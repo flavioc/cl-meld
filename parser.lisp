@@ -69,7 +69,7 @@
 	 (statement statements #'cons))
 
 	(statement
-		(head-terms :arrow body-terms :dot #'(lambda (conc y perm w) (declare (ignore y w)) (list perm '-> conc))))
+		(head-terms :arrow body-terms :dot #'(lambda (conc y perm w) (declare (ignore y w)) (make-clause perm conc))))
 
    (head-terms
       (term #'list)
@@ -84,7 +84,7 @@
       (constraint #'identity))
       
 	(term
-	 	(const :lparen args :rparen #'(lambda (x y z w) (declare (ignore y w)) (list :subgoal x z))))
+	 	(const :lparen args :rparen #'(lambda (name y args w) (declare (ignore y w)) (make-subgoal name args))))
 
    (constraint
       (cmp #'(lambda (c) (list :constraint c))))

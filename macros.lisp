@@ -1,5 +1,8 @@
 (in-package :cl-meld)
 
+(defun build-bind (var body)
+   (if var `((,var ,body))))
+
 ;; Several macro utilities
 
 (defmacro mac (expr)
@@ -48,7 +51,7 @@
          
 (defmacro equal-or (ls &body rest)
    `(or ,@(mapcar #'(lambda (el) `(equal ',el ,ls)) rest)))
-         
+
 ;; Meld related code
 
 (defmacro do-definitions (code (name types &optional options) &body body)
@@ -60,27 +63,29 @@
                   ,@(if options `((,options (definition-options ,el)))))
                ,@body)))))
 
-(defmacro do-clauses (code (head body &optional id) &body rest)
+(defmacro do-clauses (code (&key (head nil) (body nil) (clause nil) (id nil)) &body rest)
    (with-gensyms (el clauses)
       `(let ((,clauses (clauses ,code))
-             ,@(if id `((,id 0))))
+             ,@(build-bind id 0))
          (dolist (,el ,clauses)
-            (let ((,head (clause-head ,el))
-                  (,body (clause-body ,el)))
+            (let (,@(build-bind head `(clause-head ,el))
+                  ,@(build-bind body `(clause-body ,el))
+                  ,@(build-bind clause el))
                ,@(if id `((incf ,id)))
                ,@rest)))))
 
-(defmacro do-subgoals (subgoals (name args &optional id) &body body)
+(defmacro do-subgoals (subgoals (&key (name nil) (args nil) (id nil) (orig nil)) &body body)
    (with-gensyms (el)
       `(dolist-filter (,el ,subgoals subgoal-p ,id)
-            (let ((,name (subgoal-name ,el))
-                  (,args (subgoal-args ,el)))
+            (let (,@(if name `((,name (subgoal-name ,el))) nil)
+                  ,@(if args `((,args (subgoal-args ,el))) nil)
+                  ,@(if orig `((,orig ,el)) nil))
                ,@body))))
                
-(defmacro do-constraints (constraints (expr &optional orig id) &body body)
+(defmacro do-constraints (constraints (&key (expr nil) (orig nil) (id nil)) &body body)
    (with-gensyms (el)
       `(dolist-filter (,el ,constraints constraint-p ,id)
-         (let ((,expr (constraint-expr ,el)) ,@(if orig `((,orig ,el))))
+         (let (,@(if expr `((,expr (constraint-expr ,el))) nil) ,@(if orig `((,orig ,el))))
             ,@body))))
             
 (defmacro do-assignments (assignments (var expr &optional id) &body body)

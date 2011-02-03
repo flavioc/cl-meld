@@ -33,13 +33,12 @@ tree(Self, Parent) :-
 
 (defparameter *edge*
 "
-type fac(node, int).
-   
-fac(Self, Val + ValOther + 1) :-
-   edge(Self, Other),
-   fac(Other, Val),
-   edge(Other, Another),
-   fac(Another, ValOther).
+type val(node, int).
+
+val(A, D + 2) :-
+	edge(A, B),
+	val(B, D),
+	D < 3.
 ")
 
 (defun compile-vm (code)
@@ -47,5 +46,5 @@ fac(Self, Val + ValOther + 1) :-
       (setf ast (type-check ast))
       (localize ast)))
       
-(defparameter *ast* (compile-vm *code*))
+(defparameter *ast* (compile-vm *edge*))
 
