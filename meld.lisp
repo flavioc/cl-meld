@@ -18,7 +18,8 @@ c(Node) :-
 (defparameter *counter*
 "type counter(node, int).
    
-counter(A, N + 1) :- counter(A, N), N <= 2, X = 2.
+counter(A, N + 1) :-
+   counter(A, N), N <= 2, X = 2.
 ")
 
 (defparameter *tree*
@@ -34,10 +35,12 @@ tree(Self, Parent) :-
 (defparameter *edge*
 "
 type val(node, int).
-
-val(A, D + 2) :-
+type coiso(node, int).
+   
+val(A, D + E) :-
 	edge(A, B),
 	val(B, D),
+	coiso(B, E),
 	D < 3.
 ")
 
