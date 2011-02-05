@@ -37,10 +37,9 @@ tree(Self, Parent) :-
 type val(node, int).
 type coiso(node, int).
    
-val(A, D + E) :-
+val(A, 1) :-
 	edge(A, B),
 	val(B, D),
-	coiso(B, E),
 	D < 3.
 ")
 
@@ -50,4 +49,3 @@ val(A, D + E) :-
       (localize ast)))
       
 (defparameter *ast* (compile-vm *edge*))
-

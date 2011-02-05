@@ -19,6 +19,11 @@
       ,@body
       ,var))
       
+(defmacro with-ret (var &body body)
+   `(with-var ,var
+      ,@body
+      ,var))
+      
 (defmacro iff (test thing)
    (with-gensyms (ret)
       `(let ((,ret ,thing))
@@ -88,9 +93,9 @@
          (let (,@(if expr `((,expr (constraint-expr ,el))) nil) ,@(if orig `((,orig ,el))))
             ,@body))))
             
-(defmacro do-assignments (assignments (var expr &optional id) &body body)
+(defmacro do-assignments (assignments (&key (var nil) (expr nil) (id nil)) &body body)
    (with-gensyms (el)
       `(dolist-filter (,el ,assignments assignment-p ,id)
-         (let ((,var (assignment-var ,el))
-               (,expr (assignment-expr ,el)))
+         (let (,@(build-bind var `(assignment-var ,el))
+               ,@(build-bind expr `(assignment-expr ,el)))
             ,@body))))

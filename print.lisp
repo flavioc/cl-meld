@@ -37,7 +37,7 @@
       (print-val expr t)))
       
 (defun print-assignments (subgoals)
-   (do-assignments subgoals (var expr id)
+   (do-assignments subgoals (:var var :expr expr :id id)
       (if (> id 1)
          (format t ", "))
       (print-val var t)

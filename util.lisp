@@ -36,3 +36,10 @@
    (with-gensyms (el)
       `(dolist (,el ,ls)
          (push ,el ,to))))
+         
+(defmacro push-dunion (el to) `(setf ,to (dunion (list ,el) ,to)))
+
+(defmacro push-dunion-all (ls to) `(setf ,to (dunion ,ls ,to)))
+
+(defmacro set-tree-difference (t1 t2) `(set-difference ,t1 ,t2 :test #'equal))
+(defmacro tree-intersection (t1 t2) `(intersection ,t1 ,t2 :test #'equal))
