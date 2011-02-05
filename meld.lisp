@@ -37,11 +37,17 @@ tree(Self, Parent) :-
 type val(node, int).
 type coiso(node, int).
    
-val(A, 1) :-
+val(A, 1 + D) :-
 	edge(A, B),
-	val(B, D),
-	D < 3.
+	val(B, D),   
+   G = C + 3,
+	C = 2,
+	GF = 200,
+	C + D < 3.
 ")
+
+; G = C + 3
+; C = 2 + D crasha
 
 (defun compile-vm (code)
    (let ((ast (add-base-tuples (parse-meld code))))

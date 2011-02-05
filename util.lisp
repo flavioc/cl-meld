@@ -29,8 +29,9 @@
       nil
       (cons a (enumerate (1+ a) b))))
       
+(defun remove-tree (tree ls) (remove tree ls :test #'equal))
 (defun delete-all (from ls) (dolist (el ls) (setf from (delete el from :test #'equal))) from)
-(defun remove-all (from ls) (reduce #L(remove !2 !1 :test #'equal) ls :initial-value from))
+(defun remove-all (from ls) (reduce #L(remove-tree !2 !1) ls :initial-value from))
 
 (defmacro push-all (ls to)
    (with-gensyms (el)
@@ -43,3 +44,4 @@
 
 (defmacro set-tree-difference (t1 t2) `(set-difference ,t1 ,t2 :test #'equal))
 (defmacro tree-intersection (t1 t2) `(intersection ,t1 ,t2 :test #'equal))
+(defmacro tree-subsetp (t1 t2) `(subsetp ,t1 ,t2 :test #'equal))

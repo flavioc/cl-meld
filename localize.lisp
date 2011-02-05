@@ -19,7 +19,7 @@
 
 (defparameter *name-counter* 0)
 (defun generate-mangled-name ()
-   (with-output-to-string (a) (format a "mangledname~a" (incf *name-counter*))))
+   (with-output-to-string (a) (format a "__mangledname~a" (incf *name-counter*))))
 
 (defun create-inverse-routes (code routes)
    (dolist (route routes)
@@ -71,26 +71,54 @@
 (defun variables-undefined (head body)
    (set-tree-difference (variables-undefined0 head body) (variables-defined body)))
 
+(defun valid-assignment-p (vars) #'(lambda (a) (tree-subsetp (all-variable-names (assignment-expr a)) vars)))
+(defun select-valid-assignments (body subgoals)
+   (let ((vars (all-variable-names subgoals))
+         (ass (get-assignments body)))
+      (with-ret ret
+         (loop for next-assignments = (filter (valid-assignment-p vars) ass)
+            while next-assignments
+            do (progn
+                  (setf ass (remove-if (valid-assignment-p vars) ass))
+                  (push-all next-assignments ret)
+                  (push-all (mapcar #L(var-name (assignment-var !1)) next-assignments) vars))))))
+                  
+(defun unneeded-assignment-p (body)
+   #'(lambda (a)
+         (let ((var-name (var-name (assignment-var a)))
+               (vars (all-variable-names (remove-tree a body))))
+            (not (has-elem-p vars var-name)))))
+   
+(defun remove-unneeded-assignments (body) ;; modifies body..
+   (let ((ass (get-assignments body)))
+      (loop for next-unneeded = (filter (unneeded-assignment-p body) ass)
+            while next-unneeded
+            do (progn
+                  (setf ass (remove-all ass next-unneeded))
+                  (setf body (remove-all body next-unneeded))))
+      body))
+
 (defun do-localize (code clause routes host)
    (let ((paths (get-paths (clause-body clause) routes)))
       (check-valid-paths paths host)
-      (with-ret ret
+      (with-ret ret ;; ret stores new clauses
          (dolist (path paths)
             (let* ((subgoals (select-subgoals-by-home (clause-body clause) (second (subgoal-args path))))
-                   (new-fact-name (generate-mangled-name))
-                   (to (first (subgoal-args path)))
+                   (new-fact-name (generate-mangled-name)) (body (clause-body clause)) (head (clause-head clause))
                    (new-routing (make-subgoal (generate-inverse-name (subgoal-name path))
                                      (swap-first-two-args (subgoal-args path))))
                    (premisses `(,new-routing ,@subgoals))
-                   (constraints (select-valid-constraints (clause-body clause) (all-variable-names premisses)))
-                   (stripped-body (remove-all (clause-body clause) `(,path ,@subgoals ,@constraints)))
+                   (assignments (select-valid-assignments body subgoals))
+                   (constraints (select-valid-constraints body (all-variable-names `(,@premisses ,@assignments))))
+                   (stripped-body (remove-all body `(,path ,@subgoals ,@constraints)))
                    (everything-else `(,new-routing ,@stripped-body))
-                   (new-clause-body `(,@subgoals ,new-routing ,@constraints))
-                   (variables-undef (variables-undefined (clause-head clause) everything-else))
-                   (variables-subgoals (variables-defined subgoals))
+                   (new-clause-body (remove-unneeded-assignments `(,@subgoals ,new-routing ,@assignments ,@constraints)))
+                   (variables-undef (variables-undefined head everything-else))
+                   (variables-subgoals (variables-defined new-clause-body))
                    (needed-vars (tree-intersection variables-subgoals variables-undef))
-                   (new-subgoal (generate-inverse-subgoal new-fact-name to needed-vars)))
-               (setf (clause-body clause) `(,new-subgoal ,@stripped-body))
+                   (new-subgoal (generate-inverse-subgoal new-fact-name (first (subgoal-args path)) needed-vars)))
+               (format t "~a~%" assignments)
+               (setf (clause-body clause) (remove-unneeded-assignments `(,new-subgoal ,@stripped-body)))
                (push (make-definition (subgoal-name new-subgoal)
                            `(:type-node ,@(mapcar #'expr-type needed-vars)) `(:routed-tuple)) (definitions code))
                (push (make-clause new-clause-body `(,new-subgoal) :route) ret))))))
