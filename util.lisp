@@ -45,3 +45,9 @@
 (defmacro set-tree-difference (t1 t2) `(set-difference ,t1 ,t2 :test #'equal))
 (defmacro tree-intersection (t1 t2) `(intersection ,t1 ,t2 :test #'equal))
 (defmacro tree-subsetp (t1 t2) `(subsetp ,t1 ,t2 :test #'equal))
+
+(defun split (fn l)
+   (let ((l1 (filter fn l)))
+      (if l1
+         (cons l1 (remove-if fn l))
+         (cons nil l))))
