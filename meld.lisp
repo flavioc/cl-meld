@@ -18,8 +18,8 @@ c(Node) :-
 (defparameter *counter*
 "type counter(node, int).
    
-counter(A, N + 1) :-
-   counter(A, N), N <= 2, X = 2.
+counter(A, 3) :-
+   counter(A, 2).
 ")
 
 (defparameter *tree*
@@ -39,7 +39,11 @@ type coiso(node, int).
    
 val(A, 1 + D) :-
 	edge(A, B),
-	val(B, D),   
+	edge(A, T),
+	val(B, D),
+	coiso(T, R),
+	edge(T, S),
+	coiso(A, 20),   
    G = C + 3,
 	C = 2 + D,
 	C + D < 3.
@@ -53,4 +57,4 @@ val(A, 1 + D) :-
       (setf ast (type-check ast))
       (localize ast)))
       
-(defparameter *ast* (compile-vm *edge*))
+(defparameter *ast* (compile-vm *counter*))
