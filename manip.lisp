@@ -24,6 +24,7 @@
 (defun make-subgoal (name args) (list :subgoal name args))
 (defun make-var (var) `(:var ,var))
 (defun make-definition (name typs &rest options) `(:definition ,name ,typs ,options))
+(defun make-constraint (expr) (list :constraint expr))
 (defun definition-name (def) (second def))
 (defun definition-types (def) (third def))
 (defun definition-options (def) (fourth def))
@@ -38,6 +39,9 @@
          
 (define-ops :int :var :plus :minus :mul :div :mod
             :equal :lesser :lesser-equal :greater :greater-equal)
+            
+            
+(defun const-p (s) (or (int-p s)))
             
 (defun op-op (val) (tagged-tag val))
 (defun op-op1 (val) (second val))
@@ -75,6 +79,9 @@
 (defun subgoal-p (ls) (tagged-p ls :subgoal))
 (defun subgoal-name (subgoal) (second subgoal))
 (defun subgoal-args (subgoal) (third subgoal))
+(defun set-subgoal-args (subgoal new-args)
+   (setf (third subgoal) new-args))
+(defsetf subgoal-args set-subgoal-args)
 
 (defun get-assignments (body) (filter #'assignment-p body))
 (defun get-assignment-vars (assignments) (mapcar #'assignment-var assignments))

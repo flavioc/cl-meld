@@ -10,7 +10,7 @@
    (mapfilter #'definition-name #L(has-elem-p (definition-options !1) :route) (definitions code)))
 (defun get-paths (subgoals routes)
    (filter #L(has-test-elem-p routes (subgoal-name !1) #'string-equal) (get-subgoals subgoals)))
-            
+
 (defun equal-to-any-home (arg homes) (some #L(var-eq-p arg !1) homes))
 (defun select-subgoals-by-home (subgoals home-vars)
    (filter #L(equal-to-any-home (get-first-arg !1) home-vars) (get-subgoals subgoals)))

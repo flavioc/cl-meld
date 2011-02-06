@@ -87,7 +87,7 @@
 	 	(const :lparen args :rparen #'(lambda (name y args w) (declare (ignore y w)) (make-subgoal name args))))
 
    (constraint
-      (cmp #'(lambda (c) (list :constraint c))))
+      (cmp #'(lambda (c) (make-constraint c))))
       
 	(args
 	 	(expr #'list)
