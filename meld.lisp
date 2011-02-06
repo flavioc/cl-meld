@@ -19,7 +19,7 @@ c(Node) :-
 "type counter(node, int).
    
 counter(A, 3) :-
-   counter(A, 2).
+   counter(A, B1).
 ")
 
 (defparameter *tree*

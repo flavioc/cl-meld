@@ -26,7 +26,7 @@
 	("_"				(return (values :variable $@)))
  	("[a-z]+"		(return (values :const $@)))
 	("'\\w+'"		(return (values :const $@)))
-	("[A-Z]([A-Z]|[a-z])*"	(return (values :variable $@))))
+	("[A-Z]([A-Z]|[a-z]|[0-9])*"	(return (values :variable $@))))
 
 (defun str->sym (str) (values (intern str)))
 
