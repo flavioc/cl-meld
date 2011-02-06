@@ -5,7 +5,10 @@
         (eq (first list) tag)))        
 (defun tagged-tag (list) (first list))
 
-(defun one-elem-p (list) (null (cdr list)))
+(defun one-elem-p (list)
+   (if (listp list)
+      (null (cdr list))
+      t))
 
 (defun try-one (ls)
    (if (one-elem-p ls)

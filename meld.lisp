@@ -41,8 +41,7 @@ val(A, 1 + D) :-
 	edge(A, B),
 	val(B, D),   
    G = C + 3,
-	C = 2,
-	GF = 200,
+	C = 2 + D,
 	C + D < 3.
 ")
 
