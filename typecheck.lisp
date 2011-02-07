@@ -123,8 +123,6 @@
          (setf (cddr orig) (list op2))
          (push (var-name op1) vars))))))
          
-(defparameter *var-counter* 0)
-(defun generate-random-var () (make-var (with-output-to-string (a) (format a "Mangledvar~a" (incf *name-counter*)))))
 (defun transform-constants-to-constraints (clause args)
    (mapcar #'(lambda (arg)
                   (cond ((const-p arg)

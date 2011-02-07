@@ -49,9 +49,6 @@ val(A, 1 + D) :-
 	C + D < 3.
 ")
 
-; G = C + 3
-; C = 2 + D crasha
-
 (defun compile-vm (code)
    (let ((ast (add-base-tuples (parse-meld code))))
       (setf ast (type-check ast))

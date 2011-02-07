@@ -1,5 +1,7 @@
 (in-package :cl-meld)
 
+(defun str->sym (str) (values (intern str)))
+
 (defun tagged-p (list tag)
    (and (listp list)
         (eq (first list) tag)))        

@@ -8,7 +8,7 @@
  :version "0.0"
  :author "Flavio Cruz"
  :description "Meld compiler"
- :depends-on (:cl-lex :yacc :alexandria :arnesi)
+ :depends-on (:cl-lex :yacc :alexandria :arnesi :unit-test)
  :components ((:file "parser"
 		 						:depends-on ("package"
 		 						             "macros"

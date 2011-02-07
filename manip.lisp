@@ -22,7 +22,7 @@
 (defun clause-add-option (clause opt) (push opt (fourth clause))) 
 
 (defun make-subgoal (name args) (list :subgoal name args))
-(defun make-var (var) `(:var ,var))
+(defun make-var (var &optional typ) `(:var ,(if (stringp var) (str->sym var) var) ,@(if typ `(,typ) nil)))
 (defun make-definition (name typs &rest options) `(:definition ,name ,typs ,options))
 (defun make-constraint (expr) (list :constraint expr))
 (defun definition-name (def) (second def))
@@ -171,3 +171,6 @@
    ((listp expr) (reduce #'(lambda (old arg) (dunion old (all-variables arg))) expr :initial-value nil))))
    
 (defun all-variable-names (expr) (mapcar #'var-name (all-variables expr)))
+
+(defparameter *var-counter* 0)
+(defun generate-random-var () (make-var (with-output-to-string (a) (format a "Mangledvar~a" (incf *name-counter*)))))

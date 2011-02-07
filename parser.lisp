@@ -28,11 +28,9 @@
 	("'\\w+'"		(return (values :const $@)))
 	("[A-Z]([A-Z]|[a-z]|[0-9])*"	(return (values :variable $@))))
 
-(defun str->sym (str) (values (intern str)))
-
 (defun make-var-parser (var)
  (if (eq var '_)
-	:placeholder
+	(generate-random-var)
 	(make-var var)))
 			
 (define-parser meld-parser
@@ -112,7 +110,7 @@
       (expr :greater-equal expr #'make-greater-equal))
       
 	(variable
-	 (:variable (lambda (x) (make-var-parser (str->sym x)))))
+	 (:variable (lambda (x) (make-var-parser x))))
 
 	(const
 	 (:const #'identity)))
