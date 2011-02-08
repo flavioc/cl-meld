@@ -51,6 +51,7 @@
    (any (plus-p minus-p mul-p div-p mod-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p) val))
 
 (defun int-val (val) (second val))
+(defun make-int (int) `(:int ,int))
 
 (defun var-name (val) (second val))
 (defun var-eq-p (v1 v2) (equal (var-name v1) (var-name v2)))
@@ -173,4 +174,4 @@
 (defun all-variable-names (expr) (mapcar #'var-name (all-variables expr)))
 
 (defparameter *var-counter* 0)
-(defun generate-random-var () (make-var (with-output-to-string (a) (format a "Mangledvar~a" (incf *name-counter*)))))
+(defun generate-random-var () (make-var (with-output-to-string (a) (format a "Mangledvar~a" (incf *var-counter*)))))

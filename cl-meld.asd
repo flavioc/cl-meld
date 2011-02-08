@@ -8,7 +8,7 @@
  :version "0.0"
  :author "Flavio Cruz"
  :description "Meld compiler"
- :depends-on (:cl-lex :yacc :alexandria :arnesi :unit-test)
+ :depends-on (:cl-lex :yacc :arnesi :alexandria :unit-test)
  :components ((:file "parser"
 		 						:depends-on ("package"
 		 						             "macros"
@@ -30,10 +30,15 @@
 		 			         :depends-on ("package"
 		 			                      "manip"
 		 			                      "macros"))
+		 			(:file "vm"
+		 			         :depends-on ("util"
+		 			                      "macros"
+		                               "manip"))
 		 			(:file "compile"
 		 			         :depends-on ("package"
 		 			                      "manip"
-		 			                      "macros"))
+		 			                      "macros"
+		 			                      "vm"))
 		 			(:file "meld"
 		 			         :depends-on ("parser"
 		 			                      "localize"

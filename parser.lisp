@@ -32,7 +32,7 @@
  (if (eq var '_)
 	(generate-random-var)
 	(make-var var)))
-			
+
 (define-parser meld-parser
    (:muffle-conflicts t)
  	(:start-symbol program)
@@ -93,8 +93,7 @@
 
 	(expr
 	   variable
-		const
-		(:number #'(lambda (int) (list :int (parse-integer int))))
+		(:number #L(make-int (parse-integer !1)))
 	   (:lparen expr :rparen #'(lambda (l expr r) (declare (ignore l r)) expr))
 	   (expr :minus expr #'make-minus)
 	   (expr :mul expr #'make-mul)

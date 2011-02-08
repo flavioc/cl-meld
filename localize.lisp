@@ -145,7 +145,7 @@
             (push new-clause (clauses code))
             (when new-edges
                (do-localize code new-clause new-edges new-remaining))))))
-            
+
 (defun edges-equal-to (host) #L(var-eq-p host (get-first-arg !1)))
 (defun localize-start (code clause routes host)
    (let ((paths (get-paths (clause-body clause) routes)))
@@ -167,7 +167,7 @@
 (defun localize (code)
    (let ((routes (get-routes code)))
       (unless (= (length routes) 1) (error 'localize-invalid-error :text "only one route tuple supported"))
-      (do-clauses code (:clause clause :head head)
+      (do-clauses (clauses code) (:clause clause :head head)
          (localize-check-head head)
          (localize-start code clause routes (host-node head)))
       (create-inverse-routes code routes))

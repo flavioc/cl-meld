@@ -56,3 +56,6 @@
       (if l1
          (cons l1 (remove-if fn l))
          (cons nil l))))
+         
+(defmacro push-end (el ls)
+   `(setf ,ls (append ,ls (list ,el))))

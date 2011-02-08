@@ -1,5 +1,16 @@
 (in-package :cl-meld)
 
+(defparameter *basic-prog*
+"
+type fact(node, int, int, int, int).
+type coiso(node, int).
+
+fact(A, B + 1, B + 2, 2, 3) :-
+   fact(A, B, B, C, C),
+   coiso(A, B),
+   2 > 3 + B.
+")
+
 (defparameter *code* "
 type a(node, catom).
 type b(node, float).
@@ -51,7 +62,6 @@ val(A, 1 + D) :-
 
 (defun compile-vm (code)
    (let ((ast (add-base-tuples (parse-meld code))))
-      (setf ast (type-check ast))
-      (localize ast)))
+      (localize (type-check ast))))
       
-(defparameter *ast* (compile-vm *counter*))
+(defparameter *ast* (compile-ast (compile-vm *basic-prog*)))

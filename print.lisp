@@ -46,10 +46,10 @@
       
 (defun print-program (code)
    (format t "I found the following definitions:~%")
-   (do-definitions code (name typs)
+   (do-definitions code (:name name :types typs)
       (format t "~A ~A~%" name typs))
    (format t "I found the following clauses:~%")
-   (do-clauses code (:head head :body body :id id)
+   (do-clauses (clauses code) (:head head :body body :id id)
       (format t "Clause ~A: " id)
       (print-subgoals head)
       (format t " :- ")
