@@ -34,6 +34,8 @@
          (when (no-types-p new-types)
             (error 'type-invalid-error :text "type error")))
       (setf (gethash var *constraints*) new-types)))
+      
+(defun select-simpler-types (types) (intersection types '(:type-int)))
          
 (defun get-type (expr forced-types)
    (labels ((do-get-type (expr forced-types)
@@ -50,6 +52,11 @@
                            (setf t2 (get-type op2 t1)))
                         (when (< (length t2) (length t1))
                            (setf t1 (get-type op1 t2)))
+                        (when (and (= (length t1) 2)
+                                   (one-elem-p forced-types)
+                                   (eq (first forced-types) :type-bool))
+                           (setf t1 (get-type op1 (select-simpler-types t1)))
+                           (setf t2 (get-type op2 (select-simpler-types t2))))
                         (type-oper-op op t1)))))))
       (let ((types (do-get-type expr forced-types)))
          (when (no-types-p types)
@@ -132,9 +139,9 @@
                          (t arg))) args))
 
 (defun type-check (code)
-   (do-definitions code (name typs)
+   (do-definitions code (:name name :types typs)
       (check-home-argument name typs))
-   (do-clauses code (:head head :body body :clause clause)
+   (do-clauses (clauses code) (:head head :body body :clause clause)
       (let ((*constraints* (make-hash-table))
             (*defined* nil)
             (definitions (definitions code)))
