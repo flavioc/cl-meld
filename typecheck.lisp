@@ -136,10 +136,19 @@
                               (push (make-constraint (make-equal new-var '= arg))
                                     (clause-body clause))))
                          (t arg))) args))
-
+                         
+(defun transform-bodyless-clause (clause init-name)
+   (setf (clause-body clause) `(,(make-subgoal init-name `(,(first (subgoal-args (first (clause-head clause)))))))))
+(defun transform-bodyless-clauses (code)
+   (let ((init-name (definition-name (find-if #'(lambda (d) (equal '(:init-tuple) (definition-options d)))
+                              (definitions code)))))
+      (do-clauses (clauses code) (:body body :clause clause)
+         (unless body (transform-bodyless-clause clause init-name)))))
+      
 (defun type-check (code)
    (do-definitions code (:name name :types typs)
       (check-home-argument name typs))
+   (transform-bodyless-clauses code)
    (do-clauses (clauses code) (:head head :body body :clause clause)
       (let ((*constraints* (make-hash-table))
             (*defined* nil)

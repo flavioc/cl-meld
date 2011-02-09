@@ -9,7 +9,16 @@ fact(A, C) :-
    edge(A, D),
    fact(D, 4),
    C = 2,
-   B < C + 3.
+   B < C + 33.
+")
+
+(defparameter *init-prog*
+"
+type fact(node, int).
+   
+fact(A, 3).
+fact(A, 4).
+fact(A, 5), fact(A, 6 + 20 + 30).
 ")
 
 "fact(A, B + 1) :-
@@ -70,4 +79,4 @@ val(A, 1 + D) :-
    (let ((ast (add-base-tuples (parse-meld code))))
       (localize (type-check ast))))
       
-(defparameter *ast* (compile-ast (compile-vm *basic-prog*)))
+(defparameter *ast* (compile-ast (compile-vm *init-prog*)))
