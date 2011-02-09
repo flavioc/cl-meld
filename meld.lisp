@@ -21,6 +21,24 @@ fact(A, 4).
 fact(A, 5), fact(A, 6 + 20 + 30).
 ")
 
+(defparameter *extern-prog*
+"
+type fact(node, int).
+extern int getValue(int).
+
+fact(A, getValue(2)).
+").
+
+(defparameter *const-prog*
+"
+type fact(node, int).
+
+const bahbah = 4 + 5.
+const valconst = 3 + bahbah.
+
+fact(A, valconst). 
+")
+
 "fact(A, B + 1) :-
    fact(A, B),
    2 > 3 + B,

@@ -107,7 +107,7 @@
              (new-subgoal (generate-inverse-subgoal new-fact-name (first (subgoal-args route-subgoal)) needed-vars)))
          (setf (clause-body clause) (remove-unneeded-assignments `(,new-subgoal ,@stripped-body) head))
          (push (make-definition (subgoal-name new-subgoal)
-                  `(:type-node ,@(mapcar #'expr-type needed-vars)) `(:routed-tuple)) (definitions code))
+                  `(:type-node ,@(mapcar #'expr-type needed-vars)) `(:routed-tuple)) (all-definitions code))
          (make-clause new-clause-body `(,new-subgoal) `(:route ,(var-name (first (subgoal-args route-subgoal) )))))))
             
 (defun do-localize (code clause edges remaining)

@@ -67,6 +67,7 @@
 (defun do-type-check-subgoal (defs name args &optional force-vars)
    (let ((definition (lookup-definition-types defs name)))
       (unless definition
+         (format t "definition ~a~a~%" definition name)
          (error 'type-invalid-error :text "definition not found"))
       (when (not (= (length definition) (length args)))
          (error 'type-invalid-error :text "invalid number of arguments"))
@@ -144,7 +145,7 @@
                               (definitions code)))))
       (do-clauses (clauses code) (:body body :clause clause)
          (unless body (transform-bodyless-clause clause init-name)))))
-      
+
 (defun type-check (code)
    (do-definitions code (:name name :types typs)
       (check-home-argument name typs))

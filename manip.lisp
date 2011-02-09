@@ -1,5 +1,7 @@
 (in-package :cl-meld)
 
+(defun make-ast (defs clauses) `(:definitions ,defs :clauses ,clauses))
+
 (defmacro define-makes (&rest symbs)
    `(on-top-level
       ,@(mapcar #'(lambda (sym)
@@ -10,6 +12,9 @@
 
 (define-makes :plus :minus :mul :mod :div
       :lesser :lesser-equal :greater :greater-equal :equal :assign)
+      
+(defun make-const-get (name) `(:const-get ,name))
+(defun get-const-name (const-get) (second const-get))
    
 (defun make-clause (perm conc &rest options) `(:clause ,perm ,conc ,options))
 (defun clause-head (clause) (third clause))
@@ -23,7 +28,10 @@
 
 (defun make-subgoal (name args) (list :subgoal name args))
 (defun make-var (var &optional typ) `(:var ,(if (stringp var) (str->sym var) var) ,@(if typ `(,typ) nil)))
+
 (defun make-definition (name typs &rest options) `(:definition ,name ,typs ,options))
+(defun definition-p (def) (tagged-p def :definition))
+
 (defun make-constraint (expr) (list :constraint expr))
 (defun definition-name (def) (second def))
 (defun definition-types (def) (third def))
@@ -61,10 +69,12 @@
 (defun typed-op-p (op) (= (length op) 4))
 (defun typed-int-p (i) (= (length i) 3))
             
-(defun definitions (code) (second code))
+(defun all-definitions (code) (second code))
+(defun definitions (code) (filter #'definition-p (all-definitions code)))
 (defun set-definitions (code new-defs)
    (setf (second code) new-defs))
 (defsetf definitions set-definitions)
+(defsetf all-definitions set-definitions)
   
 (defun clauses (code) (fourth code))
 (defun set-clauses (code new-clauses)

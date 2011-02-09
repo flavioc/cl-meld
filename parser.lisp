@@ -4,6 +4,7 @@
 (define-string-lexer meld-lexer
  	("type"			(return (values :type $@)))
  	("extern"      (return (values :extern $@)))
+ 	("const"       (return (values :const-decl $@)))
 	("int"			(return (values :type-int $@)))
 	("float"       (return (values :type-float $@)))
 	("catom"		   (return (values :type-catom $@)))
@@ -33,6 +34,15 @@
  (if (eq var '_)
 	(generate-random-var)
 	(make-var var)))
+	
+(defun make-const-definition (name expr) `(:const ,name ,expr))
+(defun const-definition-p (const) (tagged-p const :const))
+(defun const-definition-name (const) (second const))
+(defun const-definition-expr (const) (third const))
+
+(defparameter *parsed-consts* nil)
+(defun lookup-const-def (name)
+   (const-definition-expr (find-if #L(equal (const-definition-name !1) name) *parsed-consts*)))
 
 (define-parser meld-parser
    (:muffle-conflicts t)
@@ -41,15 +51,19 @@
 								:bar :arrow :dot :comma :type-int :type-node
 								:type-catom :type-float :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal :equal
-								:extern))
+								:extern :const-decl))
 	(program
-	  (definitions statements (lambda (x y) (list :definitions x :clauses y))))
+	  (definitions statements (lambda (x y) (make-ast x y))))
 
 	(definitions
 	 (definition #'list)
-	 (definition definitions #'cons))
+	 (definition definitions #L(if !1 (cons !1 !2) !2)))
 
 	(definition
+	 (:const-decl const :equal expr :dot #'(lambda (a name e expr dot)
+	                                             (declare (ignore a e dot))
+	                                             (push (make-const-definition name expr) *parsed-consts*)
+	                                             nil)) 
 	 (:type const :lparen type-args :rparen :dot #'(lambda (ty const l typs r d)
 																		(declare (ignore ty l r d))
 																		(make-definition const typs))))
@@ -96,6 +110,7 @@
 
 	(expr
 	   variable
+	   (const #L(lookup-const-def !1))
 		(:number #L(make-int (parse-integer !1)))
 	   (:lparen expr :rparen #'(lambda (l expr r) (declare (ignore l r)) expr))
 	   (expr :minus expr #'make-minus)
@@ -116,7 +131,8 @@
 
 	(const
 	 (:const #'identity)))
-
+      
 (defun parse-meld (str)
- (let ((lexer (meld-lexer str)))
-	(parse-with-lexer lexer meld-parser)))
+ (let* ((lexer (meld-lexer str))
+        (*parsed-consts* nil))
+   (parse-with-lexer lexer meld-parser)))
