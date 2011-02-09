@@ -56,7 +56,8 @@
 (defun var-name (val) (second val))
 (defun var-eq-p (v1 v2) (equal (var-name v1) (var-name v2)))
 
-(defun typed-var-p (var) (= (length var) 3))
+(defun typed-var-p (var) (and (= (length var) 3)))
+(defun single-typed-var-p (var) (and (typed-var-p var) (one-elem-p (third var))))
 (defun typed-op-p (op) (= (length op) 4))
 (defun typed-int-p (i) (= (length i) 3))
             
@@ -175,3 +176,28 @@
 
 (defparameter *var-counter* 0)
 (defun generate-random-var () (make-var (with-output-to-string (a) (format a "Mangledvar~a" (incf *var-counter*)))))
+
+(defun valid-assignment-p (vars) #'(lambda (a) (tree-subsetp (all-variable-names (assignment-expr a)) vars)))
+(defun select-valid-assignments (body subgoals &optional (base-vars nil))
+   (loop with vars = (union base-vars (all-variable-names subgoals))
+         with ass = (get-assignments body)
+         with ret = nil
+         for (next-assignments . new-ass) = (split (valid-assignment-p vars) ass)
+         while next-assignments
+         do (setf ass new-ass)
+         do (push-all next-assignments ret)
+         do (push-all (mapcar #L(var-name (assignment-var !1)) next-assignments) vars)
+         finally (return ret)))
+
+(defun unneeded-assignment-p (body)
+   #'(lambda (a)
+         (let ((var-name (var-name (assignment-var a)))
+               (vars (all-variable-names (remove-tree a body))))
+            (not (has-elem-p vars var-name)))))
+(defun remove-unneeded-assignments (body &optional head)
+   (loop with ass = (get-assignments body)
+         for (next-unneeded . next-ass) = (split (unneeded-assignment-p (append body head)) ass)
+         while next-unneeded
+         do (setf ass next-ass
+                  body (remove-all body next-unneeded))
+         finally (return body)))

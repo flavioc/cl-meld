@@ -32,6 +32,11 @@
    `(let ((,var ,form))
       ,@body
       ,var))
+
+(defmacro always-ret (form &body body)
+   (with-gensyms (ret)
+      `(letret (,ret ,form)
+         ,@body)))
       
 (defmacro iff (test thing)
    (with-gensyms (ret)

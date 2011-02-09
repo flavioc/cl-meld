@@ -2,18 +2,17 @@
 
 (defparameter *basic-prog*
 "
-type fact(node, int, int, int, int).
-type coiso(node, int).
+type fact(node, int).
 
-fact(A, B + 1, B + 2, 2, 3) :-
-   fact(A, B, B, C, C),
-   coiso(A, B),
-   2 > 3 + B.
-   
-coiso(A, 2) :-
-   edge(A, B),
-   coiso(B, 3).
+fact(A, 2) :-
+   fact(A, B),
+   C = 2.
 ")
+
+"fact(A, B + 1) :-
+   fact(A, B),
+   2 > 3 + B,
+   D < 4, D = 2 + F, F = 5 + G, G = 2 * 50."
 
 (defparameter *code* "
 type a(node, catom).

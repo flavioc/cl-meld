@@ -19,11 +19,18 @@
    (multiple-value-bind (data found) (gethash var-name *vars-places*)
       (when found data)))
 (defun add-used-var (var-name data) (setf (gethash var-name *vars-places*) data))
+(defun remove-used-var (var-name) (remhash var-name *vars-places*))
 (defun all-used-var-names () (hash-table-keys *vars-places*))
 
 (defun valid-constraint-p (all-vars) #L(subsetp (all-variable-names !1) all-vars))
-(defun get-compile-constraints (body)
-   (filter (valid-constraint-p (all-used-var-names)) (get-constraints body)))
+(defun get-compile-constraints-and-assignments (body)
+   (let* ((assignments (select-valid-assignments body nil (all-used-var-names)))
+          (vars-ass (mapcar #L(var-name (assignment-var !1)) assignments))
+          (all-vars (append vars-ass (all-used-var-names)))
+          (constraints (filter (valid-constraint-p all-vars) (get-constraints body))))
+      (destructuring-bind (constrs . assign)
+            (split #'constraint-p (remove-unneeded-assignments (append assignments constraints)))
+         (values constrs assign))))
 
 (defun make-low-constraint (typ v1 v2) `(,typ ,v1 ,v2))
 (defun low-constraint-type (lc) (first lc))
@@ -43,8 +50,17 @@
                         (cond
                            (already-defined (make-low-constraint (expr-type arg) (make-reg-dot in-c i) already-defined))
                            (t (add-used-var (var-name arg) (make-reg-dot reg i)) nil)))))))
+                           
+(defun compile-assignments-and-else (assignments else-fun)
+   (if (null assignments)
+      (funcall else-fun)
+      (let ((ass (find-if (valid-assignment-p (all-used-var-names)) assignments)))
+         (multiple-value-bind (place instrs *used-regs*) (compile-expr (assignment-expr ass))
+            (add-used-var (var-name (assignment-var ass)) place)
+            (let ((other-code (compile-assignments-and-else (remove-tree ass assignments) else-fun)))
+               `(,@instrs ,@other-code))))))
 
-(defun compile-head (head orig-body options code)
+(defun do-compile-head (head orig-body options code)
    (with-ret ret
       (do-subgoals head (:name name :args args)
          (multiple-value-bind (tuple-reg *used-regs*) (alloc-new-reg nil)
@@ -59,18 +75,23 @@
                      (get-remote-dest options)
                      tuple-reg))))))))
                      
+(defun compile-head (body head orig-body options code)
+   (compile-assignments-and-else (filter #'assignment-p body) #L(do-compile-head head orig-body options code)))
+                     
 (defun compile-iterate (body orig-body head options code)
-   (let ((constraints (get-compile-constraints body))
-         (next-sub (find-if #'subgoal-p body)))
-      (compile-constraints constraints
-         (if (not next-sub)
-            (compile-head head orig-body options code)
-            (let ((next-sub-name (subgoal-name next-sub))
-                  (remaining (remove-tree next-sub (remove-all body constraints))))
-               (multiple-value-bind (reg *used-regs*) (alloc-reg *used-regs* next-sub)
-                  (let ((match-constraints (mapcar #'rest (add-subgoal next-sub reg :match)))
-                        (other-code `(,(make-move :tuple reg) ,@(compile-iterate remaining orig-body head options code))))
-                     `(,(make-iterate next-sub-name match-constraints other-code)))))))))
+   (multiple-value-bind (constraints assignments) (get-compile-constraints-and-assignments body)
+      (let ((next-sub (find-if #'subgoal-p body)))
+         (compile-constraints-and-assignments constraints assignments
+            (if (not next-sub)
+               (compile-head body head orig-body options code)
+               (let* ((next-sub-name (subgoal-name next-sub))
+                      (remaining0 (remove-tree next-sub (remove-all body constraints)))
+                      (remaining (remove-unneeded-assignments remaining0 head)))
+                  (multiple-value-bind (reg *used-regs*) (alloc-reg *used-regs* next-sub)
+                     (let* ((match-constraints (mapcar #'rest (add-subgoal next-sub reg :match)))
+                            (iterate-code (compile-iterate remaining orig-body head options code))
+                            (other-code `(,(make-move :tuple reg) ,@iterate-code)))
+                        `(,(make-iterate next-sub-name match-constraints other-code))))))))))
 
 (defun compile-expr (expr)
    (cond
@@ -90,6 +111,10 @@
       
 (defun compile-constraints (constraints inner-code)
    (reduce #L(compile-constraint !1 !2) constraints :initial-value inner-code))
+
+(defun compile-constraints-and-assignments (constraints assignments inner-code)
+   (always-ret (compile-assignments-and-else assignments #'(lambda () (compile-constraints constraints inner-code)))
+      (mapcar #L(remove-used-var (var-name (assignment-var !1))) constraints)))
 
 (defun compile-low-constraints (constraints inner-code)
    (let ((reg (alloc-reg *used-regs* nil)))
@@ -113,13 +138,14 @@
    (letret (ret nil)
       (format t "tuple: ~a~%" name)
       (do-clauses clauses (:body body :head head :options options)
-         (let* ((subgoal (first (get-my-subgoal body name)))
+         (let ((subgoal (first (get-my-subgoal body name)))
                 (*vars-places* (init-vars-places))
-                (*used-regs* nil)
-                (first-constraints (get-compile-constraints body))
-                (inner-code (compile-initial-subgoal (remove-all body first-constraints) body head options subgoal code))
-                (new-code (compile-constraints first-constraints inner-code)))
-            (setf ret (append ret new-code))))))
+                (*used-regs* nil))
+            (multiple-value-bind (first-constraints first-assignments) (get-compile-constraints-and-assignments body)
+               (let* ((remaining (remove-unneeded-assignments (remove-all body first-constraints) head))
+                      (inner-code (compile-initial-subgoal remaining body head options subgoal code))
+                      (new-code (compile-constraints-and-assignments first-constraints first-assignments inner-code)))
+                  (setf ret (append ret new-code))))))))
 
 (defun compile-ast (code)
    (with-ret ret

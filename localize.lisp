@@ -74,32 +74,6 @@
                (push-dunion-all (all-variables arg) ret))))))       
 (defun variables-undefined (head body)
    (set-tree-difference (variables-undefined0 head body) (variables-defined body)))
-
-(defun valid-assignment-p (vars) #'(lambda (a) (tree-subsetp (all-variable-names (assignment-expr a)) vars)))
-(defun select-valid-assignments (body subgoals)
-   (loop with vars = (all-variable-names subgoals)
-         with ass = (get-assignments body)
-         with ret = nil
-         for (next-assignments . new-ass) = (split (valid-assignment-p vars) ass)
-         while next-assignments
-         do (setf ass new-ass)
-         do (push-all next-assignments ret)
-         do (push-all (mapcar #L(var-name (assignment-var !1)) next-assignments) vars)
-         finally (return ret)))
-                  
-(defun unneeded-assignment-p (body)
-   #'(lambda (a)
-         (let ((var-name (var-name (assignment-var a)))
-               (vars (all-variable-names (remove-tree a body))))
-            (not (has-elem-p vars var-name)))))
-   
-(defun remove-unneeded-assignments (body)
-   (loop with ass = (get-assignments body)
-         for (next-unneeded . next-ass) = (split (unneeded-assignment-p body) ass)
-         while next-unneeded
-         do (setf ass next-ass
-                  body (remove-all body next-unneeded))
-         finally (return body)))
          
 (defun can-be-reached-by (current-homes)
    #'(lambda (path)
@@ -131,7 +105,7 @@
              (variables-subgoals (variables-defined new-clause-body))
              (needed-vars (tree-intersection variables-subgoals variables-undef))
              (new-subgoal (generate-inverse-subgoal new-fact-name (first (subgoal-args route-subgoal)) needed-vars)))
-         (setf (clause-body clause) (remove-unneeded-assignments `(,new-subgoal ,@stripped-body)))
+         (setf (clause-body clause) (remove-unneeded-assignments `(,new-subgoal ,@stripped-body) head))
          (push (make-definition (subgoal-name new-subgoal)
                   `(:type-node ,@(mapcar #'expr-type needed-vars)) `(:routed-tuple)) (definitions code))
          (make-clause new-clause-body `(,new-subgoal) `(:route ,(var-name (first (subgoal-args route-subgoal) )))))))
@@ -151,7 +125,6 @@
 (defun localize-start (code clause routes host)
    (let ((paths (get-paths (clause-body clause) routes)))
       (unless paths
-         (setf (clause-body clause) (remove-unneeded-assignments (clause-body clause)))
          (return-from localize-start))
       (check-valid-paths paths host)
       (let ((edges (filter (edges-equal-to host) paths))
