@@ -4,9 +4,12 @@
 "
 type fact(node, int).
 
-fact(A, 2) :-
+fact(A, C) :-
    fact(A, B),
-   C = 2.
+   edge(A, D),
+   fact(D, 4),
+   C = 2,
+   B < C + 3.
 ")
 
 "fact(A, B + 1) :-

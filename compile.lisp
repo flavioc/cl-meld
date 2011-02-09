@@ -7,14 +7,20 @@
    (let ((reg (make-reg (length regs))))
       (values reg (cons data regs))))
 
-(defun get-my-subgoal (body name) (filter #L(equal (subgoal-name !1) name) (get-subgoals body)))
+(defun get-my-subgoals (body name) (filter #L(equal (subgoal-name !1) name) (get-subgoals body)))
 
 (defparameter *vars-places* nil)
 (defparameter *used-regs* nil)
+(defmacro let-compile (&body body)
+   `(let ((*vars-places* (make-hash-table))
+          (*used-regs* nil))
+      ,@body))
 
 (defun alloc-new-reg (data) (alloc-reg *used-regs* data))
-
-(defun init-vars-places () (make-hash-table))
+(defmacro with-reg ((reg &optional data) &body body)
+   `(multiple-value-bind (,reg *used-regs*) (alloc-new-reg ,data)
+      ,@body))
+      
 (defun lookup-used-var (var-name)
    (multiple-value-bind (data found) (gethash var-name *vars-places*)
       (when found data)))
@@ -28,18 +34,38 @@
           (vars-ass (mapcar #L(var-name (assignment-var !1)) assignments))
           (all-vars (append vars-ass (all-used-var-names)))
           (constraints (filter (valid-constraint-p all-vars) (get-constraints body))))
-      (destructuring-bind (constrs . assign)
-            (split #'constraint-p (remove-unneeded-assignments (append assignments constraints)))
-         (values constrs assign))))
+      (split-mult-return #'constraint-p (remove-unneeded-assignments (append assignments constraints)))))
 
 (defun make-low-constraint (typ v1 v2) `(,typ ,v1 ,v2))
 (defun low-constraint-type (lc) (first lc))
 (defun low-constraint-v1 (lc) (second lc))
 (defun low-constraint-v2 (lc) (third lc))
 
+(defun compile-expr (expr)
+   (cond
+      ((int-p expr) (values (make-vm-int (int-val expr)) nil *used-regs*))
+      ((var-p expr) (values (lookup-used-var (var-name expr)) nil *used-regs*))
+      ((op-p expr)
+         (with-compiled-expr (place1 code1) (op-op1 expr)
+            (with-compiled-expr (place2 code2) (op-op2 expr)
+               (with-reg (new-reg expr)
+                  (let* ((op (set-type-to-op (expr-type (op-op1 expr)) (expr-type expr) (op-op expr)))
+                         (set-instr (make-set new-reg place1 op place2)))
+                     (values new-reg `(,@code1 ,@code2 ,set-instr) *used-regs*))))))))
+(defmacro with-compiled-expr ((place code) expr &body body)
+   `(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr) ,@body))
+
 (defun locate-remote-options (clause-options) (find-if #L(and (listp !1) (eq (first !1) :route)) clause-options))
 (defun is-remote-clause (clause-options) (locate-remote-options clause-options))
 (defun get-remote-dest (clause-options) (lookup-used-var (second (locate-remote-options clause-options))))
+(defun get-remote-reg-and-code (clause-options default)
+   (if (is-remote-clause clause-options)
+      (let ((var (get-remote-dest clause-options)))
+         (if (reg-p var)
+            var
+            (with-reg (new-reg)
+               (values new-reg `(,(make-move var new-reg)))))) 
+      default))
 
 (defun add-subgoal (subgoal reg &optional (in-c reg))
    (with-subgoal subgoal (:args args)
@@ -55,25 +81,22 @@
    (if (null assignments)
       (funcall else-fun)
       (let ((ass (find-if (valid-assignment-p (all-used-var-names)) assignments)))
-         (multiple-value-bind (place instrs *used-regs*) (compile-expr (assignment-expr ass))
+         (with-compiled-expr (place instrs) (assignment-expr ass)
             (add-used-var (var-name (assignment-var ass)) place)
             (let ((other-code (compile-assignments-and-else (remove-tree ass assignments) else-fun)))
                `(,@instrs ,@other-code))))))
 
 (defun do-compile-head (head orig-body options code)
-   (with-ret ret
-      (do-subgoals head (:name name :args args)
-         (multiple-value-bind (tuple-reg *used-regs*) (alloc-new-reg nil)
-            (setf ret `(,@ret ,(make-vm-alloc name tuple-reg)))
-            (loop for arg in args
+   (declare (ignore orig-body code))
+   (do-subgoals head (:name name :args args :operation append)
+      (with-reg (tuple-reg)
+         `(,(make-vm-alloc name tuple-reg)
+            ,@(loop for arg in args
                   for i upto (length args)
-                  do (multiple-value-bind (reg arg-code) (compile-expr arg)
-                        (setf ret `(,@ret ,@arg-code ,(make-move reg (make-reg-dot tuple-reg i))))))
-            (setf ret `(,@ret
-               ,(make-send tuple-reg
-                  (if (is-remote-clause options)
-                     (get-remote-dest options)
-                     tuple-reg))))))))
+                  append (with-compiled-expr (reg arg-code) arg
+                           `(,@arg-code ,(make-move reg (make-reg-dot tuple-reg i)))))
+            ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code options tuple-reg)
+               `(,@extra-code ,(make-send tuple-reg send-to)))))))
                      
 (defun compile-head (body head orig-body options code)
    (compile-assignments-and-else (filter #'assignment-p body) #L(do-compile-head head orig-body options code)))
@@ -87,26 +110,14 @@
                (let* ((next-sub-name (subgoal-name next-sub))
                       (remaining0 (remove-tree next-sub (remove-all body constraints)))
                       (remaining (remove-unneeded-assignments remaining0 head)))
-                  (multiple-value-bind (reg *used-regs*) (alloc-reg *used-regs* next-sub)
+                  (with-reg (reg next-sub)
                      (let* ((match-constraints (mapcar #'rest (add-subgoal next-sub reg :match)))
                             (iterate-code (compile-iterate remaining orig-body head options code))
                             (other-code `(,(make-move :tuple reg) ,@iterate-code)))
                         `(,(make-iterate next-sub-name match-constraints other-code))))))))))
-
-(defun compile-expr (expr)
-   (cond
-      ((int-p expr) (values (make-vm-int (int-val expr)) nil *used-regs*))
-      ((var-p expr) (values (lookup-used-var (var-name expr)) nil *used-regs*))
-      ((op-p expr)
-         (multiple-value-bind (place1 code1 *used-regs*) (compile-expr (op-op1 expr))
-            (multiple-value-bind (place2 code2 *used-regs*) (compile-expr (op-op2 expr))
-               (multiple-value-bind (new-reg *used-regs*) (alloc-reg *used-regs* expr)
-                  (let* ((op (set-type-to-op (expr-type (op-op1 expr)) (expr-type expr) (op-op expr)))
-                         (set-instr (make-set new-reg place1 op place2)))
-                     (values new-reg `(,@code1 ,@code2 ,set-instr) *used-regs*))))))))
-            
+      
 (defun compile-constraint (inner-code constraint)
-   (multiple-value-bind (reg expr-code) (compile-expr (constraint-expr constraint))
+   (with-compiled-expr (reg expr-code) (constraint-expr constraint)
       `(,@expr-code ,(make-if reg inner-code))))
       
 (defun compile-constraints (constraints inner-code)
@@ -117,7 +128,7 @@
       (mapcar #L(remove-used-var (var-name (assignment-var !1))) constraints)))
 
 (defun compile-low-constraints (constraints inner-code)
-   (let ((reg (alloc-reg *used-regs* nil)))
+   (with-reg (reg)
       (reduce #'(lambda (c old)
                   (list (make-set reg (low-constraint-v1 c)
                                     (set-type-to-op (low-constraint-type c) :type-bool :equal)
@@ -126,30 +137,24 @@
                constraints :initial-value inner-code :from-end t)))
 
 (defun compile-initial-subgoal (body orig-body head options subgoal code)
-   (multiple-value-bind (sub-reg *used-regs*) (alloc-reg *used-regs* subgoal)
+   (with-reg (sub-reg subgoal)
       (let ((start-code (make-move :tuple sub-reg))
             (low-constraints (add-subgoal subgoal sub-reg))
             (inner-code (compile-iterate (remove-tree subgoal body) orig-body head options code)))
          `(,start-code ,@(compile-low-constraints low-constraints inner-code)))))
 
 (defun build-process (name clauses code)
-   (unless clauses
-      (return-from build-process nil))
-   (letret (ret nil)
-      (format t "tuple: ~a~%" name)
-      (do-clauses clauses (:body body :head head :options options)
-         (let ((subgoal (first (get-my-subgoal body name)))
-                (*vars-places* (init-vars-places))
-                (*used-regs* nil))
+   (unless clauses (return-from build-process nil))
+   (format t "tuple: ~a~%" name)
+   (do-clauses clauses (:body body :head head :options options :operation append)
+      (loop-list (subgoal (get-my-subgoals body name) :operation append)
+         (let-compile
             (multiple-value-bind (first-constraints first-assignments) (get-compile-constraints-and-assignments body)
                (let* ((remaining (remove-unneeded-assignments (remove-all body first-constraints) head))
-                      (inner-code (compile-initial-subgoal remaining body head options subgoal code))
-                      (new-code (compile-constraints-and-assignments first-constraints first-assignments inner-code)))
-                  (setf ret (append ret new-code))))))))
+                     (inner-code (compile-initial-subgoal remaining body head options subgoal code)))
+                  (compile-constraints-and-assignments first-constraints first-assignments inner-code)))))))
 
 (defun compile-ast (code)
-   (with-ret ret
-      (do-definitions code (:name name)
-         (let* ((clauses (get-matching-clauses name code))
-                (new-proc (make-process name `(,@(build-process name clauses code) ,(make-return)))))
-         (push new-proc ret)))))
+   (do-definitions code (:name name :operation collect)
+      (let ((clauses (get-matching-clauses name code)))
+         (make-process name `(,@(build-process name clauses code) ,(make-return))))))

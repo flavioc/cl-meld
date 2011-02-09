@@ -2,18 +2,16 @@
 
 (defparameter *num-regs* 32)
 
+(defmacro do-type-conversion (op base-type)
+   `(case ,op
+      ,@(mapcar #L`(,(format-keyword "~a" !1) ,(format-keyword "~a-~a" base-type !1))
+                  '(equal lesser lesser-equal greater greater-equal plus mul div mod))))
+
 (defun set-type-to-op (typ-args typ-ret op)
    (declare (ignore typ-ret))
    (case typ-args
-      (:type-int
-         (case op
-            (:equal :int-equal)
-            (:lesser :int-lesser)
-            (:lesser-equal :int-lesser-equal)
-            (:greater :int-greater)
-            (:greater-equal :int-greater-equal)
-            (:plus :int-plus)
-            (:mul :int-mul)))))
+      (:type-int (do-type-conversion op int))
+      (:type-float (do-type-conversion op float))))
 
 (defun make-process (name instrs) (list :process name instrs))
 (defun process-name (proc) (second proc))
@@ -40,11 +38,6 @@
 (defun if-reg (i) (second i))
 (defun if-instrs (i) (third i))
 
-;; operations
-;; int-equal
-;; float-equal
-;; int-greater
-;; float-greater
 (defun make-set (dst v1 op v2) (list :set dst :to v1 op v2))
 (defun set-destiny (st) (second st))
 (defun set-v1 (st) (fourth st))
@@ -99,15 +92,16 @@
             (reg-dot-field place)))
       ((tuple-p place) "tuple")))
       
-(defun print-op (op)
-   (case op
-      (:int-equal "INT EQUAL")
-      (:int-lesser "INT LESSER")
-      (:int-lesser-equal "INT LESSER EQUAL")
-      (:int-greater "INT GREATER")
-      (:int-greater-equal "INT GREATER EQUAL")
-      (:int-plus "INT PLUS")
-      (:int-mul "INT MUL")))
+(defmacro generate-print-op (basic-typs basic-ops &body body)
+   `(on-top-level
+      (defun print-op (op)
+         (case op
+            ,@(loop for typ in basic-typs
+                  appending (mapcar #L`(,(format-keyword "~a-~a" typ !1)
+                                          ,(substitute #\Space #\- (tostring "~A ~A" typ !1))) basic-ops))
+            (otherwise ,@body)))))
+            
+(generate-print-op (int float) (equal lesser lesser-equal greater greater-equal plus minus mul div mod))
 
 (defun print-instr-ls (instrs)
    (reduce #L(if !1 (concatenate 'string !1 (list #\Newline) (print-instr !2)) (print-instr !2))

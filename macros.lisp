@@ -68,38 +68,50 @@
          ,@(if id `((incf ,id)))
          ,@body)))
          
+(defmacro loop-list ((el list &key (id nil) (operation 'do)) &body body)
+   `(loop for ,el in ,list
+          ,@(when id `(for ,id upto (length ,list)))
+         ,operation ,@body))
+         
 (defmacro equal-or (ls &body rest)
    `(or ,@(mapcar #'(lambda (el) `(equal ',el ,ls)) rest)))
 
 ;; Meld related code
 
-(defmacro do-definitions (code (&key (name nil) (types nil) (options nil)) &body body)
-   (with-gensyms (el defs)
-      `(let ((,defs (definitions ,code)))
-         (dolist (,el ,defs)
-            (let (,@(build-bind name `(definition-name ,el))
-                  ,@(build-bind types `(definition-types ,el))
-                  ,@(if options `((,options (definition-options ,el)))))
-               ,@body)))))
-
-(defmacro do-clauses (clauses (&key (head nil) (body nil) (clause nil) (options nil) (id nil)) &body rest)
+(defmacro with-definition (def (&key (name nil) (types nil) (options nil)) &body body)
+   `(let (,@(build-bind name `(definition-name ,def))
+          ,@(build-bind types `(definition-types ,def))
+          ,@(build-bind options `(definition-options ,def)))
+      ,@body))
+      
+(defmacro do-definitions (code (&key (name nil) (types nil) (options nil) (operation 'do)) &body body)
    (with-gensyms (el)
-      `(dolist-count (,el ,clauses ,id)
-         (let (,@(build-bind head `(clause-head ,el))
-               ,@(build-bind body `(clause-body ,el))
-               ,@(build-bind options `(clause-options ,el))
-               ,@(build-bind clause el))
-            ,@rest))))
+      `(loop for ,el in (definitions ,code)
+         ,operation (with-definition ,el (:name ,name :types ,types :options ,options)
+                        ,@body))))
+                        
+(defmacro with-clause (clause (&key (head nil) (body nil) (options nil)) &body rest)
+   `(let (,@(build-bind head `(clause-head ,clause))
+          ,@(build-bind body `(clause-body ,clause))
+          ,@(build-bind options `(clause-options ,clause)))
+      ,@rest))
+
+(defmacro do-clauses (clauses (&key (head nil) (body nil) (clause nil) (options nil) (id nil) (operation 'do)) &body rest)
+   (with-gensyms (el)
+      `(loop-list (,el ,clauses :id ,id :operation ,operation)
+         (let (,@(build-bind clause el))
+            (with-clause ,el (:head ,head :body ,body :options ,options)
+               ,@rest)))))
             
 (defmacro with-subgoal (subgoal (&key (name nil) (args nil)) &body body)
    `(let (,@(build-bind name `(subgoal-name ,subgoal))
           ,@(build-bind args `(subgoal-args ,subgoal)))
       ,@body))
 
-(defmacro do-subgoals (subgoals (&key (name nil) (args nil) (id nil) (orig nil)) &body body)
+(defmacro do-subgoals (subgoals (&key (name nil) (args nil) (id nil) (orig nil) (operation 'do)) &body body)
    (with-gensyms (el)
-      `(dolist-filter (,el ,subgoals subgoal-p ,id)
-         (let (,@(if orig `((,orig ,el)) nil))
+      `(loop-list (,el (filter #'subgoal-p ,subgoals) :id ,id :operation ,operation)
+         (let (,@(build-bind orig el))
             (with-subgoal ,el (:name ,name :args ,args)
                ,@body)))))
                

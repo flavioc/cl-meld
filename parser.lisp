@@ -3,6 +3,7 @@
 
 (define-string-lexer meld-lexer
  	("type"			(return (values :type $@)))
+ 	("extern"      (return (values :extern $@)))
 	("int"			(return (values :type-int $@)))
 	("float"       (return (values :type-float $@)))
 	("catom"		   (return (values :type-catom $@)))
@@ -39,7 +40,8 @@
 	(:terminals (:const :type :variable :number :lparen :rparen
 								:bar :arrow :dot :comma :type-int :type-node
 								:type-catom :type-float :plus :minus :mul :mod :div
-								:lesser :lesser-equal :greater :greater-equal :equal))
+								:lesser :lesser-equal :greater :greater-equal :equal
+								:extern))
 	(program
 	  (definitions statements (lambda (x y) (list :definitions x :clauses y))))
 

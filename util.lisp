@@ -56,6 +56,12 @@
       (if l1
          (cons l1 (remove-if fn l))
          (cons nil l))))
+(defun split-mult-return (fn l)
+   (destructuring-bind (filtered . removed) (split fn l)
+      (values filtered removed)))
          
 (defmacro push-end (el ls)
    `(setf ,ls (append ,ls (list ,el))))
+   
+(defmacro format-keyword (control &rest arguments)
+   `(format-symbol "KEYWORD" ,control ,@arguments))

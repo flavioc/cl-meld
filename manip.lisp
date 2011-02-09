@@ -161,7 +161,6 @@
          (intersection '(:type-int :type-float) forced-types))
       ((eq-cmp-p op) '(:type-bool))))
       
-
 (defun all-variables (expr)
  (cond
    ((subgoal-p expr) (reduce #'(lambda (old arg) (dunion old (all-variables arg))) (subgoal-args expr) :initial-value nil))
