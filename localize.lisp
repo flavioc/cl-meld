@@ -28,10 +28,11 @@
 (defun create-inverse-routes (code routes)
    (dolist (route routes)
       (let* ((new-name (generate-inverse-name route))
-             (old-definition (lookup-definition (definitions code) route))
+             (old-definition (lookup-definition-types (definitions code) route))
              (new-definition (make-definition new-name old-definition :route `(:reverse-route ,route)))
              (args (generate-args (length old-definition) old-definition))
-             (new-clause (make-clause `(,(make-subgoal route args)) `(,(make-subgoal new-name (swap-first-two-args args))) :route)))
+             (new-clause (make-clause `(,(make-subgoal route args))
+                     `(,(make-subgoal new-name (swap-first-two-args args))) `(:route ,(var-name (second args))))))
          (push new-clause (clauses code))
          (push new-definition (definitions code)))))
          
@@ -133,7 +134,7 @@
          (setf (clause-body clause) (remove-unneeded-assignments `(,new-subgoal ,@stripped-body)))
          (push (make-definition (subgoal-name new-subgoal)
                   `(:type-node ,@(mapcar #'expr-type needed-vars)) `(:routed-tuple)) (definitions code))
-         (make-clause new-clause-body `(,new-subgoal) :route))))
+         (make-clause new-clause-body `(,new-subgoal) `(:route ,(var-name (first (subgoal-args route-subgoal) )))))))
             
 (defun do-localize (code clause edges remaining)
    (dolist (edge edges)

@@ -77,11 +77,12 @@
                   ,@(if options `((,options (definition-options ,el)))))
                ,@body)))))
 
-(defmacro do-clauses (clauses (&key (head nil) (body nil) (clause nil) (id nil)) &body rest)
+(defmacro do-clauses (clauses (&key (head nil) (body nil) (clause nil) (options nil) (id nil)) &body rest)
    (with-gensyms (el)
       `(dolist-count (,el ,clauses ,id)
          (let (,@(build-bind head `(clause-head ,el))
                ,@(build-bind body `(clause-body ,el))
+               ,@(build-bind options `(clause-options ,el))
                ,@(build-bind clause el))
             ,@rest))))
             

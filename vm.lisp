@@ -76,6 +76,14 @@
 
 ; MOVE 0.0 TO 4.0
 
+(defun make-send (from to &optional (time 0)) `(:send ,from ,to ,time))
+(defun make-send-self (reg &optional (time 0)) (make-send reg reg time))
+(defun send-from (send) (second send))
+(defun send-to (send) (third send))
+(defun send-time (send) (fourth send))
+
+; SEND reg 7 TO reg 7 IN 0ms
+
 (defun tuple-p (tp) (eq tp :tuple))
 (defun match-p (m) (eq m :match))
 
@@ -112,6 +120,8 @@
 (defun print-instr (instr)
    (case (instr-type instr)
       (:return "RETURN")
+      (:send (tostring "SEND ~a TO ~a IN ~ams" (print-place (send-from instr))
+                  (print-place (send-to instr)) (send-time instr)))
       (:alloc (tostring "ALLOC ~a TO ~a" (vm-alloc-tuple instr) (print-place (vm-alloc-reg instr))))
       (:iterate (tostring "ITERATE OVER ~a MATCHING~%~a~a~%NEXT" (iterate-name instr)
                   (print-matches (iterate-matches instr)) (print-instr-ls (iterate-instrs instr)))) 

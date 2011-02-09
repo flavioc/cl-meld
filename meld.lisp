@@ -9,6 +9,10 @@ fact(A, B + 1, B + 2, 2, 3) :-
    fact(A, B, B, C, C),
    coiso(A, B),
    2 > 3 + B.
+   
+coiso(A, 2) :-
+   edge(A, B),
+   coiso(B, 3).
 ")
 
 (defparameter *code* "

@@ -11,7 +11,6 @@
 
 (defparameter *vars-places* nil)
 (defparameter *used-regs* nil)
-(defparameter *clause-head* nil)
 
 (defun alloc-new-reg (data) (alloc-reg *used-regs* data))
 
@@ -31,6 +30,10 @@
 (defun low-constraint-v1 (lc) (second lc))
 (defun low-constraint-v2 (lc) (third lc))
 
+(defun locate-remote-options (clause-options) (find-if #L(and (listp !1) (eq (first !1) :route)) clause-options))
+(defun is-remote-clause (clause-options) (locate-remote-options clause-options))
+(defun get-remote-dest (clause-options) (lookup-used-var (second (locate-remote-options clause-options))))
+
 (defun add-subgoal (subgoal reg &optional (in-c reg))
    (with-subgoal subgoal (:args args)
       (filter #L(not (null !1))
@@ -41,7 +44,7 @@
                            (already-defined (make-low-constraint (expr-type arg) (make-reg-dot in-c i) already-defined))
                            (t (add-used-var (var-name arg) (make-reg-dot reg i)) nil)))))))
 
-(defun compile-head (head)
+(defun compile-head (head orig-body options code)
    (with-ret ret
       (do-subgoals head (:name name :args args)
          (multiple-value-bind (tuple-reg *used-regs*) (alloc-new-reg nil)
@@ -49,19 +52,24 @@
             (loop for arg in args
                   for i upto (length args)
                   do (multiple-value-bind (reg arg-code) (compile-expr arg)
-                        (setf ret `(,@ret ,@arg-code ,(make-move reg (make-reg-dot tuple-reg i))))))))))
-   
-(defun compile-iterate (body)
+                        (setf ret `(,@ret ,@arg-code ,(make-move reg (make-reg-dot tuple-reg i))))))
+            (setf ret `(,@ret
+               ,(make-send tuple-reg
+                  (if (is-remote-clause options)
+                     (get-remote-dest options)
+                     tuple-reg))))))))
+                     
+(defun compile-iterate (body orig-body head options code)
    (let ((constraints (get-compile-constraints body))
          (next-sub (find-if #'subgoal-p body)))
       (compile-constraints constraints
          (if (not next-sub)
-            (compile-head *clause-head*)
+            (compile-head head orig-body options code)
             (let ((next-sub-name (subgoal-name next-sub))
                   (remaining (remove-tree next-sub (remove-all body constraints))))
                (multiple-value-bind (reg *used-regs*) (alloc-reg *used-regs* next-sub)
                   (let ((match-constraints (mapcar #'rest (add-subgoal next-sub reg :match)))
-                        (other-code `(,(make-move :tuple reg) ,@(compile-iterate remaining))))
+                        (other-code `(,(make-move :tuple reg) ,@(compile-iterate remaining orig-body head options code))))
                      `(,(make-iterate next-sub-name match-constraints other-code)))))))))
 
 (defun compile-expr (expr)
@@ -92,24 +100,24 @@
                            (make-if reg old)))
                constraints :initial-value inner-code :from-end t)))
 
-(defun compile-initial-subgoal (body subgoal)
+(defun compile-initial-subgoal (body orig-body head options subgoal code)
    (multiple-value-bind (sub-reg *used-regs*) (alloc-reg *used-regs* subgoal)
       (let ((start-code (make-move :tuple sub-reg))
             (low-constraints (add-subgoal subgoal sub-reg))
-            (inner-code (compile-iterate (remove-tree subgoal body))))
+            (inner-code (compile-iterate (remove-tree subgoal body) orig-body head options code)))
          `(,start-code ,@(compile-low-constraints low-constraints inner-code)))))
 
-(defun build-process (name clauses)
+(defun build-process (name clauses code)
    (unless clauses
       (return-from build-process nil))
    (letret (ret nil)
       (format t "tuple: ~a~%" name)
-      (do-clauses clauses (:body body :head *clause-head*)
+      (do-clauses clauses (:body body :head head :options options)
          (let* ((subgoal (first (get-my-subgoal body name)))
                 (*vars-places* (init-vars-places))
                 (*used-regs* nil)
                 (first-constraints (get-compile-constraints body))
-                (inner-code (compile-initial-subgoal (remove-all body first-constraints) subgoal))
+                (inner-code (compile-initial-subgoal (remove-all body first-constraints) body head options subgoal code))
                 (new-code (compile-constraints first-constraints inner-code)))
             (setf ret (append ret new-code))))))
 
@@ -117,5 +125,5 @@
    (with-ret ret
       (do-definitions code (:name name)
          (let* ((clauses (get-matching-clauses name code))
-                (new-proc (make-process name `(,@(build-process name clauses) ,(make-return)))))
+                (new-proc (make-process name `(,@(build-process name clauses code) ,(make-return)))))
          (push new-proc ret)))))

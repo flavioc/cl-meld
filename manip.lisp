@@ -94,11 +94,11 @@
       ((or (var-p expr) (int-p expr)) (third expr))
       ((op-op expr) (fourth expr))))
 
-(defun lookup-definition (defs pred)
-   (let ((result (find-if #'(lambda (d) (string-equal pred (definition-name d))) defs)))
-      (if result
-         (definition-types result)
-         nil)))
+(defun lookup-definition-types (defs pred)
+   (when-let ((def (lookup-definition defs pred)))
+      (definition-types def)))
+      
+(defun lookup-definition (defs pred) (find-if #'(lambda (d) (string-equal pred (definition-name d))) defs))
          
 (defparameter *all-types* '(:type-int :type-float :type-bool :type-node))
 

@@ -65,7 +65,7 @@
          types)))
       
 (defun do-type-check-subgoal (defs name args &optional force-vars)
-   (let ((definition (lookup-definition defs name)))
+   (let ((definition (lookup-definition-types defs name)))
       (unless definition
          (error 'type-invalid-error :text "definition not found"))
       (when (not (= (length definition) (length args)))
