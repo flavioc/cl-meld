@@ -33,6 +33,19 @@
 
 (defun make-definition (name typs &rest options) `(:definition ,name ,typs ,options))
 (defun definition-p (def) (tagged-p def :definition))
+(defun definition-name (def) (second def))
+(defun definition-types (def) (third def))
+(defun definition-options (def) (fourth def))
+(defun definition-add-option (def opt) (push opt (fourth def)))
+(defun make-aggregate (agg typ) `(:aggregate ,agg ,typ))
+(defun aggregate-p (agg) (tagged-p agg :aggregate))
+(defun aggregate-agg (agg) (second agg))
+(defun aggregate-type (agg) (third agg))
+(defun arg-type (arg)
+   (if (aggregate-p arg)
+       (aggregate-type arg)
+       arg))
+(defun definition-arg-types (typs) (mapcar #'arg-type typs))
 
 (defun make-extern (name ret-type types) `(:extern ,name ,ret-type ,types))
 (defun extern-p (ext) (tagged-p ext :extern))
@@ -41,10 +54,6 @@
 (defun extern-types (ext) (fourth ext))
 
 (defun make-constraint (expr) (list :constraint expr))
-(defun definition-name (def) (second def))
-(defun definition-types (def) (third def))
-(defun definition-options (def) (fourth def))
-(defun definition-add-option (def opt) (push opt (fourth def)))
 
 (defmacro define-ops (&rest symbs)
    `(on-top-level

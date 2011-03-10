@@ -13,6 +13,23 @@
       (error 'type-invalid-error
          :text (concatenate 'string "first argument of tuple " name " must be of type 'node'"))))
          
+(defun valid-aggregate-p (agg)
+   (let ((agg (aggregate-agg agg))
+         (typ (aggregate-type agg)))
+      (case agg
+         (:first t)
+         ((:min :sum :max) (eq-or typ :type-int :type-float)))))
+
+(defun check-aggregates (name typs)
+   (let ((total (count-if #'aggregate-p typs)))
+      (unless (<= total 1)
+         (error 'type-invalid-error
+            :text (concatenate 'string "tuple " name " must have only one aggregate")))
+      (when-let ((agg (find-if #'aggregate-p typs)))
+         (unless (valid-aggregate-p agg)
+            (error 'type-invalid-error
+               :text "invalid aggregate type")))))
+         
 (defun no-types-p (ls) (null ls))
 (defun merge-types (ls types) (intersection ls types))
 (defun valid-type-combination-p (types)
@@ -76,7 +93,7 @@
          (error 'type-invalid-error :text "definition not found"))
       (when (not (= (length definition) (length args)))
          (error 'type-invalid-error :text "invalid number of arguments"))
-      (dolist2 (arg args) (forced-type definition)
+      (dolist2 (arg args) (forced-type (definition-arg-types definition))
          (when (and force-vars (not (var-p arg)))
             (error 'type-invalid-error :text "only variables at body"))
          (unless (one-elem-p (get-type arg `(,forced-type) defs))
@@ -152,7 +169,9 @@
          (unless body (transform-bodyless-clause clause init-name)))))
 
 (defun type-check (code)
-   (do-definitions code (:name name :types typs) (check-home-argument name typs))
+   (do-definitions code (:name name :types typs)
+      (check-home-argument name typs)
+      (check-aggregates name typs))
    (transform-bodyless-clauses code)
    (do-clauses (clauses code) (:clause clause :body body)
       (do-subgoals body (:args args :orig sub)

@@ -26,7 +26,7 @@
    (loop for i upto 3
       collect (ldb (byte 8 (* i 8)) int)))
 (defun output-float (flt) (output-int (encode-float32 flt)))
-   
+
 (defun output-value (val)
    (cond
       ((vm-int-p val) (list #b000001 (output-int (vm-int-val val))))
@@ -34,11 +34,11 @@
       ((tuple-p val) (list #b011111))
       ((reg-p val) (list (logior #b100000 (logand #b011111 (reg-num val)))))
       ((reg-dot-p val) (list #b000010 (list (reg-dot-field val) (reg-num (reg-dot-reg val)))))))
-      
+
 (defmacro add-byte (b vec) `(vector-push-extend ,b ,vec))
 (defun add-bytes (vec &rest bs)
    (dolist (b bs) (add-byte b vec)))
-      
+
 (defmacro do-vm-values (vec vals &rest instrs)
    (labels ((map-value (i) (case i (1 'first-value) (2 'second-value)))
             (map-value-bytes (i) (case i (1 'first-value-bytes) (2 'second-value-bytes))))
@@ -186,17 +186,47 @@
          (:type-int #b0000)
          (:type-float #b0001))
       vec))
+   
+(defun output-aggregate-type (agg typ)
+   (case agg
+      (:first #b0001)
+      (:min (case typ
+               (:type-int #b0011)
+               (:type-float #b0110)))
+      (:max (case typ
+               (:type-int #b0010)
+               (:type-float #b0101)))
+      (:sum (case typ
+               (:type-int #b0100)
+               (:type-float #b0111)))))
+               
+(defun output-aggregate (types)
+   (let ((agg (find-if #'aggregate-p types)))
+      (if agg
+         (let ((pos (position-if #'aggregate-p types))
+               (agg (aggregate-agg agg))
+               (typ (aggregate-type agg)))
+            (format t "agg byte ~a pos ~a~%" (logand #b11110000 (ash (output-aggregate-type agg typ) 4)) pos)
+            (logior (logand #b11110000 (ash (output-aggregate-type agg typ) 4))
+                    (logand #b00001111 pos)))
+         #b00000000)))
+         
+(defun output-properties (types)
+   (let ((agg (find-if #'aggregate-p types)))
+      (if agg
+         #b00000001
+         #b00000000)))
       
 (defun output-descriptors (ast)
    (do-definitions ast (:types types :operation collect)
       (letret (vec (create-bin-array))
          (add-bytes vec #b0 #b0) ; code offset
-         (add-byte #b0 vec) ; property byte
-         (add-byte #b0 vec) ; aggregate - nothing for now
+         (add-byte (output-properties types) vec) ; property byte
+         (add-byte (output-aggregate types) vec) ; aggregate byte
          (add-byte #b0 vec) ; strat order
          (add-byte (length types) vec) ; number of args
          (add-byte #b0 vec) ; delta stuff
-         (dolist (typ types)
+         (dolist (typ (definition-arg-types types))
             (output-arg-type typ vec)))))
             
 (defun write-hexa (stream int) (format stream "0x~X," int))

@@ -121,7 +121,7 @@ fact(A, B + 5) :- other(A, C), another(A, B), another(A, 42).
 "
 type fact(node, int).
 type other(node, int).
-type nei(node, int).
+type nei(node, min int).
 fact(A, 42).
    
 other(A, B + 1) :- fact(A, B).

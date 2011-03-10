@@ -24,6 +24,10 @@
 	("\\>"         (return (values :greater $@)))
 	("\\>="        (return (values :greater-equal $@)))
 	("\\="         (return (values :equal $@)))
+	("min"         (return (values :min $@)))
+	("max"         (return (values :max $@)))
+	("sum"         (return (values :sum $@)))
+	("first"       (return (values :first $@)))
 	("[-+]?[0-9]+(\.[0-9]+|[0-9]+)?" (return (values :number $@)))
 	("_"				(return (values :variable $@)))
  	("[a-z]([a-z]|\_)*"		(return (values :const $@)))
@@ -48,6 +52,9 @@
 (defparameter *parsed-consts* nil)
 (defun lookup-const-def (name)
    (const-definition-expr (find-if #L(equal (const-definition-name !1) name) *parsed-consts*)))
+   
+(defmacro return-const (const)
+   `#'(lambda (x) (declare (ignore x)) ,const))
 
 (define-parser meld-parser
    (:muffle-conflicts t)
@@ -56,7 +63,7 @@
 								:bar :arrow :dot :comma :type-int :type-node
 								:type-catom :type-float :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal :equal
-								:extern :const-decl))
+								:extern :const-decl :min :max :first :sum))
 	(program
 	  (definitions statements #L(make-ast !1 !2)))
 
@@ -77,9 +84,19 @@
 																		(make-definition const typs))))
 
 	(type-args
-	 (atype #'list)
-	 (atype :comma type-args #'(lambda (ty comma ls) (declare (ignore comma)) (cons ty ls))))
+	 (type-decl #'list)
+	 (type-decl :comma type-args #'(lambda (ty comma ls) (declare (ignore comma)) (cons ty ls))))
 
+   (type-decl
+    (atype #'identity)
+    (aggregate-decl atype #'make-aggregate))
+    
+   (aggregate-decl
+    (:min (return-const :min))
+    (:max (return-const :max))
+    (:first (return-const :first))
+    (:sum (return-const :sum)))
+    
 	(atype
 	 (:type-int #'(lambda (x) (declare (ignore x)) :type-int))
 	 (:type-float #'(lambda (x) (declare (ignore x)) :type-float))
