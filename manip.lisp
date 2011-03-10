@@ -35,6 +35,9 @@
 (defun definition-p (def) (tagged-p def :definition))
 (defun definition-name (def) (second def))
 (defun definition-types (def) (third def))
+(defun set-definition-types (def new-types)
+   (setf (third def) new-types))
+(defsetf definition-types set-definition-types)
 (defun definition-options (def) (fourth def))
 (defun definition-add-option (def opt) (push opt (fourth def)))
 (defun make-aggregate (agg typ) `(:aggregate ,agg ,typ))
@@ -80,6 +83,9 @@
 
 (defun float-val (val) (second val))
 (defun make-float (flt) `(:float ,flt))
+
+(defun make-host-id () '(:host-id :type-node))
+(defun host-id-p (h) (tagged-p h :host-id))
 
 (defun var-name (val) (second val))
 (defun var-eq-p (v1 v2) (equal (var-name v1) (var-name v2)))

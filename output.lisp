@@ -1,6 +1,9 @@
 
 (in-package :cl-meld)
 
+(define-condition compile-invalid-error (error)
+   ((text :initarg :text :reader text)))
+
 (defmacro with-memory-stream (s &body body)
    `(let ((,s (make-in-memory-output-stream)))
       ,@body
@@ -31,9 +34,11 @@
    (cond
       ((vm-int-p val) (list #b000001 (output-int (vm-int-val val))))
       ((vm-float-p val) (list #b000000 (output-float (vm-float-val val))))
+      ((vm-host-id-p val) (list #b000011))
       ((tuple-p val) (list #b011111))
       ((reg-p val) (list (logior #b100000 (logand #b011111 (reg-num val)))))
-      ((reg-dot-p val) (list #b000010 (list (reg-dot-field val) (reg-num (reg-dot-reg val)))))))
+      ((reg-dot-p val) (list #b000010 (list (reg-dot-field val) (reg-num (reg-dot-reg val)))))
+      (t (error 'compile-invalid-error :text "invalid expression value"))))
 
 (defmacro add-byte (b vec) `(vector-push-extend ,b ,vec))
 (defun add-bytes (vec &rest bs)
@@ -206,7 +211,6 @@
          (let ((pos (position-if #'aggregate-p types))
                (agg (aggregate-agg agg))
                (typ (aggregate-type agg)))
-            (format t "agg byte ~a pos ~a~%" (logand #b11110000 (ash (output-aggregate-type agg typ) 4)) pos)
             (logior (logand #b11110000 (ash (output-aggregate-type agg typ) 4))
                     (logand #b00001111 pos)))
          #b00000000)))

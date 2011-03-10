@@ -122,6 +122,7 @@ fact(A, B + 5) :- other(A, C), another(A, B), another(A, 42).
 type fact(node, int).
 type other(node, int).
 type nei(node, min int).
+   
 fact(A, 42).
    
 other(A, B + 1) :- fact(A, B).
@@ -164,4 +165,4 @@ fact(A, list_cons(5, L)) :-
 (defparameter *prog* *runnable*)
 (defparameter *ast* (localize-code *prog*))
 (defparameter *code* (compile-ast *ast*))
-;(defparameter *output* (output-code *ast* *code* "test.bb"))
+(defparameter *output* (output-code *ast* *code* "base.bb"))

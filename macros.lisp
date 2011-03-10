@@ -78,16 +78,17 @@
 
 ;; Meld related code
 
-(defmacro with-definition (def (&key (name nil) (types nil) (options nil)) &body body)
+(defmacro with-definition (def (&key (name nil) (types nil) (options nil) (definition nil)) &body body)
    `(let (,@(build-bind name `(definition-name ,def))
           ,@(build-bind types `(definition-types ,def))
-          ,@(build-bind options `(definition-options ,def)))
+          ,@(build-bind options `(definition-options ,def))
+          ,@(build-bind definition def))
       ,@body))
       
-(defmacro do-definitions (code (&key (name nil) (types nil) (options nil) (operation 'do) (id nil)) &body body)
+(defmacro do-definitions (code (&key (definition nil) (name nil) (types nil) (options nil) (operation 'do) (id nil)) &body body)
    (with-gensyms (el)
       `(loop-list (,el (definitions ,code) :id ,id :operation ,operation)
-         (with-definition ,el (:name ,name :types ,types :options ,options)
+         (with-definition ,el (:name ,name :types ,types :options ,options :definition ,definition)
             ,@body))))
                    
 (defmacro with-extern (extern (&key (name nil) (ret-type nil) (types nil)) &body body)

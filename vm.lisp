@@ -73,6 +73,9 @@
 (defun vm-float-p (flt) (tagged-p flt :float))
 (defun vm-float-val (flt) (second flt))
 
+(defun make-vm-host-id () :host-id)
+(defun vm-host-id-p (h) (eq h :host-id))
+
 ; MOVE 0.0 TO 4.0
 
 (defun make-send (from to &optional (time 0)) `(:send ,from ,to ,(make-vm-int time)))
@@ -94,6 +97,8 @@
 (defun print-place (place)
    (cond
       ((vm-int-p place) (tostring "~a" (vm-int-val place)))
+      ((vm-float-p place) (tostring "~a" (vm-float-val place)))
+      ((vm-host-id-p place) "host-id")
       ((reg-p place) (tostring "reg ~a" (reg-num place)))
       ((reg-dot-p place)
          (tostring "~a.~a"
@@ -120,7 +125,9 @@
                   
 (defun print-match (m) (tostring "  ~a=~a~%" (print-place (first m)) (print-place (second m))))
 (defun print-matches (matches)
-   (reduce #L(concatenate 'string !1 (print-match !2)) matches :initial-value nil))
+   (if matches
+      (reduce #L(concatenate 'string !1 (print-match !2)) matches :initial-value nil)
+      ""))
 
 (defun print-call-args (ls)
    (reduce #L(if (null !1) (print-place !2) (concatenate 'string !1 ", " (print-place !2))) ls :initial-value nil))

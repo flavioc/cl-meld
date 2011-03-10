@@ -56,6 +56,7 @@
 (defun compile-expr (expr)
    (cond
       ((int-p expr) (return-expr (make-vm-int (int-val expr))))
+      ((host-id-p expr) (return-expr (make-vm-host-id)))
       ((var-p expr) (return-expr (lookup-used-var (var-name expr))))
       ((call-p expr) (compile-call (call-name expr) (call-args expr) nil nil))
       ((op-p expr)

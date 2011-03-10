@@ -108,7 +108,7 @@
          (setf (clause-body clause) (remove-unneeded-assignments `(,new-subgoal ,@stripped-body) head))
          (push (make-definition (subgoal-name new-subgoal)
                   `(:type-node ,@(mapcar #'expr-type needed-vars)) `(:routed-tuple)) (all-definitions code))
-         (make-clause new-clause-body `(,new-subgoal) `(:route ,(var-name (first (subgoal-args route-subgoal) )))))))
+         (make-clause new-clause-body `(,(copy-tree new-subgoal)) `(:route ,(var-name (first (subgoal-args route-subgoal) )))))))
             
 (defun do-localize (code clause edges remaining)
    (dolist (edge edges)
@@ -138,6 +138,19 @@
             (error 'localize-invalid-error
                :text "All head subgoals must have the same home argument")))))
 
+(defun remove-home-argument (code)
+   (do-clauses (clauses code) (:head head :body body)
+      (let (head-var (host-id (make-host-id)))
+         (do-subgoals (append body head)
+                     (:args args :orig sub)
+            (unless head-var (setf head-var (first args)))
+            (setf (subgoal-args sub) (rest args)))
+         (when head ; change home argument to host-id
+            (nsubst host-id head-var head :test #'equal)
+            (nsubst host-id head-var body :test #'equal)))) 
+   (do-definitions code (:definition def :types typs)
+      (setf (definition-types def) (rest typs))))
+
 (defun localize (code)
    (let ((routes (get-routes code)))
       (unless (= (length routes) 1) (error 'localize-invalid-error :text "only one route tuple supported"))
@@ -145,4 +158,5 @@
          (localize-check-head head)
          (localize-start code clause routes (host-node head)))
       (create-inverse-routes code routes))
+   (remove-home-argument code)
    code)
