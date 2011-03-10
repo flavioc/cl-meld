@@ -5,7 +5,7 @@
 (defmacro do-type-conversion (op base-type)
    `(case ,op
       ,@(mapcar #L`(,(format-keyword "~a" !1) ,(format-keyword "~a-~a" base-type !1))
-                  '(equal lesser lesser-equal greater greater-equal plus mul div mod))))
+                  '(equal not-equal lesser lesser-equal greater greater-equal plus mul div mod minus))))
 
 (defun set-type-to-op (typ-args typ-ret op)
    (declare (ignore typ-ret))
@@ -49,6 +49,8 @@
 (defun iterate-name (i) (second i))
 (defun iterate-matches (i) (third i))
 (defun iterate-instrs (i) (fourth i))
+(defun match-left (m) (first m))
+(defun match-right (m) (second m))
 
 ;ITERATE OVER fact MATCHING
 ;  (match).0=0.0
@@ -67,15 +69,24 @@
 (defun vm-int-p (int) (tagged-p int :int))
 (defun vm-int-val (int) (second int))
 
+(defun make-vm-float (flt) `(:float ,flt))
+(defun vm-float-p (flt) (tagged-p flt :float))
+(defun vm-float-val (flt) (second flt))
+
 ; MOVE 0.0 TO 4.0
 
-(defun make-send (from to &optional (time 0)) `(:send ,from ,to ,time))
+(defun make-send (from to &optional (time 0)) `(:send ,from ,to ,(make-vm-int time)))
 (defun make-send-self (reg &optional (time 0)) (make-send reg reg time))
 (defun send-from (send) (second send))
 (defun send-to (send) (third send))
 (defun send-time (send) (fourth send))
 
 ; SEND reg 7 TO reg 7 IN 0ms
+
+(defun make-vm-call (name dest args) `(:call ,name ,dest ,args))
+(defun vm-call-name (call) (second call))
+(defun vm-call-dest (call) (third call))
+(defun vm-call-args (call) (fourth call))
 
 (defun tuple-p (tp) (eq tp :tuple))
 (defun match-p (m) (eq m :match))
@@ -101,7 +112,7 @@
                                           ,(substitute #\Space #\- (tostring "~A ~A" typ !1))) basic-ops))
             (otherwise ,@body)))))
             
-(generate-print-op (int float) (equal lesser lesser-equal greater greater-equal plus minus mul div mod))
+(generate-print-op (int float) (equal not-equal lesser lesser-equal greater greater-equal plus minus mul div mod))
 
 (defun print-instr-ls (instrs)
    (reduce #L(if !1 (concatenate 'string !1 (list #\Newline) (print-instr !2)) (print-instr !2))
@@ -111,11 +122,16 @@
 (defun print-matches (matches)
    (reduce #L(concatenate 'string !1 (print-match !2)) matches :initial-value nil))
 
+(defun print-call-args (ls)
+   (reduce #L(if (null !1) (print-place !2) (concatenate 'string !1 ", " (print-place !2))) ls :initial-value nil))
+
 (defun print-instr (instr)
    (case (instr-type instr)
       (:return "RETURN")
+      (:call (tostring "CALL ~a TO ~a = (~a)" (vm-call-name instr) (reg-num (vm-call-dest instr))
+                  (print-call-args (vm-call-args instr))))
       (:send (tostring "SEND ~a TO ~a IN ~ams" (print-place (send-from instr))
-                  (print-place (send-to instr)) (send-time instr)))
+                  (print-place (send-to instr)) (print-place (send-time instr))))
       (:alloc (tostring "ALLOC ~a TO ~a" (vm-alloc-tuple instr) (print-place (vm-alloc-reg instr))))
       (:iterate (tostring "ITERATE OVER ~a MATCHING~%~a~a~%NEXT" (iterate-name instr)
                   (print-matches (iterate-matches instr)) (print-instr-ls (iterate-instrs instr)))) 
@@ -126,8 +142,9 @@
       (:move (tostring "MOVE ~a TO ~a" (print-place (move-from instr)) (print-place (move-to instr))))))
 
 (defun print-vm (processls)
-   (do-processes processls (:name name :instrs instrs)
-      (format t "PROCESS ~a:~%" name)
-      (dolist (instr instrs)
-         (format t "~a~%" (print-instr instr)))
-      (format t "~%")))
+   (with-output-to-string (str)
+      (do-processes processls (:name name :instrs instrs)
+         (format str "PROCESS ~a:~%" name)
+         (dolist (instr instrs)
+            (format str "~a~%" (print-instr instr)))
+         (format str "~%"))))

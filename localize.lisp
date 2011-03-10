@@ -34,7 +34,7 @@
              (new-clause (make-clause `(,(make-subgoal route args))
                      `(,(make-subgoal new-name (swap-first-two-args args))) `(:route ,(var-name (second args))))))
          (push new-clause (clauses code))
-         (push new-definition (definitions code)))))
+         (push new-definition (all-definitions code)))))
          
 (defun select-valid-constraints (body vars) (filter #L(subsetp (all-variable-names !1) vars) (get-constraints body)))
 (defun generate-inverse-subgoal (new-name to needed-vars)

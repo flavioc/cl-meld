@@ -13,8 +13,10 @@
 (define-makes :plus :minus :mul :mod :div
       :lesser :lesser-equal :greater :greater-equal :equal :assign)
       
-(defun make-const-get (name) `(:const-get ,name))
-(defun get-const-name (const-get) (second const-get))
+(defun make-call (name args) `(:call ,name ,args))
+(defun call-name (call) (second call))
+(defun call-args (call) (third call))
+(defun call-p (call) (tagged-p call :call))
    
 (defun make-clause (perm conc &rest options) `(:clause ,perm ,conc ,options))
 (defun clause-head (clause) (third clause))
@@ -32,6 +34,12 @@
 (defun make-definition (name typs &rest options) `(:definition ,name ,typs ,options))
 (defun definition-p (def) (tagged-p def :definition))
 
+(defun make-extern (name ret-type types) `(:extern ,name ,ret-type ,types))
+(defun extern-p (ext) (tagged-p ext :extern))
+(defun extern-name (ext) (second ext))
+(defun extern-ret-type (ext) (third ext))
+(defun extern-types (ext) (fourth ext))
+
 (defun make-constraint (expr) (list :constraint expr))
 (defun definition-name (def) (second def))
 (defun definition-types (def) (third def))
@@ -46,9 +54,9 @@
          symbs)))
          
 (define-ops :int :var :plus :minus :mul :div :mod
-            :equal :lesser :lesser-equal :greater :greater-equal)
-            
-            
+            :equal :not-equal
+            :lesser :lesser-equal :greater :greater-equal)
+
 (defun const-p (s) (or (int-p s)))
             
 (defun op-op (val) (tagged-tag val))
@@ -56,10 +64,13 @@
 (defun op-op2 (val) (third val))
 
 (defun op-p (val)
-   (any (plus-p minus-p mul-p div-p mod-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p) val))
+   (any (plus-p minus-p mul-p div-p mod-p not-equal-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p) val))
 
 (defun int-val (val) (second val))
 (defun make-int (int) `(:int ,int))
+
+(defun float-val (val) (second val))
+(defun make-float (flt) `(:float ,flt))
 
 (defun var-name (val) (second val))
 (defun var-eq-p (v1 v2) (equal (var-name v1) (var-name v2)))
@@ -75,6 +86,8 @@
    (setf (second code) new-defs))
 (defsetf definitions set-definitions)
 (defsetf all-definitions set-definitions)
+
+(defun externs (code) (filter #'extern-p (all-definitions code)))
   
 (defun clauses (code) (fourth code))
 (defun set-clauses (code new-clauses)
@@ -109,7 +122,11 @@
    (when-let ((def (lookup-definition defs pred)))
       (definition-types def)))
       
-(defun lookup-definition (defs pred) (find-if #'(lambda (d) (string-equal pred (definition-name d))) defs))
+(defun lookup-definition (defs pred)
+   (find-if #L(string-equal pred (definition-name !1)) (filter #'definition-p defs)))
+
+(defun lookup-extern (defs name)
+   (find-if #L(string-equal name (extern-name !1)) (filter #'extern-p defs)))
          
 (defparameter *all-types* '(:type-int :type-float :type-bool :type-node))
 
@@ -131,7 +148,8 @@
       (:mul "*")
       (:div "/")
       (:mod "%")
-      (:equal "==")
+      (:equal "=")
+      (:not-equal "!=")
       (:lesser "<")
       (:lesser-equal "<=")
       (:greater ">")
@@ -184,7 +202,7 @@
 (defun all-variable-names (expr) (mapcar #'var-name (all-variables expr)))
 
 (defparameter *var-counter* 0)
-(defun generate-random-var () (make-var (with-output-to-string (a) (format a "Mangledvar~a" (incf *var-counter*)))))
+(defun generate-random-var () (make-var (with-output-to-string (a) (format a "MANGLEDVAR~a" (incf *var-counter*)))))
 
 (defun valid-assignment-p (vars) #'(lambda (a) (tree-subsetp (all-variable-names (assignment-expr a)) vars)))
 (defun select-valid-assignments (body subgoals &optional (base-vars nil))

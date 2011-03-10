@@ -84,12 +84,24 @@
           ,@(build-bind options `(definition-options ,def)))
       ,@body))
       
-(defmacro do-definitions (code (&key (name nil) (types nil) (options nil) (operation 'do)) &body body)
+(defmacro do-definitions (code (&key (name nil) (types nil) (options nil) (operation 'do) (id nil)) &body body)
    (with-gensyms (el)
-      `(loop for ,el in (definitions ,code)
-         ,operation (with-definition ,el (:name ,name :types ,types :options ,options)
-                        ,@body))))
-                        
+      `(loop-list (,el (definitions ,code) :id ,id :operation ,operation)
+         (with-definition ,el (:name ,name :types ,types :options ,options)
+            ,@body))))
+                   
+(defmacro with-extern (extern (&key (name nil) (ret-type nil) (types nil)) &body body)
+   `(let (,@(build-bind name `(extern-name ,extern))
+          ,@(build-bind ret-type `(extern-ret-type ,extern))
+          ,@(build-bind types `(extern-types ,extern)))
+      ,@body))
+      
+(defmacro do-externs (code (&key (name nil) (ret-type nil) (types nil) (id nil) (operation 'do)) &body body)
+   (with-gensyms (el)
+      `(loop-list (,el (externs ,code) :id ,id :operation ,operation)
+         (with-extern ,el (:name ,name :ret-type ,ret-type :types ,types)
+            ,@body))))
+              
 (defmacro with-clause (clause (&key (head nil) (body nil) (options nil)) &body rest)
    `(let (,@(build-bind head `(clause-head ,clause))
           ,@(build-bind body `(clause-body ,clause))
@@ -129,9 +141,9 @@
                ,@(build-bind assignment `,el))
             ,@body))))
             
-(defmacro do-processes (procs (&key (name nil) (instrs nil)) &body body)
+(defmacro do-processes (procs (&key (name nil) (instrs nil) (operation 'do)) &body body)
    (with-gensyms (el)
-      `(dolist (,el ,procs)
+      `(loop-list (,el ,procs :operation ,operation)
          (let (,@(build-bind name `(process-name ,el))
                ,@(build-bind instrs `(process-instrs ,el)))
             ,@body))))

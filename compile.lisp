@@ -41,19 +41,30 @@
 (defun low-constraint-v1 (lc) (second lc))
 (defun low-constraint-v2 (lc) (third lc))
 
+(defmacro return-expr (place &optional code) `(values ,place ,code *used-regs*))
+
+(defmacro with-compiled-expr ((place code) expr &body body)
+   `(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr) ,@body))
+   
+(defun compile-call (name args regs code)
+   (if (null args)
+      (with-reg (new-reg)
+         (return-expr new-reg `(,@code ,(make-vm-call name new-reg regs))))
+      (with-compiled-expr (arg-place arg-code) (first args)
+         (compile-call name (rest args) `(,@regs ,arg-place) `(,@code ,@arg-code)))))
+
 (defun compile-expr (expr)
    (cond
-      ((int-p expr) (values (make-vm-int (int-val expr)) nil *used-regs*))
-      ((var-p expr) (values (lookup-used-var (var-name expr)) nil *used-regs*))
+      ((int-p expr) (return-expr (make-vm-int (int-val expr))))
+      ((var-p expr) (return-expr (lookup-used-var (var-name expr))))
+      ((call-p expr) (compile-call (call-name expr) (call-args expr) nil nil))
       ((op-p expr)
          (with-compiled-expr (place1 code1) (op-op1 expr)
             (with-compiled-expr (place2 code2) (op-op2 expr)
                (with-reg (new-reg expr)
                   (let* ((op (set-type-to-op (expr-type (op-op1 expr)) (expr-type expr) (op-op expr)))
                          (set-instr (make-set new-reg place1 op place2)))
-                     (values new-reg `(,@code1 ,@code2 ,set-instr) *used-regs*))))))))
-(defmacro with-compiled-expr ((place code) expr &body body)
-   `(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr) ,@body))
+                     (return-expr new-reg `(,@code1 ,@code2 ,set-instr)))))))))
 
 (defun locate-remote-options (clause-options) (find-if #L(and (listp !1) (eq (first !1) :route)) clause-options))
 (defun is-remote-clause (clause-options) (locate-remote-options clause-options))
@@ -119,7 +130,6 @@
 (defun compile-constraint (inner-code constraint)
    (with-compiled-expr (reg expr-code) (constraint-expr constraint)
       `(,@expr-code ,(make-if reg inner-code))))
-      
 (defun compile-constraints (constraints inner-code)
    (reduce #L(compile-constraint !1 !2) constraints :initial-value inner-code))
 

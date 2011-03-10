@@ -1,5 +1,7 @@
 (in-package :cl-meld)
 
+(defun create-bin-array () (make-array 0 :element-type '(unsigned-byte 8) :adjustable t :fill-pointer 0))
+
 (defun str->sym (str) (values (intern str)))
 
 (defun tagged-p (list tag)
@@ -65,3 +67,8 @@
    
 (defmacro format-keyword (control &rest arguments)
    `(format-symbol "KEYWORD" ,control ,@arguments))
+   
+(defun addify (ls &optional (n 0))
+   (if (null ls)
+      nil
+      (cons n (addify (rest ls) (+ n (first ls))))))

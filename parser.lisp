@@ -24,16 +24,21 @@
 	("\\>"         (return (values :greater $@)))
 	("\\>="        (return (values :greater-equal $@)))
 	("\\="         (return (values :equal $@)))
-	("\\d+"		   (return (values :number $@)))
+	("[-+]?[0-9]+(\.[0-9]+|[0-9]+)?" (return (values :number $@)))
 	("_"				(return (values :variable $@)))
- 	("[a-z]+"		(return (values :const $@)))
-	("'\\w+'"		(return (values :const $@)))
+ 	("[a-z]([a-z]|\_)*"		(return (values :const $@)))
+	("'\\w+"		(return (values :const $@)))
 	("[A-Z]([A-Z]|[a-z]|[0-9])*"	(return (values :variable $@))))
 
 (defun make-var-parser (var)
  (if (eq var '_)
 	(generate-random-var)
 	(make-var var)))
+	
+(defun parse-number (str)
+   (if (find #\. str)
+      (make-float (read-from-string str))
+      (make-int (parse-integer str))))
 	
 (defun make-const-definition (name expr) `(:const ,name ,expr))
 (defun const-definition-p (const) (tagged-p const :const))
@@ -53,17 +58,20 @@
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl))
 	(program
-	  (definitions statements (lambda (x y) (make-ast x y))))
+	  (definitions statements #L(make-ast !1 !2)))
 
 	(definitions
 	 (definition #'list)
 	 (definition definitions #L(if !1 (cons !1 !2) !2)))
 
 	(definition
+	 (:extern atype const :lparen type-args :rparen :dot #'(lambda (e ret-type name l args r d)
+	                                                         (declare (ignore e l r d))
+	                                                         (make-extern name ret-type args)))
 	 (:const-decl const :equal expr :dot #'(lambda (a name e expr dot)
 	                                             (declare (ignore a e dot))
 	                                             (push (make-const-definition name expr) *parsed-consts*)
-	                                             nil)) 
+	                                             nil))
 	 (:type const :lparen type-args :rparen :dot #'(lambda (ty const l typs r d)
 																		(declare (ignore ty l r d))
 																		(make-definition const typs))))
@@ -89,29 +97,30 @@
    (head-terms
       (term #'list)
       (term :comma head-terms #'(lambda (x y z) (declare (ignore y)) (cons x z))))
-   
+
    (body-terms
       (body-term #'list)
       (body-term :comma body-terms #'(lambda (x y z) (declare (ignore y)) (cons x z))))
-   
+
    (body-term
       (term #'identity)
       (constraint #'identity))
-      
+
 	(term
 	 	(const :lparen args :rparen #'(lambda (name y args w) (declare (ignore y w)) (make-subgoal name args))))
 
    (constraint
       (cmp #'(lambda (c) (make-constraint c))))
-      
+
 	(args
 	 	(expr #'list)
-		(expr :comma args (lambda (x y z) (declare (ignore y)) (cons x z))))
+		(expr :comma args #'(lambda (x y z) (declare (ignore y)) (cons x z))))
 
 	(expr
 	   variable
+	   (const :lparen args :rparen #'(lambda (name l args r) (declare (ignore l r)) (make-call name args)))
 	   (const #L(lookup-const-def !1))
-		(:number #L(make-int (parse-integer !1)))
+		(:number #L(parse-number !1))
 	   (:lparen expr :rparen #'(lambda (l expr r) (declare (ignore l r)) expr))
 	   (expr :minus expr #'make-minus)
 	   (expr :mul expr #'make-mul)
