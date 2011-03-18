@@ -1,5 +1,8 @@
 (in-package :cl-meld)
 
+(define-condition output-invalid-error (error)
+   ((text :initarg :text :reader text)))
+
 (defun get-matching-clauses (subgoal-name code)
    (filter #L(some #'(lambda (sub) (equal (subgoal-name sub) subgoal-name)) (clause-body !1)) (clauses code)))
 
@@ -33,8 +36,9 @@
    (let* ((assignments (select-valid-assignments body nil (all-used-var-names)))
           (vars-ass (mapcar #L(var-name (assignment-var !1)) assignments))
           (all-vars (append vars-ass (all-used-var-names)))
-          (constraints (filter (valid-constraint-p all-vars) (get-constraints body))))
-      (split-mult-return #'constraint-p (remove-unneeded-assignments (append assignments constraints)))))
+          (constraints (filter (valid-constraint-p all-vars) (get-constraints body)))
+          (remain (remove-unneeded-assignments (append assignments constraints))))
+      (split-mult-return #'constraint-p remain)))
 
 (defun make-low-constraint (typ v1 v2) `(,typ ,v1 ,v2))
 (defun low-constraint-type (lc) (first lc))
@@ -46,26 +50,70 @@
 (defmacro with-compiled-expr ((place code) expr &body body)
    `(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr) ,@body))
    
+(defmacro with-dest-or-new-reg ((dest) &body body)
+   `(if (null ,dest)
+      (with-reg (,dest) ,@body)
+      (progn ,@body)))
+
+(defun build-special-move (from to)
+   (cond
+      ((vm-nil-p from) (make-move-nil to))
+      (t (make-move from to))))
+      
+(defmacro compile-expr-to (expr place)
+   (with-gensyms (new-place code)
+      `(multiple-value-bind (,new-place ,code *used-regs*) (compile-expr ,expr ,place)
+         (if (not (equal ,new-place ,place))
+            (list (build-special-move ,new-place ,place))
+            ,code))))
+   
 (defun compile-call (name args regs code)
    (if (null args)
       (with-reg (new-reg)
          (return-expr new-reg `(,@code ,(make-vm-call name new-reg regs))))
       (with-compiled-expr (arg-place arg-code) (first args)
          (compile-call name (rest args) `(,@regs ,arg-place) `(,@code ,@arg-code)))))
-
-(defun compile-expr (expr)
+         
+(defun compile-expr (expr &optional dest)
    (cond
       ((int-p expr) (return-expr (make-vm-int (int-val expr))))
       ((host-id-p expr) (return-expr (make-vm-host-id)))
       ((var-p expr) (return-expr (lookup-used-var (var-name expr))))
       ((call-p expr) (compile-call (call-name expr) (call-args expr) nil nil))
+      ((tail-p expr) (with-compiled-expr (place code) (tail-list expr)
+                        (with-dest-or-new-reg (dest)
+                           (return-expr dest `(,@code ,(make-vm-tail place dest))))))
+      ((head-p expr) (with-compiled-expr (place code) (head-list expr)
+                        (with-dest-or-new-reg (dest)
+                           (return-expr dest `(,@code ,(make-vm-head place dest))))))
+      ((cons-p expr) (with-compiled-expr (place-head code-head) (cons-head expr)
+                        (with-compiled-expr (place-tail code-tail) (cons-tail expr)
+                           (with-dest-or-new-reg (dest)
+                              (return-expr dest `(,@code-head ,@code-tail ,(make-vm-cons place-head place-tail dest)))))))
+      ((not-p expr) (with-compiled-expr (place-expr code-expr) (not-expr expr)
+                        (with-dest-or-new-reg (dest)
+                           (return-expr dest `(,@code-expr ,(make-vm-not place-expr dest))))))
+      ((test-nil-p expr) (with-compiled-expr (place-expr code-expr) (test-nil-expr expr)
+                           (with-dest-or-new-reg (dest)
+                              (return-expr dest `(,@code-expr ,(make-vm-test-nil place-expr dest))))))
+      ((nil-p expr) (return-expr (make-vm-nil)))
       ((op-p expr)
          (with-compiled-expr (place1 code1) (op-op1 expr)
             (with-compiled-expr (place2 code2) (op-op2 expr)
-               (with-reg (new-reg expr)
-                  (let* ((op (set-type-to-op (expr-type (op-op1 expr)) (expr-type expr) (op-op expr)))
-                         (set-instr (make-set new-reg place1 op place2)))
-                     (return-expr new-reg `(,@code1 ,@code2 ,set-instr)))))))))
+               (with-dest-or-new-reg (dest)
+                  (return-expr dest (generate-op-instr expr dest place1 place2 code1 code2))))))
+      (t (error 'compile-invalid-error :text "unknown expression to compile"))))
+      
+(defun generate-op-instr (expr dest place1 place2 code1 code2)
+   (let* ((base-op (op-op expr))
+          (op1 (op-op1 expr)) (op2 (op-op2 expr))
+          (ret-type (expr-type expr)) (operand-type (expr-type op1)))
+      (cond
+         ((and (equal-p expr) (or (nil-p op1) (nil-p op2)))
+            (let ((place (if (nil-p op1) place2 place1))
+                  (code (if (nil-p op1) code2 code1)))
+               `(,@code ,(make-vm-test-nil place dest))))
+         (t `(,@code1 ,@code2 ,(make-vm-op dest place1 (set-type-to-op operand-type ret-type base-op) place2))))))
 
 (defun locate-remote-options (clause-options) (find-if #L(and (listp !1) (eq (first !1) :route)) clause-options))
 (defun is-remote-clause (clause-options) (locate-remote-options clause-options))
@@ -88,15 +136,11 @@
                         (cond
                            (already-defined (make-low-constraint (expr-type arg) (make-reg-dot in-c i) already-defined))
                            (t (add-used-var (var-name arg) (make-reg-dot reg i)) nil)))))))
-                           
-(defun compile-assignments-and-else (assignments else-fun)
-   (if (null assignments)
-      (funcall else-fun)
-      (let ((ass (find-if (valid-assignment-p (all-used-var-names)) assignments)))
-         (with-compiled-expr (place instrs) (assignment-expr ass)
-            (add-used-var (var-name (assignment-var ass)) place)
-            (let ((other-code (compile-assignments-and-else (remove-tree ass assignments) else-fun)))
-               `(,@instrs ,@other-code))))))
+                        
+               
+(defun compile-head-move (arg i tuple-reg)
+   (let ((reg-dot (make-reg-dot tuple-reg i)))
+      (compile-expr-to arg reg-dot)))
 
 (defun do-compile-head (head orig-body options code)
    (declare (ignore orig-body code))
@@ -105,13 +149,25 @@
          `(,(make-vm-alloc name tuple-reg)
             ,@(loop for arg in args
                   for i upto (length args)
-                  append (with-compiled-expr (reg arg-code) arg
-                           `(,@arg-code ,(make-move reg (make-reg-dot tuple-reg i)))))
+                  append (compile-head-move arg i tuple-reg))
             ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code options tuple-reg)
                `(,@extra-code ,(make-send tuple-reg send-to)))))))
-                     
+
+(defun compile-assignments-and-head (assignments head-fun)
+   (if (null assignments)
+       (funcall head-fun)
+       (let ((ass (find-if (valid-assignment-p (all-used-var-names)) assignments)))
+         (with-compiled-expr (place instrs) (assignment-expr ass)
+            (add-used-var (var-name (assignment-var ass)) place)
+            (let ((other-code (compile-assignments-and-else (remove-tree ass assignments) head-fun)))
+               `(,@instrs ,@other-code))))))
+
+(defun remove-defined-assignments (assignments) (mapcar #L(remove-used-var (var-name (assignment-var !1))) assignments))
+
 (defun compile-head (body head orig-body options code)
-   (compile-assignments-and-else (filter #'assignment-p body) #L(do-compile-head head orig-body options code)))
+   (let ((assigns (filter #'assignment-p body)))
+      (always-ret (compile-assignments-and-head assigns #L(do-compile-head head orig-body options code))
+         (remove-defined-assignments assigns))))
                      
 (defun compile-iterate (body orig-body head options code)
    (multiple-value-bind (constraints assignments) (get-compile-constraints-and-assignments body)
@@ -129,19 +185,39 @@
                         `(,(make-iterate next-sub-name match-constraints other-code))))))))))
       
 (defun compile-constraint (inner-code constraint)
-   (with-compiled-expr (reg expr-code) (constraint-expr constraint)
-      `(,@expr-code ,(make-if reg inner-code))))
-(defun compile-constraints (constraints inner-code)
-   (reduce #L(compile-constraint !1 !2) constraints :initial-value inner-code))
+   (let ((c-expr (constraint-expr constraint)))
+      (with-compiled-expr (reg expr-code) c-expr
+         `(,@expr-code ,(make-if reg inner-code)))))
+               
+(defun select-best-constraint (constraints all-vars)
+   (let ((all (filter (valid-constraint-p all-vars) constraints)))
+      (if (null all)
+         nil
+         (first (sort all #'> :key #'constraint-priority)))))
+   
+(defun do-compile-constraints-and-assignments (constraints assignments inner-code)
+   (if (null constraints)
+      inner-code
+      (let* ((all-vars (all-used-var-names))
+            (new-constraint (select-best-constraint constraints all-vars)))
+         (if (null new-constraint)
+            (let ((ass (find-if (valid-assignment-p all-vars) assignments)))
+               (with-compiled-expr (place instrs) (assignment-expr ass)
+               (add-used-var (var-name (assignment-var ass)) place)
+               (let ((other-code (do-compile-constraints-and-assignments constraints (remove-tree ass assignments) inner-code)))
+                  `(,@instrs ,@other-code))))
+            (let ((inner-code (do-compile-constraints-and-assignments (remove-tree new-constraint constraints) assignments inner-code)))
+               (compile-constraint inner-code new-constraint))))))
+             
 
 (defun compile-constraints-and-assignments (constraints assignments inner-code)
-   (always-ret (compile-assignments-and-else assignments #'(lambda () (compile-constraints constraints inner-code)))
-      (mapcar #L(remove-used-var (var-name (assignment-var !1))) constraints)))
+   (always-ret (do-compile-constraints-and-assignments constraints assignments inner-code)
+      (remove-defined-assignments assignments)))
 
 (defun compile-low-constraints (constraints inner-code)
    (with-reg (reg)
       (reduce #'(lambda (c old)
-                  (list (make-set reg (low-constraint-v1 c)
+                  (list (make-vm-op reg (low-constraint-v1 c)
                                     (set-type-to-op (low-constraint-type c) :type-bool :equal)
                                     (low-constraint-v2 c))
                            (make-if reg old)))
@@ -149,10 +225,10 @@
 
 (defun compile-initial-subgoal (body orig-body head options subgoal code)
    (with-reg (sub-reg subgoal)
-      (let ((start-code (make-move :tuple sub-reg))
+      (let ((start-code (if (null (subgoal-args subgoal)) nil (list (make-move :tuple sub-reg))))
             (low-constraints (add-subgoal subgoal sub-reg))
             (inner-code (compile-iterate (remove-tree subgoal body) orig-body head options code)))
-         `(,start-code ,@(compile-low-constraints low-constraints inner-code)))))
+         `(,@start-code ,@(compile-low-constraints low-constraints inner-code)))))
 
 (defun build-process (name clauses code)
    (unless clauses (return-from build-process nil))

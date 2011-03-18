@@ -71,7 +71,8 @@
       (do-subgoals body (:args args)
          (dolist (arg args)
             (unless (var-p arg)
-               (push-dunion-all (all-variables arg) ret))))))       
+               (push-dunion-all (all-variables arg) ret))))))
+                     
 (defun variables-undefined (head body)
    (set-tree-difference (variables-undefined0 head body) (variables-defined body)))
          
@@ -98,9 +99,9 @@
              (premisses `(,new-routing ,@subgoals))
              (assignments (select-valid-assignments body subgoals))
              (constraints (select-valid-constraints body (all-variable-names `(,@premisses ,@assignments))))
-             (stripped-body (remove-all body `(,route-subgoal ,@subgoals ,@constraints)))
+             (stripped-body (remove-all body `(,route-subgoal ,@subgoals ,@constraints ,@assignments)))
              (everything-else `(,new-routing ,@stripped-body))
-             (new-clause-body (remove-unneeded-assignments `(,@subgoals ,new-routing ,@assignments ,@constraints)))
+             (new-clause-body `(,@subgoals ,new-routing ,@assignments ,@constraints))
              (variables-undef (variables-undefined head everything-else))
              (variables-subgoals (variables-defined new-clause-body))
              (needed-vars (tree-intersection variables-subgoals variables-undef))
@@ -108,7 +109,9 @@
          (setf (clause-body clause) (remove-unneeded-assignments `(,new-subgoal ,@stripped-body) head))
          (push (make-definition (subgoal-name new-subgoal)
                   `(:type-node ,@(mapcar #'expr-type needed-vars)) `(:routed-tuple)) (all-definitions code))
-         (make-clause new-clause-body `(,(copy-tree new-subgoal)) `(:route ,(var-name (first (subgoal-args route-subgoal) )))))))
+         (let ((new-clause-head `(,(copy-tree new-subgoal))))
+            (make-clause (remove-unneeded-assignments new-clause-body new-clause-head) new-clause-head
+                  `(:route ,(var-name (first (subgoal-args route-subgoal) ))))))))
             
 (defun do-localize (code clause edges remaining)
    (dolist (edge edges)

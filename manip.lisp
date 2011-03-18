@@ -11,12 +11,40 @@
             symbs)))
 
 (define-makes :plus :minus :mul :mod :div
-      :lesser :lesser-equal :greater :greater-equal :equal :assign)
+      :lesser :lesser-equal :greater :greater-equal
+      :equal :assign :not-equal)
       
 (defun make-call (name args) `(:call ,name ,args))
 (defun call-name (call) (second call))
 (defun call-args (call) (third call))
 (defun call-p (call) (tagged-p call :call))
+
+(defun make-cons (h ts) `(:cons ,h ,ts))
+(defun cons-p (c) (tagged-p c :cons))
+(defun cons-head (c) (second c))
+(defun cons-tail (c) (third c))
+(defun make-head (c) `(:head ,c))
+(defun head-list (c) (second c))
+(defun make-tail (c) `(:tail ,c))
+(defun tail-list (c) (second c))
+(defun tail-p (c) (tagged-p c :tail))
+(defun head-p (c) (tagged-p c :head))
+
+(defun make-true () '(:true))
+(defun make-false () '(:false))
+(defun true-p (true) (tagged-p true :true))
+(defun false-p (false) (tagged-p false :false))
+
+(defun make-not (expr) `(:not ,expr))
+(defun not-expr (not) (second not))
+(defun not-p (expr) (tagged-p expr :not))
+
+(defun make-test-nil (expr) `(:test-nil ,expr))
+(defun test-nil-expr (tn) (second tn))
+(defun test-nil-p (tn) (tagged-p tn :test-nil))
+
+(defun make-nil () (list :nil))
+(defun nil-p (n) (tagged-p n :nil))
    
 (defun make-clause (perm conc &rest options) `(:clause ,perm ,conc ,options))
 (defun clause-head (clause) (third clause))
@@ -56,7 +84,10 @@
 (defun extern-ret-type (ext) (third ext))
 (defun extern-types (ext) (fourth ext))
 
-(defun make-constraint (expr) (list :constraint expr))
+(defun make-constraint (expr &optional (priority 0)) (list :constraint expr priority))
+(defun constraint-p (ls) (tagged-p ls :constraint))
+(defun constraint-expr (ls) (second ls))
+(defun constraint-priority (ls) (third ls))
 
 (defmacro define-ops (&rest symbs)
    `(on-top-level
@@ -65,11 +96,11 @@
                   (tagged-p val ,sy)))
          symbs)))
          
-(define-ops :int :var :plus :minus :mul :div :mod
+(define-ops :int :float :var :plus :minus :mul :div :mod
             :equal :not-equal
             :lesser :lesser-equal :greater :greater-equal)
 
-(defun const-p (s) (or (int-p s)))
+(defun const-p (s) (or (int-p s) (float-p s) (call-p s) (cons-p s) (nil-p s)))
             
 (defun op-op (val) (tagged-tag val))
 (defun op-op1 (val) (second val))
@@ -109,9 +140,6 @@
    (setf (fourth code) new-clauses))
 (defsetf clauses set-clauses)
 
-(defun constraint-p (ls) (tagged-p ls :constraint))
-(defun constraint-expr (ls) (second ls))
-
 (defun assignment-p (ls) (tagged-p ls :assign))
 (defun assignment-var (ls) (second ls))
 (defun assignment-expr (ls) (third ls))
@@ -142,8 +170,11 @@
 
 (defun lookup-extern (defs name)
    (find-if #L(string-equal name (extern-name !1)) (filter #'extern-p defs)))
-         
-(defparameter *all-types* '(:type-int :type-float :type-bool :type-node))
+
+(defparameter *number-types* '(:type-int :type-float))
+(defparameter *list-number-types* '(:type-list-int :type-list-float))
+(defparameter *list-types* `(,@*list-number-types* :type-list-addr))
+(defparameter *all-types* `(,@*number-types* :type-bool :type-node ,@*list-types*))
 
 (defmacro deftype-p (&rest types)
    `(on-top-level
@@ -151,7 +182,7 @@
                                        (eq ,(format-symbol "KEYWORD" "TYPE-~A" (symbol-name x)) ty)))
                   types)))
 
-(deftype-p int node bool float)
+(deftype-p int node bool float list-int list-float list-addr)
 
 (defun has-constraints (subgoals) (some #'constraint-p subgoals))
 (defun has-assignments (subgoals) (some #'assignment-p subgoals))
@@ -174,25 +205,25 @@
    `(or ,@(mapcar #'(lambda (s) `(eq ,sym ,s)) symbols)))
    
 (defun eq-arith-p (sym) (eq-or sym :plus :minus :mul :div :mod))
-(defun eq-cmp-p (sym) (eq-or sym :equal :lesser :lesser-equal :greater :greater-equal))
+(defun eq-cmp-p (sym) (eq-or sym :equal :not-equal :lesser :lesser-equal :greater :greater-equal))
       
 (defun type-operands (op &optional forced-types)
    (cond
       ((eq-arith-p op)
          (if forced-types
-            (intersection forced-types '(:type-int :type-float))
-            '(:type-int :type-float)))
+            (intersection forced-types *number-types*)
+            *number-types*))
       ((eq-cmp-p op)
          (if (or forced-types
                  (not (has-elem-p forced-types :type-bool)))
-            '(:type-int :type-float)))))
+            `(,@*number-types* :type-bool ,@*list-types*)))))
 
 (defun type-op (op &optional forced-types)
    (cond
       ((eq-arith-p op)
          (if forced-types
-            (intersection '(:type-int :type-float) forced-types)
-            '(:type-int :type-float)))
+            (intersection *number-types* forced-types)
+            '*number-types*))
       ((eq-cmp-p op)
          (if forced-types
             (intersection '(:type-bool) forced-types)
@@ -201,7 +232,7 @@
 (defun type-oper-op (op forced-types)
    (cond
       ((eq-arith-p op)
-         (intersection '(:type-int :type-float) forced-types))
+         (intersection *number-types* forced-types))
       ((eq-cmp-p op) '(:type-bool))))
       
 (defun all-variables (expr)
@@ -211,6 +242,15 @@
    ((assignment-p expr) (dunion (list (assignment-var expr)) (all-variables (assignment-expr expr))))
    ((var-p expr) (list expr))
    ((int-p expr) nil)
+   ((nil-p expr) nil)
+   ((float-p expr) nil)
+   ((host-id-p expr) nil)
+   ((call-p expr) (all-variables (call-args expr)))
+   ((cons-p expr) (dunion (all-variables (cons-head expr)) (all-variables (cons-tail expr))))
+   ((head-p expr) (all-variables (head-list expr)))
+   ((tail-p expr) (all-variables (tail-list expr)))
+   ((not-p expr) (all-variables (not-expr expr)))
+   ((test-nil-p expr) (all-variables (test-nil-expr expr)))
    ((op-p expr) (dunion (all-variables (op-op1 expr)) (all-variables (op-op2 expr))))
    ((listp expr) (reduce #'(lambda (old arg) (dunion old (all-variables arg))) expr :initial-value nil))))
    

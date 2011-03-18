@@ -109,10 +109,10 @@ type fact(node, int).
 type other(node, int).
 type another(node, int).
    
-extern int list_push_tail_node(int, int).
+extern int print_int(int).
    
 other(A, 5).
-another(A, list_push_tail_node(2, B)) :- other(A, B).
+another(A, print_int(2)) :- other(A, B).
   
 fact(A, B + 5) :- other(A, C), another(A, B), another(A, 42).
 ")
@@ -129,40 +129,44 @@ other(A, B + 1) :- fact(A, B).
    
 nei(A, C + 2) :-
    edge(A, B),
-   fact(B, C).
+   fact(B, C),
+   C > 42.
 ")
 
 (defparameter *ls-code*
 "
 type fact(node, list int).
 type another(node, list int).
-type other(node).
    
-other(A).
-another(A, [2, 3]).
+fact(A, [2, 3, 1, 3, 4]).
    
-fact(A, [5 | L]) :- another(A, [2 | L]), other(A).
+another(A, [X + 1 | [X * 42, Y * 3 | [2 * 2]]]) :-
+   edge(A, B),
+   fact(B, [X | [P | [Z | [W | [Y]]]]]).
 ")
 
+(defparameter *path-prog*
 "
-another(A, L2) :-
-   L1 = list_cons(3, nil),
-   L2 = list_cons(2, L1).
-      
-fact(A, list_cons(5, L)) :-
-   another(A, Ls),
-   2 = list_head(Ls),
-   L = list_tail(Ls),
-   other(A).
+type path(node, node).
+type coiso(node, int).
+
+path(X, Y) :- edge(X, Y).
+path(X, Z) :- edge(X, Y), path(Y, Z).
+
+coiso(@1, 2) :-
+   coiso(@3, 2).
    
-[1, 2, 3 | L]
-"
+edge(@1, @2).
+edge(@2, @3).
+edge(@5, @4).
+coiso(@1, @3).
+")
 
 (defun localize-code (code)
    (let ((ast (add-base-tuples (parse-meld code))))
       (localize (type-check ast))))
       
-(defparameter *prog* *runnable*)
+(defparameter *prog* *path-prog*)
 (defparameter *ast* (localize-code *prog*))
 (defparameter *code* (compile-ast *ast*))
-(defparameter *output* (output-code *ast* *code* "base.bb"))
+(defparameter *output* (output-code *ast* *code* "/Users/flaviocruz/Projects/meld/base.bb"))

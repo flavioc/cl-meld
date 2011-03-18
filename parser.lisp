@@ -9,9 +9,14 @@
 	("float"       (return (values :type-float $@)))
 	("catom"		   (return (values :type-catom $@)))
 	("node"        (return (values :type-node $@)))
+	("list"        (return (values :type-list $@)))
 	(":-"          (return (values :arrow  $@)))
 	("\\("			(return (values :lparen $@)))
 	("\\)"			(return (values :rparen $@)))
+	("\\["         (return (values :lsparen $@)))
+	("\\]"         (return (values :rsparen $@)))
+	("\\|"         (return (values :bar $@)))
+	("nil"         (return (values :nil $@)))
 	("\\."         (return (values :dot $@)))
 	("\\,"         (return (values :comma $@)))
 	("\\+"         (return (values :plus $@)))
@@ -63,7 +68,8 @@
 								:bar :arrow :dot :comma :type-int :type-node
 								:type-catom :type-float :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal :equal
-								:extern :const-decl :min :max :first :sum))
+								:extern :const-decl :min :max :first :sum
+								:lsparen :rsparen :nil :bar :type-list))
 	(program
 	  (definitions statements #L(make-ast !1 !2)))
 
@@ -98,10 +104,15 @@
     (:sum (return-const :sum)))
     
 	(atype
-	 (:type-int #'(lambda (x) (declare (ignore x)) :type-int))
-	 (:type-float #'(lambda (x) (declare (ignore x)) :type-float))
-	 (:type-catom #'(lambda (x) (declare (ignore x)) :type-node))
-	 (:type-node #'(lambda (x) (declare (ignore x)) :type-node)))
+	 base-type
+	 (:type-list base-type #'(lambda (l ty) :type-list-int)))
+	 
+	(base-type
+ 	 (:type-int (return-const :type-int))
+ 	 (:type-float (return-const :type-float))
+ 	 (:type-catom (return-const :type-node))
+ 	 (:type-node (return-const :type-node)))
+	   
 
 	(statements
 	 (statement #'list)
@@ -143,7 +154,18 @@
 	   (expr :mul expr #'make-mul)
 	   (expr :mod expr #'make-mod)
 	   (expr :div expr #'make-div)
-	   (expr :plus expr #'make-plus))
+	   (expr :plus expr #'make-plus)
+	   (list-expr #'identity))
+	   
+	(list-expr
+	   (:lsparen sub-list :rsparen #'(lambda (a b c) b))
+	   (:lsparen :rsparen #'(lambda (a b) (make-nil)))
+	   (:nil #'(lambda (a) (make-nil))))
+	   
+	(sub-list
+	   (expr #'(lambda (expr) (make-cons expr (make-nil))))
+	   (expr :comma sub-list #'(lambda (expr x sub) (declare (ignore x)) (make-cons expr sub)))
+	   (expr :bar expr #'(lambda (a b c) (make-cons a c))))
 
    (cmp
       (expr :equal expr #'make-equal)

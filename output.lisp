@@ -1,7 +1,7 @@
 
 (in-package :cl-meld)
 
-(define-condition compile-invalid-error (error)
+(define-condition output-invalid-error (error)
    ((text :initarg :text :reader text)))
 
 (defmacro with-memory-stream (s &body body)
@@ -35,18 +35,19 @@
       ((vm-int-p val) (list #b000001 (output-int (vm-int-val val))))
       ((vm-float-p val) (list #b000000 (output-float (vm-float-val val))))
       ((vm-host-id-p val) (list #b000011))
+      ((vm-nil-p val) (list #b000100))
       ((tuple-p val) (list #b011111))
       ((reg-p val) (list (logior #b100000 (logand #b011111 (reg-num val)))))
       ((reg-dot-p val) (list #b000010 (list (reg-dot-field val) (reg-num (reg-dot-reg val)))))
-      (t (error 'compile-invalid-error :text "invalid expression value"))))
+      (t (error 'output-invalid-error :text "invalid expression value"))))
 
 (defmacro add-byte (b vec) `(vector-push-extend ,b ,vec))
 (defun add-bytes (vec &rest bs)
    (dolist (b bs) (add-byte b vec)))
 
 (defmacro do-vm-values (vec vals &rest instrs)
-   (labels ((map-value (i) (case i (1 'first-value) (2 'second-value)))
-            (map-value-bytes (i) (case i (1 'first-value-bytes) (2 'second-value-bytes))))
+   (labels ((map-value (i) (case i (1 'first-value) (2 'second-value) (3 'third-value)))
+            (map-value-bytes (i) (case i (1 'first-value-bytes) (2 'second-value-bytes) (3 'third-value-bytes))))
       (let* ((i 0)
              (vals-code (mapcar #'(lambda (val) `(output-value ,val)) vals))
              (instrs-code `(progn ,@(mapcar #'(lambda (instr) `(add-byte ,instr ,vec)) instrs)
@@ -84,7 +85,11 @@
       (:float-mul #b10010)
       (:int-mul #b10011)
       (:float-div #b10100)
-      (:int-div #b10101)))
+      (:int-div #b10101)
+      (:node-equal #b10110)
+      (:node-not-equal #b10111)
+      (:list-int-equal #b11000)
+      (otherwise (error 'output-invalid-error :text "Unknown operation to convert"))))
       
 (defun reg-to-byte (reg) (reg-num reg))
 
@@ -129,39 +134,46 @@
                  (,ls (output-int ,len)))
             (setf (aref ,vec (+ ,pos ,jump-many)) (first ,ls)
                   (aref ,vec (+ 1 ,jump-many ,pos)) (second ,ls))))))
+                  
+(defparameter *value-mask* #b00111111)
+(defparameter *reg-mask* #b00011111)
+(defparameter *op-mask* #b00011111)
+(defparameter *tuple-id-mask* #b01111111)
+(defparameter *extern-id-mask* #b01111111)
 
 (defun output-instr (ast instr vec)
    (case (instr-type instr)
       (:return (add-byte #x0 vec))
-      (:set (let ((op (get-op-byte (set-op instr)))
-                  (reg-byte (reg-to-byte (set-destiny instr))))
-               (do-vm-values vec ((set-v1 instr) (set-v2 instr))
-                           (logior #b11000000 (logand #b00111111 first-value))
-                           (logior (logand #b11111100 (ash second-value 2))
-                                   (logand #b00000011 (ash reg-byte -3)))
-                           (logior (logand #b11100000 (ash reg-byte 5)) op))))
+      (:op (let ((op (get-op-byte (set-op instr))))
+               (do-vm-values vec ((set-v1 instr) (set-v2 instr) (set-dest instr))
+                           #b11000000
+                           (logand *value-mask* first-value)
+                           (logand *value-mask* second-value)
+                           (logand *value-mask* third-value)
+                           (logand *op-mask* op))))
       (:alloc (let ((tuple-id (lookup-tuple-id ast (vm-alloc-tuple instr))))
                   (do-vm-values vec ((vm-alloc-reg instr))
-                     (logior #b01000000 (logand #b00011111 (ash tuple-id -2)))
-                     (logior (logand #b11000000 (ash tuple-id 6)) first-value))))
+                     #b01000000
+                     (logand *tuple-id-mask* tuple-id)
+                     (logand *value-mask* first-value))))
       (:send (do-vm-values vec ((send-time instr))
-                (logior #b00001000 (logand #b00000011 (ash (reg-num (send-from instr)) -3)))
-                (logior (logand #b11100000 (ash (reg-num (send-from instr)) 5))
-                        (reg-num (send-to instr)))
+               #b00001000
+                (logand *reg-mask* (reg-to-byte (send-from instr)))
+                (logand *reg-mask* (reg-to-byte (send-to instr)))
                first-value))
       (:call (let ((extern-id (lookup-extern-id ast (vm-call-name instr)))
                    (args (vm-call-args instr)))
-               (add-byte (logior #b00100000 (ash extern-id -4)) vec)
-               (add-byte (logior (logand #b11110000 (ash extern-id 4))
-                                 (reg-to-byte (vm-call-dest instr))) vec)
-               ;(add-byte (logand #b11111000 (ash (length args) 3)) vec)
+               (add-byte #b00100000 vec)
+               (add-byte (logand *extern-id-mask* extern-id) vec)
+               (add-byte (logand *reg-mask* (reg-to-byte (vm-call-dest instr))) vec)
                (dolist (arg args)
                   (let ((res (output-value arg)))
                      (add-byte (first res) vec)
                      (dolist (b (second res)) (add-byte b vec))))))
       (:if (let ((reg-b (reg-to-byte (if-reg instr))))
-             (write-jump vec 1
-               (add-byte (logior #b01100000 reg-b) vec)
+             (write-jump vec 2
+               (add-byte #b01100000 vec)
+               (add-byte (logand *reg-mask* reg-b) vec)
                (jumps-here vec)
                (output-instrs (if-instrs instr) vec ast))))
       (:iterate (write-jump vec 2
@@ -172,8 +184,34 @@
                   (output-instrs (iterate-instrs instr) vec ast)
                   (add-byte #b00000001 vec)))
       (:move (do-vm-values vec ((move-from instr) (move-to instr))
-                (logior #b00110000 (logand #b00001111 (ash first-value -2)))
-                (logior (logand #b11000000 (ash first-value 6)) second-value)))))
+                #b00110000
+                (logand *value-mask* first-value)
+                (logand *value-mask* second-value)))
+      (:move-nil (do-vm-values vec ((move-nil-to instr))
+                  #b01110000
+                  (logand *value-mask* first-value)))
+      (:test-nil (do-vm-values vec ((vm-test-nil-place instr) (vm-test-nil-dest instr))
+                     #b00000011
+                     (logand *value-mask* first-value)
+                     (logand *value-mask* second-value)))
+      (:not (do-vm-values vec ((vm-not-place instr) (vm-not-dest instr))
+               #b00000111
+               (logand *value-mask* first-value)
+               (logand *value-mask* second-value)))
+      (:cons (do-vm-values vec ((vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr))
+                  #b00000100
+                  (logand *value-mask* first-value)
+                  (logand *value-mask* second-value)
+                  (logand *value-mask* third-value)))
+      (:head (do-vm-values vec ((vm-head-cons instr) (vm-head-dest instr))
+                  #b00000101
+                  (logand *value-mask* first-value)
+                  (logand *value-mask* second-value)))
+      (:tail (do-vm-values vec ((vm-tail-cons instr) (vm-tail-dest instr))
+                  #b000000110
+                  (logand *value-mask* first-value)
+                  (logand *value-mask* second-value)))
+      (otherwise (error 'output-invalid-error :text "unknown instruction to output"))))
                 
 (defun output-instrs (ls vec ast)
    (dolist (instr ls)
@@ -187,9 +225,11 @@
 (defun output-arg-type (typ vec)
    (add-byte
       (case typ
-         (:type-node #b0010)
          (:type-int #b0000)
-         (:type-float #b0001))
+         (:type-float #b0001)
+         (:type-node #b0010)
+         (:type-list-int #b0011)
+         (otherwise (error 'output-invalid-error :text "invalid arg type")))
       vec))
    
 (defun output-aggregate-type (agg typ)
@@ -266,4 +306,4 @@
       (output-external-functions ast stream)
       (output-tuple-names ast stream)
       (do-output-code ast code stream)
-      (format stream "/*~%~a*/~%" (print-vm code))))
+      (format stream "/*~%~a*/~%~%/*~a*/~%" (print-vm code) ast)))
