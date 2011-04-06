@@ -19,21 +19,16 @@
       (format s "~a," (length typs)))
    (format s "};~%"))
    
-(defun output-tuple-names (code s)
-   (format s "char *tuple_names[] = {")
-   (do-definitions code (:name name :id id)
-      (format s "~a\"~a\"" (if (> id 0) ", " "") name))
-   (format s "};~%"))
-   
 (defun output-int (int)
    (loop for i upto 3
       collect (ldb (byte 8 (* i 8)) int)))
-(defun output-float (flt) (output-int (encode-float32 flt)))
+(defun output-float (flt) (output-int (encode-float32 (coerce flt 'float))))
 
 (defun output-value (val)
    (cond
       ((vm-int-p val) (list #b000001 (output-int (vm-int-val val))))
       ((vm-float-p val) (list #b000000 (output-float (vm-float-val val))))
+      ((vm-addr-p val) (list  #b000101 (output-int (vm-addr-num val))))
       ((vm-host-id-p val) (list #b000011))
       ((vm-nil-p val) (list #b000100))
       ((tuple-p val) (list #b011111))
@@ -61,7 +56,7 @@
                            (,(map-value-bytes i) (second value)))
                               ,all))
                   vals-code :initial-value instrs-code :from-end nil))))
-            
+
 (defun get-op-byte (op)
    (case op
       (:float-not-equal #b00000)
@@ -86,9 +81,8 @@
       (:int-mul #b10011)
       (:float-div #b10100)
       (:int-div #b10101)
-      (:node-equal #b10110)
-      (:node-not-equal #b10111)
-      (:list-int-equal #b11000)
+      (:addr-equal #b10111)
+      (:addr-not-equal #b10110)
       (otherwise (error 'output-invalid-error :text "Unknown operation to convert"))))
       
 (defun reg-to-byte (reg) (reg-num reg))
@@ -121,19 +115,27 @@
       (t (output-match (first matches) vec #b00000000)
          (output-matches (rest matches) vec))))
 
+(defun write-int-vec (vec int &optional (pos 0))
+   (let ((ls (output-int int)))
+      (setf (aref vec pos) (first ls)
+            (aref vec (1+ pos)) (second ls))))
+            
 (defmacro jumps-here (vec)
    `(progn
       (add-byte #b0 ,vec)
       (add-byte #b0 ,vec)))
       
 (defmacro write-jump (vec jump-many &body body)
-   (with-gensyms (pos len ls)
+   (with-gensyms (pos)
       `(let ((,pos (length ,vec)))
           ,@body
-          (let* ((,len (- (length ,vec) ,pos))
-                 (,ls (output-int ,len)))
-            (setf (aref ,vec (+ ,pos ,jump-many)) (first ,ls)
-                  (aref ,vec (+ 1 ,jump-many ,pos)) (second ,ls))))))
+         (write-int-vec ,vec (- (length ,vec) ,pos) (+ ,pos ,jump-many)))))
+         
+(defun output-cons-type (typ)
+   (case typ
+      (:type-list-int 0)
+      (:type-list-float 1)
+      (:type-list-addr 2)))
                   
 (defparameter *value-mask* #b00111111)
 (defparameter *reg-mask* #b00011111)
@@ -144,23 +146,21 @@
 (defun output-instr (ast instr vec)
    (case (instr-type instr)
       (:return (add-byte #x0 vec))
-      (:op (let ((op (get-op-byte (set-op instr))))
-               (do-vm-values vec ((set-v1 instr) (set-v2 instr) (set-dest instr))
+      (:op (let ((op (get-op-byte (vm-op-op instr))))
+               (do-vm-values vec ((vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr))
                            #b11000000
                            (logand *value-mask* first-value)
                            (logand *value-mask* second-value)
                            (logand *value-mask* third-value)
                            (logand *op-mask* op))))
-      (:alloc (let ((tuple-id (lookup-tuple-id ast (vm-alloc-tuple instr))))
-                  (do-vm-values vec ((vm-alloc-reg instr))
-                     #b01000000
-                     (logand *tuple-id-mask* tuple-id)
-                     (logand *value-mask* first-value))))
-      (:send (do-vm-values vec ((send-time instr))
-               #b00001000
-                (logand *reg-mask* (reg-to-byte (send-from instr)))
-                (logand *reg-mask* (reg-to-byte (send-to instr)))
-               first-value))
+      (:alloc (let ((tuple-id (lookup-tuple-id ast (vm-alloc-tuple instr)))
+                    (reg (reg-to-byte (vm-alloc-reg instr))))
+                  (add-byte #b01000000 vec)
+                  (add-byte (logand *tuple-id-mask* tuple-id) vec)
+                  (add-byte (logand *reg-mask* reg) vec)))
+      (:send (add-byte #b00001000 vec)
+             (add-byte (logand *reg-mask* (reg-to-byte (send-from instr))) vec)
+             (add-byte (logand *reg-mask* (reg-to-byte (send-to instr))) vec))
       (:call (let ((extern-id (lookup-extern-id ast (vm-call-name instr)))
                    (args (vm-call-args instr)))
                (add-byte #b00100000 vec)
@@ -200,15 +200,18 @@
                (logand *value-mask* second-value)))
       (:cons (do-vm-values vec ((vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr))
                   #b00000100
+                  (output-cons-type (vm-cons-type instr))
                   (logand *value-mask* first-value)
                   (logand *value-mask* second-value)
                   (logand *value-mask* third-value)))
       (:head (do-vm-values vec ((vm-head-cons instr) (vm-head-dest instr))
                   #b00000101
+                  (output-cons-type (vm-head-type instr))
                   (logand *value-mask* first-value)
                   (logand *value-mask* second-value)))
       (:tail (do-vm-values vec ((vm-tail-cons instr) (vm-tail-dest instr))
                   #b000000110
+                  (output-cons-type (vm-tail-type instr))
                   (logand *value-mask* first-value)
                   (logand *value-mask* second-value)))
       (otherwise (error 'output-invalid-error :text "unknown instruction to output"))))
@@ -227,8 +230,10 @@
       (case typ
          (:type-int #b0000)
          (:type-float #b0001)
-         (:type-node #b0010)
+         (:type-addr #b0010)
          (:type-list-int #b0011)
+         (:type-list-float #b0100)
+         (:type-list-addr #b0101)
          (otherwise (error 'output-invalid-error :text "invalid arg type")))
       vec))
    
@@ -260,50 +265,86 @@
       (if agg
          #b00000001
          #b00000000)))
+
+(defparameter *max-tuple-name* 32)
+(defparameter *max-tuple-args* 32)
+
+(defun output-tuple-name (name vec)
+   (let ((len (length name)))
+      (loop for x being the elements of name
+         do (add-byte (char-code x) vec))
+      (loop for i from (1+ len) to *max-tuple-name*
+         do (add-byte #b0 vec))))
+         
+(defun output-tuple-type-args (types vec)
+   (let* ((args (definition-arg-types types))
+          (len (length args)))
+      (dolist (typ args)
+         (output-arg-type typ vec))
+      (loop for i from (1+ len) to *max-tuple-args*
+         do (add-byte #b0 vec))))
       
 (defun output-descriptors (ast)
-   (do-definitions ast (:types types :operation collect)
+   (do-definitions ast (:name name :types types :operation collect)
       (letret (vec (create-bin-array))
-         (add-bytes vec #b0 #b0) ; code offset
          (add-byte (output-properties types) vec) ; property byte
          (add-byte (output-aggregate types) vec) ; aggregate byte
-         (add-byte #b0 vec) ; strat order
          (add-byte (length types) vec) ; number of args
-         (add-byte #b0 vec) ; delta stuff
-         (dolist (typ (definition-arg-types types))
-            (output-arg-type typ vec)))))
+         (output-tuple-type-args types vec) ; argument type information
+         (output-tuple-name name vec)))) ;; predicate name
             
-(defun write-hexa (stream int) (format stream "0x~X," int))
+(defparameter *total-written* 0)
+
+(defun write-hexa (stream int) (incf *total-written*) (write-byte int stream))
 (declaim (inline write-hexa))
 
+(defun write-vec (stream vec)
+   (loop for b being the elements of vec
+      do (write-hexa stream b)))
+      
+(defun write-short-stream (stream int)
+   (let ((ls (output-int int)))
+      (write-hexa stream (first ls))
+      (write-hexa stream (second ls))))
+
+(defun write-int-stream (stream int)
+   (dolist (part (output-int int))
+      (write-hexa stream part)))
+
+(defun write-nodes (stream nodes)
+   (write-int-stream stream (length nodes))
+   (dolist (node nodes) (write-int-stream stream node)))
+
 (defun do-output-code (ast code stream)
-   (format stream "const unsigned char meld_prog[] = {")
    (write-hexa stream (length (definitions ast)))
-   (let* ((processes (output-processes ast code))
-          (process-lens (mapcar #'length processes)) 
-          (descriptors (output-descriptors ast))
-          (desc-lens (mapcar #'length descriptors))
-          (desc-len (reduce #'+ desc-lens :initial-value 0))
-          (initial-offset (+ 1 (length (definitions ast)))))
-      (dolist (off (addify desc-lens initial-offset))
-         (write-hexa stream off))
-      (loop for desc in descriptors ; update code offsets
-            for off in (addify process-lens (+ initial-offset desc-len))
-            for intls = (output-int off)
-            do (setf (aref desc 0) (first intls)
-                     (aref desc 1) (second intls)))
-      (dolist (vec (append descriptors processes))
-         (loop for b being the elements of vec
-               do (write-hexa stream b))))
-   (format stream "};~%")
-   (format stream "const unsigned int size_meld_prog = sizeof(meld_prog);~%~%"))
+   (write-nodes stream (defined-nodes ast))
+   (let ((processes (output-processes ast code))
+         (descriptors (output-descriptors ast)))
+      (loop for vec-desc in descriptors
+            for vec-proc in processes
+            do (write-short-stream stream (length vec-proc)) ; write code size first
+            do (write-vec stream vec-desc))
+      (dolist (vec processes) (write-vec stream vec))))
+   
+(defmacro with-output-file ((stream file) &body body)
+   `(with-open-file (,stream ,file
+                        :direction :output
+                        :if-exists :supersede
+                        :if-does-not-exist :create)
+      ,@body))
    
 (defun output-code (ast code file)
-   (with-open-file (stream file
-                     :direction :output
-                     :if-exists :supersede
-                     :if-does-not-exist :create)
-      (output-external-functions ast stream)
-      (output-tuple-names ast stream)
-      (do-output-code ast code stream)
-      (format stream "/*~%~a*/~%~%/*~a*/~%" (print-vm code) ast)))
+   (let ((*total-written* 0)
+         (byte-file (concatenate 'string file ".m"))
+         (ast-file (concatenate 'string file ".m.ast"))
+         (code-file (concatenate 'string file ".m.code")))
+      (with-open-file (stream byte-file
+                        :direction :output
+                        :if-exists :supersede
+                        :if-does-not-exist :create
+                        :element-type '(unsigned-byte 8))
+         (do-output-code ast code stream))
+      (with-output-file (stream ast-file)
+         (format stream "~a~%" ast))
+      (with-output-file (stream code-file)
+         (format stream "~a" (print-vm code)))))

@@ -9,7 +9,7 @@
 (defun check-home-argument (name typs)
    (when (null typs)
       (error 'type-invalid-error :text (concatenate 'string name " has no arguments")))
-   (unless (type-node-p (first typs))
+   (unless (type-addr-p (first typs))
       (error 'type-invalid-error
          :text (concatenate 'string "first argument of tuple " name " must be of type 'node'"))))
          
@@ -33,7 +33,7 @@
 (defun no-types-p (ls) (null ls))
 (defun merge-types (ls types) (intersection ls types))
 (defun valid-type-combination-p (types)
-   (equal-or types (:type-int) (:type-float) (:type-int :type-float) (:type-bool) (:type-node)
+   (equal-or types (:type-int) (:type-float) (:type-int :type-float) (:type-bool) (:type-addr)
                    (:type-list-int) (:type-list-float) (:type-list-addr)))
    
 (defun variable-is-defined (var) (unless (has-elem-p *defined* (var-name var)) (push (var-name var) *defined*)))
@@ -43,7 +43,9 @@
 (defun set-type (expr typs)
    (cond
       ((or (nil-p expr)) (setf (cdr expr) (list (try-one typs))))
-      ((or (var-p expr) (int-p expr) (tail-p expr) (head-p expr) (not-p expr) (test-nil-p expr)) (setf (cddr expr) (list (try-one typs))))
+      ((or (var-p expr) (int-p expr) (tail-p expr) (head-p expr)
+            (not-p expr) (test-nil-p expr) (addr-p expr))
+         (setf (cddr expr) (list (try-one typs))))
       ((or (call-p expr) (op-p expr) (cons-p expr)) (setf (cdddr expr) (list (try-one typs))))
       (t (error 'type-invalid-error :text "unknown expression to type"))))
       
@@ -52,7 +54,8 @@
       (when ok
          (setf new-types (merge-types types new-types))
          (when (no-types-p new-types)
-            (error 'type-invalid-error :text "type error")))
+            (error 'type-invalid-error :text
+                  (tostring "Type error in variable ~a: new constraint are types ~a but variable is set as ~a" var new-types types))))
       (setf (gethash var *constraints*) new-types)))
       
 (defun select-simpler-types (types)
@@ -66,18 +69,19 @@
    (case typ
       (:type-list-int :type-int)
       (:type-list-float :type-float)
-      (:type-list-addr :type-node)))
+      (:type-list-addr :type-addr)))
 (defun list-type (typ)
    (case typ
       (:type-int :type-list-int)
       (:type-float :type-list-float)
-      (:type-node :type-list-addr)))
+      (:type-addr :type-list-addr)))
          
 (defun get-type (expr forced-types defs)
    (labels ((do-get-type (expr forced-types)
             (cond
                ((var-p expr) (force-constraint (var-name expr) forced-types))
                ((int-p expr) (merge-types forced-types '(:type-int :type-float)))
+               ((addr-p expr) (merge-types forced-types '(:type-addr)))
                ((call-p expr)
                   (let ((extern (lookup-extern defs (call-name expr))))
                      (unless extern (error 'type-invalid-error :text "undefined call"))
@@ -120,7 +124,7 @@
                         (type-oper-op op t1)))))))
       (let ((types (do-get-type expr forced-types)))
          (when (no-types-p types)
-            (error 'type-invalid-error :text "type error"))
+            (error 'type-invalid-error :text (tostring "Type error in expression ~a: wanted types ~a" expr forced-types)))
          (set-type expr types)
          types)))
       
@@ -129,7 +133,7 @@
       (unless definition
          (error 'type-invalid-error :text "definition not found"))
       (when (not (= (length definition) (length args)))
-         (error 'type-invalid-error :text "invalid number of arguments"))
+         (error 'type-invalid-error :text (tostring "Invalid number of arguments in subgoal ~a~a" name args)))
       (dolist2 (arg args) (forced-type (definition-arg-types definition))
          (when (and force-vars (not (var-p arg)))
             (error 'type-invalid-error :text "only variables at body"))
@@ -201,14 +205,15 @@
          (t
             (push (make-constraint (make-equal tail '= (make-tail mangled-var))) (clause-body clause))))))
 
+(defun transform-constant-to-constraint (clause arg)
+   (cond ((const-p arg)
+            (letret (new-var (generate-random-var))
+               (if (cons-p arg)
+                  (unfold-cons new-var arg clause)
+                  (push (make-constraint (make-equal new-var '= arg)) (clause-body clause)))))
+          (t arg)))
 (defun transform-constants-to-constraints (clause args)
-   (mapcar #'(lambda (arg)
-                  (cond ((const-p arg)
-                           (letret (new-var (generate-random-var))
-                                 (if (cons-p arg)
-                                    (unfold-cons new-var arg clause)
-                                    (push (make-constraint (make-equal new-var '= arg)) (clause-body clause)))))
-                         (t arg))) args))
+   (mapcar #L(transform-constant-to-constraint clause !1) args))
                          
 (defun transform-bodyless-clause (clause init-name)
    (setf (clause-body clause) `(,@(clause-body clause) ,(make-subgoal init-name `(,(first (subgoal-args (first (clause-head clause)))))))))
@@ -218,10 +223,17 @@
       (do-clauses (clauses code) (:body body :clause clause)
          (unless (filter #'subgoal-p body) (transform-bodyless-clause clause init-name)))))
 
+(defun add-variable-head (code)
+   (do-clauses (clauses code) (:clause clause :head head)
+      (do-subgoals head (:args args :orig sub)
+         (setf (first (subgoal-args sub)) (transform-constant-to-constraint clause
+                        (first args))))))
+
 (defun type-check (code)
    (do-definitions code (:name name :types typs)
       (check-home-argument name typs)
       (check-aggregates name typs))
+   (add-variable-head code)
    (transform-bodyless-clauses code)
    (do-clauses (clauses code) (:clause clause :body body)
       (do-subgoals body (:args args :orig sub)

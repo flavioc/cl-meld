@@ -1,7 +1,5 @@
 (in-package :cl-meld)
 
-(defun make-ast (defs clauses) `(:definitions ,defs :clauses ,clauses))
-
 (defmacro define-makes (&rest symbs)
    `(on-top-level
       ,@(mapcar #'(lambda (sym)
@@ -45,6 +43,10 @@
 
 (defun make-nil () (list :nil))
 (defun nil-p (n) (tagged-p n :nil))
+
+(defun make-addr (num) (list :addr num :type-addr))
+(defun addr-num (addr) (second addr))
+(defun addr-p (addr) (tagged-p addr :addr))
    
 (defun make-clause (perm conc &rest options) `(:clause ,perm ,conc ,options))
 (defun clause-head (clause) (third clause))
@@ -100,7 +102,9 @@
             :equal :not-equal
             :lesser :lesser-equal :greater :greater-equal)
 
-(defun const-p (s) (or (int-p s) (float-p s) (call-p s) (cons-p s) (nil-p s)))
+(defun const-p (s)
+   (or (int-p s) (float-p s) (call-p s)
+      (cons-p s) (nil-p s) (addr-p s)))
             
 (defun op-op (val) (tagged-tag val))
 (defun op-op1 (val) (second val))
@@ -115,7 +119,7 @@
 (defun float-val (val) (second val))
 (defun make-float (flt) `(:float ,flt))
 
-(defun make-host-id () '(:host-id :type-node))
+(defun make-host-id () '(:host-id :type-addr))
 (defun host-id-p (h) (tagged-p h :host-id))
 
 (defun var-name (val) (second val))
@@ -125,6 +129,11 @@
 (defun single-typed-var-p (var) (and (typed-var-p var) (one-elem-p (third var))))
 (defun typed-op-p (op) (= (length op) 4))
 (defun typed-int-p (i) (= (length i) 3))
+
+;;;; AST
+
+(defun make-ast (defs clauses &optional nodes)
+   `(:definitions ,defs :clauses ,clauses :nodes ,nodes))
             
 (defun all-definitions (code) (second code))
 (defun definitions (code) (filter #'definition-p (all-definitions code)))
@@ -140,9 +149,15 @@
    (setf (fourth code) new-clauses))
 (defsetf clauses set-clauses)
 
+(defun defined-nodes (code) (sixth code))
+
+;;;; ASSIGNMENTS
+
 (defun assignment-p (ls) (tagged-p ls :assign))
 (defun assignment-var (ls) (second ls))
 (defun assignment-expr (ls) (third ls))
+
+;;;; SUBGOALS
 
 (defun subgoal-p (ls) (tagged-p ls :subgoal))
 (defun subgoal-name (subgoal) (second subgoal))
@@ -158,8 +173,12 @@
 
 (defun expr-type (expr)
    (cond
-      ((or (var-p expr) (int-p expr)) (third expr))
-      ((op-op expr) (fourth expr))))
+      ((or (nil-p expr) (host-id-p expr)) (second expr))
+      ((or (var-p expr) (int-p expr) (addr-p expr) (tail-p expr)
+           (head-p expr) (not-p expr) (test-nil-p expr))
+         (third expr))
+      ((or (op-op expr) (call-p expr) (cons-p expr))
+         (fourth expr))))
 
 (defun lookup-definition-types (defs pred)
    (when-let ((def (lookup-definition defs pred)))
@@ -174,7 +193,7 @@
 (defparameter *number-types* '(:type-int :type-float))
 (defparameter *list-number-types* '(:type-list-int :type-list-float))
 (defparameter *list-types* `(,@*list-number-types* :type-list-addr))
-(defparameter *all-types* `(,@*number-types* :type-bool :type-node ,@*list-types*))
+(defparameter *all-types* `(,@*number-types* :type-bool :type-addr ,@*list-types*))
 
 (defmacro deftype-p (&rest types)
    `(on-top-level
@@ -182,7 +201,7 @@
                                        (eq ,(format-symbol "KEYWORD" "TYPE-~A" (symbol-name x)) ty)))
                   types)))
 
-(deftype-p int node bool float list-int list-float list-addr)
+(deftype-p int addr bool float list-int list-float list-addr)
 
 (defun has-constraints (subgoals) (some #'constraint-p subgoals))
 (defun has-assignments (subgoals) (some #'assignment-p subgoals))
@@ -216,7 +235,7 @@
       ((eq-cmp-p op)
          (if (or forced-types
                  (not (has-elem-p forced-types :type-bool)))
-            `(,@*number-types* :type-bool ,@*list-types*)))))
+            `(,@*number-types* :type-addr :type-bool ,@*list-types*)))))
 
 (defun type-op (op &optional forced-types)
    (cond

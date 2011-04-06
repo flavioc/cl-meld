@@ -6,8 +6,13 @@
 (defun get-second-arg (subgoal) (second (subgoal-args subgoal)))
 (defun get-first-arg (subgoal) (first (subgoal-args subgoal)))
 
+(defun is-route-p (def)
+   (with-definition def (:types typs :options opts)
+      (and (>= (length typs) 2)
+           (type-addr-p (second typs))
+           (has-elem-p opts :route))))
 (defun get-routes (code)
-   (mapfilter #'definition-name #L(has-elem-p (definition-options !1) :route) (definitions code)))
+   (mapfilter #'definition-name #'is-route-p (definitions code)))
 (defun get-paths (subgoals routes)
    (filter #L(has-test-elem-p routes (subgoal-name !1) #'string-equal) (get-subgoals subgoals)))
 
@@ -108,7 +113,7 @@
              (new-subgoal (generate-inverse-subgoal new-fact-name (first (subgoal-args route-subgoal)) needed-vars)))
          (setf (clause-body clause) (remove-unneeded-assignments `(,new-subgoal ,@stripped-body) head))
          (push (make-definition (subgoal-name new-subgoal)
-                  `(:type-node ,@(mapcar #'expr-type needed-vars)) `(:routed-tuple)) (all-definitions code))
+                  `(:type-addr ,@(mapcar #'expr-type needed-vars)) `(:routed-tuple)) (all-definitions code))
          (let ((new-clause-head `(,(copy-tree new-subgoal))))
             (make-clause (remove-unneeded-assignments new-clause-body new-clause-head) new-clause-head
                   `(:route ,(var-name (first (subgoal-args route-subgoal) ))))))))
@@ -156,7 +161,6 @@
 
 (defun localize (code)
    (let ((routes (get-routes code)))
-      (unless (= (length routes) 1) (error 'localize-invalid-error :text "only one route tuple supported"))
       (do-clauses (clauses code) (:clause clause :head head)
          (localize-check-head head)
          (localize-start code clause routes (host-node head)))

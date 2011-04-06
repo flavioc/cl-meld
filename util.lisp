@@ -1,6 +1,6 @@
 (in-package :cl-meld)
 
-(defun create-bin-array () (make-array 0 :element-type '(unsigned-byte 8) :adjustable t :fill-pointer 0))
+(defun create-bin-array (&optional (size 0)) (make-array size :element-type '(unsigned-byte 8) :adjustable t :fill-pointer 0))
 
 (defun str->sym (str) (values (intern str)))
 

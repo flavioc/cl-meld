@@ -7,8 +7,7 @@
  	("const"       (return (values :const-decl $@)))
 	("int"			(return (values :type-int $@)))
 	("float"       (return (values :type-float $@)))
-	("catom"		   (return (values :type-catom $@)))
-	("node"        (return (values :type-node $@)))
+	("node"        (return (values :type-addr $@)))
 	("list"        (return (values :type-list $@)))
 	(":-"          (return (values :arrow  $@)))
 	("\\("			(return (values :lparen $@)))
@@ -33,6 +32,8 @@
 	("max"         (return (values :max $@)))
 	("sum"         (return (values :sum $@)))
 	("first"       (return (values :first $@)))
+	("route"       (return (values :route $@)))
+	("@"           (return (values :local $@)))
 	("[-+]?[0-9]+(\.[0-9]+|[0-9]+)?" (return (values :number $@)))
 	("_"				(return (values :variable $@)))
  	("[a-z]([a-z]|\_)*"		(return (values :const $@)))
@@ -40,36 +41,46 @@
 	("[A-Z]([A-Z]|[a-z]|[0-9])*"	(return (values :variable $@))))
 
 (defun make-var-parser (var)
- (if (eq var '_)
-	(generate-random-var)
-	(make-var var)))
+   (if (equal var "_")
+	   (generate-random-var)
+	   (make-var var)))
 	
 (defun parse-number (str)
    (if (find #\. str)
       (make-float (read-from-string str))
       (make-int (parse-integer str))))
-	
+
 (defun make-const-definition (name expr) `(:const ,name ,expr))
 (defun const-definition-p (const) (tagged-p const :const))
 (defun const-definition-name (const) (second const))
 (defun const-definition-expr (const) (third const))
 
-(defparameter *parsed-consts* nil)
+(defvar *parsed-consts* nil)
 (defun lookup-const-def (name)
    (const-definition-expr (find-if #L(equal (const-definition-name !1) name) *parsed-consts*)))
    
 (defmacro return-const (const)
    `#'(lambda (x) (declare (ignore x)) ,const))
+   
+(defvar *found-nodes* nil)
+(defun add-found-node (i)
+   (multiple-value-bind (yes found-p) (gethash i *found-nodes*)
+      (declare (ignore yes))
+      (unless found-p
+         (setf (gethash i *found-nodes*) t))))
+(defun defined-nodes-list ()
+   (loop for k being the hash-keys in *found-nodes* collect k))
 
 (define-parser meld-parser
    (:muffle-conflicts t)
  	(:start-symbol program)
 	(:terminals (:const :type :variable :number :lparen :rparen
-								:bar :arrow :dot :comma :type-int :type-node
-								:type-catom :type-float :plus :minus :mul :mod :div
+								:bar :arrow :dot :comma :type-int :type-addr
+								:type-float :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl :min :max :first :sum
-								:lsparen :rsparen :nil :bar :type-list))
+								:lsparen :rsparen :nil :bar :type-list :local
+								:route))
 	(program
 	  (definitions statements #L(make-ast !1 !2)))
 
@@ -85,9 +96,18 @@
 	                                             (declare (ignore a e dot))
 	                                             (push (make-const-definition name expr) *parsed-consts*)
 	                                             nil))
-	 (:type const :lparen type-args :rparen :dot #'(lambda (ty const l typs r d)
-																		(declare (ignore ty l r d))
-																		(make-definition const typs))))
+	 (predicate-definition #'identity))
+	 
+	
+	(predicate-definition
+	 (:type predicate-option const type-args-part #L(make-definition !3 !4 !2))
+	 (:type const type-args-part #L(make-definition !2 !3)))
+	 							
+	(predicate-option
+	   (:route (return-const :route)))
+	   
+	(type-args-part
+	   (:lparen type-args :rparen :dot #'(lambda (l typs r d) (declare (ignore l r d)) typs)))
 
 	(type-args
 	 (type-decl #'list)
@@ -105,13 +125,17 @@
     
 	(atype
 	 base-type
-	 (:type-list base-type #'(lambda (l ty) :type-list-int)))
+	 (:type-list base-type #'(lambda (l ty)
+	                           (declare (ignore l))
+	                           (case ty
+	                              (:type-int :type-list-int)
+	                              (:type-float :type-list-float)
+	                              (:type-addr :type-list-addr)))))
 	 
 	(base-type
  	 (:type-int (return-const :type-int))
  	 (:type-float (return-const :type-float))
- 	 (:type-catom (return-const :type-node))
- 	 (:type-node (return-const :type-node)))
+ 	 (:type-addr (return-const :type-addr)))
 	   
 
 	(statements
@@ -148,6 +172,7 @@
 	   variable
 	   (const :lparen args :rparen #'(lambda (name l args r) (declare (ignore l r)) (make-call name args)))
 	   (const #L(lookup-const-def !1))
+	   (:local :number #L(let ((val (parse-integer !2))) (add-found-node val) (make-addr val)))
 		(:number #L(parse-number !1))
 	   (:lparen expr :rparen #'(lambda (l expr r) (declare (ignore l r)) expr))
 	   (expr :minus expr #'make-minus)
@@ -158,14 +183,14 @@
 	   (list-expr #'identity))
 	   
 	(list-expr
-	   (:lsparen sub-list :rsparen #'(lambda (a b c) b))
-	   (:lsparen :rsparen #'(lambda (a b) (make-nil)))
-	   (:nil #'(lambda (a) (make-nil))))
+	   (:lsparen sub-list :rsparen #'(lambda (a b c) (declare (ignore a c)) b))
+	   (:lsparen :rsparen #'(lambda (a b) (declare (ignore a b)) (make-nil)))
+	   (:nil #'(lambda (a) (declare (ignore a)) (make-nil))))
 	   
 	(sub-list
 	   (expr #'(lambda (expr) (make-cons expr (make-nil))))
 	   (expr :comma sub-list #'(lambda (expr x sub) (declare (ignore x)) (make-cons expr sub)))
-	   (expr :bar expr #'(lambda (a b c) (make-cons a c))))
+	   (expr :bar expr #'(lambda (a b c) (declare (ignore b)) (make-cons a c))))
 
    (cmp
       (expr :equal expr #'make-equal)
@@ -182,5 +207,9 @@
       
 (defun parse-meld (str)
  (let* ((lexer (meld-lexer str))
-        (*parsed-consts* nil))
-   (parse-with-lexer lexer meld-parser)))
+        (*parsed-consts* nil)
+        (*found-nodes* (make-hash-table))
+        (result (parse-with-lexer lexer meld-parser)))
+   (make-ast (all-definitions result)
+             (clauses result)
+             (defined-nodes-list))))

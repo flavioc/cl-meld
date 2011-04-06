@@ -10,8 +10,8 @@
 (defun set-type-to-op (typ-args typ-ret op)
    (declare (ignore typ-ret))
    (case typ-args
-      (:type-list-int (case op
-                           (:equal :list-int-equal)))
+      (:type-addr (case op
+                     (:equal :addr-equal)))
       (:type-int (do-type-conversion op int))
       (:type-float (do-type-conversion op float))))
 
@@ -51,20 +51,23 @@
 (defun vm-test-nil-place (tn) (second tn))
 (defun vm-test-nil-dest (tn) (third tn))
 
-(defun make-vm-cons (head tail dest) `(:cons ,head ,tail ,dest))
+(defun make-vm-cons (head tail dest typ) `(:cons ,head ,tail ,dest ,typ))
 (defun vm-cons-head (c) (second c))
 (defun vm-cons-tail (c) (third c))
 (defun vm-cons-dest (c) (fourth c))
+(defun vm-cons-type (c) (fifth c))
 (defun vm-cons-p (c) (tagged-p c :cons))
 
-(defun make-vm-head (con dest) `(:head ,con ,dest))
+(defun make-vm-head (con dest typ) `(:head ,con ,dest ,typ))
 (defun vm-head-cons (h) (second h))
 (defun vm-head-dest (h) (third h))
+(defun vm-head-type (h) (fourth h))
 (defun vm-head-p (h) (tagged-p h :head))
 
-(defun make-vm-tail (con dest) `(:tail ,con ,dest))
+(defun make-vm-tail (con dest typ) `(:tail ,con ,dest ,typ))
 (defun vm-tail-cons (tail) (second tail))
 (defun vm-tail-dest (tail) (third tail))
+(defun vm-tail-type (tail) (fourth tail))
 (defun vm-tail-p (tail) (tagged-p tail :tail))
 
 (defun make-if (r instrs) (list :if r instrs))
@@ -99,11 +102,14 @@
 (defun make-vm-host-id () :host-id)
 (defun vm-host-id-p (h) (eq h :host-id))
 
-(defun make-send (from to &optional (time 0)) `(:send ,from ,to ,(make-vm-int time)))
-(defun make-send-self (reg &optional (time 0)) (make-send reg reg time))
+(defun make-vm-addr (num) `(:addr ,num))
+(defun vm-addr-num (addr) (second addr))
+(defun vm-addr-p (addr) (tagged-p addr :addr))
+
+(defun make-send (from to) `(:send ,from ,to))
+(defun make-send-self (reg) (make-send reg reg))
 (defun send-from (send) (second send))
 (defun send-to (send) (third send))
-(defun send-time (send) (fourth send))
 
 (defun make-vm-call (name dest args) `(:call ,name ,dest ,args))
 (defun vm-call-name (call) (second call))
@@ -118,6 +124,7 @@
       ((vm-int-p place) (tostring "~a" (vm-int-val place)))
       ((vm-float-p place) (tostring "~a" (vm-float-val place)))
       ((vm-host-id-p place) "host-id")
+      ((vm-addr-p place) (tostring "addr(~a)" (vm-addr-num place)))
       ((vm-nil-p place) "nil")
       ((reg-p place) (tostring "reg ~a" (reg-num place)))
       ((reg-dot-p place)
@@ -137,7 +144,7 @@
                                           ,(substitute #\Space #\- (tostring "~A ~A" typ !1))) basic-ops))
             (otherwise ,@body)))))
             
-(generate-print-op (int float list-int) (equal not-equal lesser lesser-equal greater greater-equal plus minus mul div mod))
+(generate-print-op (addr int float) (equal not-equal lesser lesser-equal greater greater-equal plus minus mul div mod))
 
 (defun print-instr-ls (instrs)
    (reduce #L(if !1 (concatenate 'string !1 (list #\Newline) (print-instr !2)) (print-instr !2))
@@ -174,10 +181,18 @@
       (:if (tostring "IF (~a) THEN~%~a~%ENDIF" (print-place (if-reg instr)) (print-instr-ls (if-instrs instr))))
       (:move (tostring "MOVE ~a TO ~a" (print-place (move-from instr)) (print-place (move-to instr))))))
 
+(defun print-vm-list (out instrs)
+   (dolist (instr instrs)
+      (format out "~a~%" (print-instr instr))))
+      
 (defun print-vm (processls)
    (with-output-to-string (str)
       (do-processes processls (:name name :instrs instrs)
          (format str "PROCESS ~a:~%" name)
-         (dolist (instr instrs)
-            (format str "~a~%" (print-instr instr)))
+         (print-vm-list str instrs)
          (format str "~%"))))
+         
+(defun vm-find (processls name-find)
+   (do-processes processls (:name name :instrs instrs)
+      (when (equal name-find name)
+         (return-from vm-find instrs))))
