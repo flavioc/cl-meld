@@ -312,9 +312,11 @@
       (write-hexa stream part)))
 
 (defun write-nodes (stream nodes)
-   (write-int-stream stream (length nodes))
-   (dolist (node nodes) (write-int-stream stream node)))
-
+   (write-int-stream stream (number-of-nodes nodes))
+   (iterate-nodes (fake-id real-id nodes)
+      (write-int-stream stream fake-id)
+      (write-int-stream stream real-id)))
+      
 (defun do-output-code (ast code stream)
    (write-hexa stream (length (definitions ast)))
    (write-nodes stream (defined-nodes ast))

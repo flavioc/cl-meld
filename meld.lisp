@@ -32,8 +32,10 @@ fact(A, nil) :-
 (defvar *code* nil)
 
 (defun localize-code (code)
-   (let ((ast (add-base-tuples (parse-meld code))))
-      (setf *ast* (localize (type-check ast)))))
+   (let* ((ast (add-base-tuples (parse-meld code)))
+          (topoliged (optimize-topology ast))
+          (typechecked (type-check topoliged)))
+      (setf *ast* (localize typechecked))))
       
 (defun do-meld-compile (code out)
    (let* ((localized (localize-code code))

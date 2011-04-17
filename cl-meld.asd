@@ -42,6 +42,7 @@
 		 			(:file "meld"
 		 			         :depends-on ("parser"
 		 			                      "localize"
+		 			                      "topology"
 		 			                      "compile"
 		 			                      "models/parallel"
 		 			                      "output"))
@@ -55,7 +56,11 @@
 		 			         :depends-on ("manip"
 		 			                      "util"
 		 			                      "compile"
-		 			                      "vm"))
+		 			                      "vm"
+		 			                      "topology"))
+		 			(:file "topology"
+		 			         :depends-on ("manip"
+		 			                      "util"))
 		 			(:file "print"
 		 			         :depends-on ("package"
 		 			                      "manip"))

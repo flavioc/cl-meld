@@ -47,7 +47,10 @@
 (defun make-addr (num) (list :addr num :type-addr))
 (defun addr-num (addr) (second addr))
 (defun addr-p (addr) (tagged-p addr :addr))
-   
+(defun set-addr-num (addr new-num)
+   (setf (second addr) new-num))
+(defsetf addr-num set-addr-num)
+
 (defun make-clause (perm conc &rest options) `(:clause ,perm ,conc ,options))
 (defun clause-head (clause) (third clause))
 (defun clause-body (clause) (second clause))
@@ -70,6 +73,15 @@
 (defsetf definition-types set-definition-types)
 (defun definition-options (def) (fourth def))
 (defun definition-add-option (def opt) (push opt (fourth def)))
+
+(defun is-route-p (def)
+   (with-definition def (:types typs :options opts)
+      (and (>= (length typs) 2)
+           (type-addr-p (second typs))
+           (has-elem-p opts :route))))
+(defun get-routes (code)
+   (mapfilter #'definition-name #'is-route-p (definitions code)))
+
 (defun make-aggregate (agg typ) `(:aggregate ,agg ,typ))
 (defun aggregate-p (agg) (tagged-p agg :aggregate))
 (defun aggregate-agg (agg) (second agg))
@@ -150,6 +162,9 @@
 (defsetf clauses set-clauses)
 
 (defun defined-nodes (code) (sixth code))
+(defun set-defined-nodes (code new-nodes)
+   (setf (sixth code) new-nodes))
+(defsetf defined-nodes set-defined-nodes)
 
 ;;;; ASSIGNMENTS
 
@@ -253,8 +268,52 @@
       ((eq-arith-p op)
          (intersection *number-types* forced-types))
       ((eq-cmp-p op) '(:type-bool))))
+
+(defun iterate-expr (fn expr)
+   (unless expr
+      (return-from iterate-expr nil))
+   (let ((ls (list)))
+      (labels ((aux (expr)
+                  (let ((val (funcall fn expr)))
+                     (when val
+                        (push val ls)))
+                  (cond
+                     ((subgoal-p expr) (dolist (arg (subgoal-args expr)) (aux arg)))
+                     ((constraint-p expr) (aux (constraint-expr expr)))
+                     ((assignment-p expr)
+                        (aux (assignment-var expr))
+                        (aux (assignment-expr expr)))
+                     ((var-p expr) nil)
+                     ((int-p expr) nil)
+                     ((float-p expr) nil)
+                     ((host-id-p expr) nil)
+                     ((nil-p expr) nil)
+                     ((addr-p expr) nil)
+                     ((call-p expr) (dolist (arg (call-args expr)) (aux arg)))
+                     ((cons-p expr)
+                        (aux (cons-head expr))
+                        (aux (cons-tail expr)))
+                     ((head-p expr) (aux (head-list expr)))
+                     ((tail-p expr) (aux (tail-list expr)))
+                     ((not-p expr) (aux (not-expr expr)))
+                     ((test-nil-p expr) (aux (test-nil-expr expr)))
+                     ((op-p expr)
+                        (aux (op-op1 expr))
+                        (aux (op-op2 expr)))
+                     ((and (listp expr)
+                           (not (symbolp (first expr)))
+                           (listp (first expr)))
+                        (dolist (el expr)
+                           (aux el)))
+                     (t (error 'expr-invalid-error :text "Invalid expression")))))
+            (aux expr)
+            ls)))
       
 (defun all-variables (expr)
+   (let ((vars (iterate-expr #'(lambda (x) (when (var-p x) x)) expr)))
+      (remove-duplicates vars :test #'equal)))
+      
+(defun all-variables-0 (expr)
  (cond
    ((subgoal-p expr) (reduce #'(lambda (old arg) (dunion old (all-variables arg))) (subgoal-args expr) :initial-value nil))
    ((constraint-p expr) (all-variables (constraint-expr expr)))
@@ -264,6 +323,7 @@
    ((nil-p expr) nil)
    ((float-p expr) nil)
    ((host-id-p expr) nil)
+   ((addr-p expr) nil)
    ((call-p expr) (all-variables (call-args expr)))
    ((cons-p expr) (dunion (all-variables (cons-head expr)) (all-variables (cons-tail expr))))
    ((head-p expr) (all-variables (head-list expr)))

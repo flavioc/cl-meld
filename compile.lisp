@@ -143,7 +143,6 @@
                            (already-defined (make-low-constraint (expr-type arg) (make-reg-dot in-c i) already-defined))
                            (t (add-used-var (var-name arg) (make-reg-dot reg i)) nil)))))))
                         
-               
 (defun compile-head-move (arg i tuple-reg)
    (let ((reg-dot (make-reg-dot tuple-reg i)))
       (compile-expr-to arg reg-dot)))
@@ -209,11 +208,12 @@
             (let ((ass (find-if (valid-assignment-p all-vars) assignments)))
                (with-compiled-expr (place instrs) (assignment-expr ass)
                (add-used-var (var-name (assignment-var ass)) place)
-               (let ((other-code (do-compile-constraints-and-assignments constraints (remove-tree ass assignments) inner-code)))
+               (let ((other-code (do-compile-constraints-and-assignments
+                                    constraints (remove-tree ass assignments) inner-code)))
                   `(,@instrs ,@other-code))))
-            (let ((inner-code (do-compile-constraints-and-assignments (remove-tree new-constraint constraints) assignments inner-code)))
+            (let ((inner-code (do-compile-constraints-and-assignments
+                                       (remove-tree new-constraint constraints) assignments inner-code)))
                (compile-constraint inner-code new-constraint))))))
-             
 
 (defun compile-constraints-and-assignments (constraints assignments inner-code)
    (always-ret (do-compile-constraints-and-assignments constraints assignments inner-code)

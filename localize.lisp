@@ -6,13 +6,6 @@
 (defun get-second-arg (subgoal) (second (subgoal-args subgoal)))
 (defun get-first-arg (subgoal) (first (subgoal-args subgoal)))
 
-(defun is-route-p (def)
-   (with-definition def (:types typs :options opts)
-      (and (>= (length typs) 2)
-           (type-addr-p (second typs))
-           (has-elem-p opts :route))))
-(defun get-routes (code)
-   (mapfilter #'definition-name #'is-route-p (definitions code)))
 (defun get-paths (subgoals routes)
    (filter #L(has-test-elem-p routes (subgoal-name !1) #'string-equal) (get-subgoals subgoals)))
 

@@ -22,6 +22,19 @@
 (defun has-elem-p (list el) (ensure-bool (member el list)))
 (defun has-test-elem-p (list el test) (ensure-bool (member el list :test test)))
 
+(defun create-hash-set (ls)
+   (let ((hash (make-hash-table :test #'equal)))
+      (dolist (a ls)
+         (setf (gethash a hash) t))
+      hash))
+      
+(defun remove-hash-set (hash-set el) (remhash el hash-set))
+(defun in-hash-set-p (hash-set el) (gethash el hash-set))
+
+(defmacro do-hash-set ((el hash-set) &body body)
+   `(loop for ,el being the hash-keys of ,hash-set
+         do (progn ,@body)))
+
 (defmacro any (predicates val)
    `(or ,@(mapcar (lambda (pred) `(,pred ,val)) predicates)))
    
