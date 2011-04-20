@@ -9,6 +9,7 @@
 	("float"       (return (values :type-float $@)))
 	("node"        (return (values :type-addr $@)))
 	("list"        (return (values :type-list $@)))
+	("include"     (return (values :include $@)))
 	(":-"          (return (values :arrow  $@)))
 	("\\("			(return (values :lparen $@)))
 	("\\)"			(return (values :rparen $@)))
@@ -35,10 +36,11 @@
 	("route"       (return (values :route $@)))
 	("@"           (return (values :local $@)))
 	("[-+]?[0-9]+(\.[0-9]+|[0-9]+)?" (return (values :number $@)))
-	("_"				(return (values :variable $@)))
- 	("[a-z]([a-z]|\_)*"		(return (values :const $@)))
-	("'\\w+"		(return (values :const $@)))
-	("[A-Z]([A-Z]|[a-z]|[0-9])*"	(return (values :variable $@))))
+	("_"				                  (return (values :variable $@)))
+ 	("[a-z]([a-z]|[A-Z]|\_)*"		         (return (values :const $@)))
+	("'\\w+"		                     (return (values :const $@)))
+	("\\#.+"                         (return (values :file $@)))
+	("[A-Z]([A-Z]|[a-z]|[0-9])*"	   (return (values :variable $@))))
 
 (defun make-var-parser (var)
    (if (equal var "_")
@@ -70,6 +72,9 @@
          (setf (gethash i *found-nodes*) t))))
 (defun defined-nodes-list ()
    (loop for k being the hash-keys in *found-nodes* collect k))
+   
+(defvar *included-files* nil)
+(defun add-included-file (file) (push (subseq file 1) *included-files*))
 
 (define-parser meld-parser
    (:muffle-conflicts t)
@@ -80,9 +85,16 @@
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl :min :max :first :sum
 								:lsparen :rsparen :nil :bar :type-list :local
-								:route))
+								:route :include :file))
 	(program
-	  (definitions statements #L(make-ast !1 !2)))
+	  (includes definitions statements #L(make-ast !2 !3)))
+	  
+	(includes
+	   ()
+	   (include includes #'(lambda (a b) (declare (ignore a b)))))
+	   
+	(include
+	   (:include :file #'(lambda (i f) (declare (ignore i)) (add-included-file f))))
 
 	(definitions
 	 (definition #'list)
@@ -175,6 +187,7 @@
 	   (:local :number #L(let ((val (parse-integer !2))) (add-found-node val) (make-addr val)))
 		(:number #L(parse-number !1))
 	   (:lparen expr :rparen #'(lambda (l expr r) (declare (ignore l r)) expr))
+	   (:type-float :lparen expr :rparen #'(lambda (f l expr r) (declare (ignore f l r)) (make-convert-float expr)))
 	   (expr :minus expr #'make-minus)
 	   (expr :mul expr #'make-mul)
 	   (expr :mod expr #'make-mod)
@@ -213,3 +226,27 @@
    (make-ast (all-definitions result)
              (clauses result)
              (defined-nodes-list))))
+             
+(defun read-file (file)
+   (with-open-file (str file
+                        :direction :input
+                        :if-does-not-exist :error)
+      (reduce #L(concatenate 'string !1 !2 (list #\newline))
+         (loop for line = (read-line str nil nil)
+                while line
+                collect line) :initial-value "")))
+
+(defun parse-meld-file (file)
+   (let* ((pn (pathname file))
+          (old-directory *default-pathname-defaults*)
+          (*included-files* nil)
+          (str (read-file file)))
+      (setf *default-pathname-defaults* (pathname (directory-namestring pn)))
+      (let ((ast (parse-meld str)))
+         (loop for aux-file in *included-files*
+               do (let ((ast-aux (parse-meld-file aux-file)))
+                     (setf ast (make-ast (append (all-definitions ast-aux) (all-definitions ast))
+                                         (append (clauses ast-aux) (clauses ast))
+                                         (append (defined-nodes ast-aux) (defined-nodes ast))))))
+         (setf *default-pathname-defaults* old-directory)
+         ast)))

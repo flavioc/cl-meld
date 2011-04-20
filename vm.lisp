@@ -14,10 +14,15 @@
                      (:equal :addr-equal)))
       (:type-int (do-type-conversion op int))
       (:type-float (do-type-conversion op float))))
+      
+(defun op-eq-p (a b) (eq a b))
 
 (defun make-process (name instrs) (list :process name instrs))
 (defun process-name (proc) (second proc))
 (defun process-instrs (proc) (third proc))
+(defun set-process-instrs (proc new-instrs)
+   (setf (third proc) new-instrs))
+(defsetf process-instrs set-process-instrs)
 
 (defun make-move (from to) `(:move ,from ,to))
 (defun move-to (mv) (third mv))
@@ -29,11 +34,14 @@
 
 (defun make-return () '(:return))
 
+(defun make-return-select () '(:return-select))
+
 (defun instr-type (instr) (first instr))
 
 (defun make-reg (n) `(:reg ,n))
 (defun reg-p (r) (tagged-p r :reg))
 (defun reg-num (r) (second r))
+(defun reg-eq-p (a b) (and (reg-p a) (reg-p b) (= (reg-num a) (reg-num b))))
 
 (defun make-reg-dot (reg field) `(:reg-dot ,reg ,field))
 (defun reg-dot-reg (reg-dot) (second reg-dot))
@@ -73,12 +81,14 @@
 (defun make-if (r instrs) (list :if r instrs))
 (defun if-reg (i) (second i))
 (defun if-instrs (i) (third i))
+(defun if-p (i) (tagged-p i :if))
 
-(defun make-vm-op (dst v1 op &optional v2) (list :op dst :to v1 op v2))
+(defun make-vm-op (dst v1 op v2) (list :op dst :to v1 op v2))
 (defun vm-op-dest (st) (second st))
 (defun vm-op-v1 (st) (fourth st))
 (defun vm-op-op (st) (fifth st))
 (defun vm-op-v2 (st) (sixth st))
+(defun vm-op-p (st) (tagged-p st :op))
 
 (defun make-iterate (name matches instrs) (list :iterate name matches instrs))
 (defun iterate-name (i) (second i))
@@ -99,6 +109,11 @@
 (defun vm-float-p (flt) (tagged-p flt :float))
 (defun vm-float-val (flt) (second flt))
 
+(defun make-vm-convert-float (place dest) `(:convert-float ,place ,dest))
+(defun vm-convert-float-p (flt) (tagged-p flt :convert-float))
+(defun vm-convert-float-place (flt) (second flt))
+(defun vm-convert-float-dest (flt) (third flt))
+
 (defun make-vm-host-id () :host-id)
 (defun vm-host-id-p (h) (eq h :host-id))
 
@@ -115,6 +130,13 @@
 (defun vm-call-name (call) (second call))
 (defun vm-call-dest (call) (third call))
 (defun vm-call-args (call) (fourth call))
+
+(defun make-vm-select-node () (list :select-node))
+(defmacro vm-select-node-iterate (vsn (n instrs &optional (operation 'do)) &body body)
+   `(loop for (,n ,instrs) in (cdr ,vsn)
+          ,operation ,@body))
+(defun vm-select-node-push (vsn n instrs)
+   (setf (cdr vsn) (cons `(,n (,@instrs ,(make-return-select))) (cdr vsn))))
 
 (defun tuple-p (tp) (eq tp :tuple))
 (defun match-p (m) (eq m :match))
@@ -159,6 +181,11 @@
 (defun print-call-args (ls)
    (reduce #L(if (null !1) (print-place !2) (concatenate 'string !1 ", " (print-place !2))) ls :initial-value nil))
 
+(defun print-select-node (instr)
+   (let ((ls (vm-select-node-iterate instr (node instrs collect)
+                  (tostring "~a:~%~a" node (print-instr-ls instrs)))))
+      (merge-strings ls #\Newline))) 
+
 (defun print-instr (instr)
    (case (instr-type instr)
       (:return "RETURN")
@@ -179,20 +206,28 @@
                                              (print-place (vm-op-v2 instr)) (print-place (vm-op-dest instr))))
       (:not (tostring "NOT ~a TO ~a" (print-place (vm-not-place instr)) (print-place (vm-not-dest instr))))
       (:if (tostring "IF (~a) THEN~%~a~%ENDIF" (print-place (if-reg instr)) (print-instr-ls (if-instrs instr))))
-      (:move (tostring "MOVE ~a TO ~a" (print-place (move-from instr)) (print-place (move-to instr))))))
+      (:move (tostring "MOVE ~a TO ~a" (print-place (move-from instr)) (print-place (move-to instr))))
+      (:convert-float (tostring "FLOAT ~a TO ~a" (print-place (vm-convert-float-place instr)) (print-place (vm-convert-float-dest instr))))
+      (:select-node (tostring "START SELECT BY NODE~%~a~%-~%END SELECT BY NODE" (print-select-node instr)))
+      (:return-select (tostring "RETURN SELECT"))
+      (t (error 'compile-invalid-error :text (tostring "Unknown instruction to print: ~a" instr)))))
 
 (defun print-vm-list (out instrs)
    (dolist (instr instrs)
       (format out "~a~%" (print-instr instr))))
       
+(defun process-print (proc &optional (str t))
+   (with-process proc (:name name :instrs instrs)
+      (format str "PROCESS ~a:~%" name)
+      (print-vm-list str instrs)
+      (format str "~%")))
+      
 (defun print-vm (processls)
    (with-output-to-string (str)
-      (do-processes processls (:name name :instrs instrs)
-         (format str "PROCESS ~a:~%" name)
-         (print-vm-list str instrs)
-         (format str "~%"))))
+      (do-processes processls (:proc proc)
+         (process-print proc str))))
          
 (defun vm-find (processls name-find)
-   (do-processes processls (:name name :instrs instrs)
+   (do-processes processls (:name name :proc proc)
       (when (equal name-find name)
-         (return-from vm-find instrs))))
+         (return-from vm-find proc))))

@@ -45,6 +45,7 @@
 		 			                      "topology"
 		 			                      "compile"
 		 			                      "models/parallel"
+		 			                      "optimize"
 		 			                      "output"))
 		 			(:file "models/base"
 		 			         :depends-on ("manip"
@@ -57,7 +58,14 @@
 		 			                      "util"
 		 			                      "compile"
 		 			                      "vm"
-		 			                      "topology"))
+		 			                      "topology"
+		 			                      "localize"))
+		 			(:file "optimize"
+		 			         :depends-on ("manip"
+		 			                      "util"
+		 			                      "macros"
+		 			                      "vm"
+		 			                      "compile"))
 		 			(:file "topology"
 		 			         :depends-on ("manip"
 		 			                      "util"))

@@ -75,6 +75,11 @@
          
 (defmacro equal-or (ls &body rest)
    `(or ,@(mapcar #'(lambda (el) `(equal ',el ,ls)) rest)))
+   
+(defmacro iterate-hash ((hash key val) &body body)
+   `(loop for ,key being the hash-keys of ,hash
+          using (hash-value ,val)
+          do ,@body))
 
 ;; Meld related code
 
@@ -142,9 +147,16 @@
                ,@(build-bind assignment `,el))
             ,@body))))
             
-(defmacro do-processes (procs (&key (name nil) (instrs nil) (operation 'do)) &body body)
+(defmacro with-process (process (&key (name nil) (instrs nil) (proc nil)) &body body)
+   (with-gensyms (el)
+      `(let ((,el ,process))
+         (let (,@(build-bind name `(process-name ,el))
+               ,@(build-bind proc el)
+               ,@(build-bind instrs `(process-instrs ,el)))
+            ,@body))))
+            
+(defmacro do-processes (procs (&key (proc nil) (name nil) (instrs nil) (operation 'do)) &body body)
    (with-gensyms (el)
       `(loop-list (,el ,procs :operation ,operation)
-         (let (,@(build-bind name `(process-name ,el))
-               ,@(build-bind instrs `(process-instrs ,el)))
+         (with-process ,el (:name ,name :instrs ,instrs :proc ,proc)
             ,@body))))

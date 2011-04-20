@@ -73,6 +73,7 @@
 (defsetf definition-types set-definition-types)
 (defun definition-options (def) (fourth def))
 (defun definition-add-option (def opt) (push opt (fourth def)))
+(defun definition-has-option-p (def opt) (has-elem-p (definition-options def) opt))
 
 (defun is-route-p (def)
    (with-definition def (:types typs :options opts)
@@ -112,7 +113,8 @@
          
 (define-ops :int :float :var :plus :minus :mul :div :mod
             :equal :not-equal
-            :lesser :lesser-equal :greater :greater-equal)
+            :lesser :lesser-equal :greater :greater-equal
+            :convert-float)
 
 (defun const-p (s)
    (or (int-p s) (float-p s) (call-p s)
@@ -133,6 +135,9 @@
 
 (defun make-host-id () '(:host-id :type-addr))
 (defun host-id-p (h) (tagged-p h :host-id))
+
+(defun make-convert-float (expr) `(:convert-float ,expr))
+(defun convert-float-expr (flt) (second flt))
 
 (defun var-name (val) (second val))
 (defun var-eq-p (v1 v2) (equal (var-name v1) (var-name v2)))
@@ -189,11 +194,13 @@
 (defun expr-type (expr)
    (cond
       ((or (nil-p expr) (host-id-p expr)) (second expr))
-      ((or (var-p expr) (int-p expr) (addr-p expr) (tail-p expr)
-           (head-p expr) (not-p expr) (test-nil-p expr))
+      ((or (var-p expr) (int-p expr) (float-p expr) (addr-p expr) (tail-p expr)
+           (head-p expr) (not-p expr) (test-nil-p expr)
+           (convert-float-p expr))
          (third expr))
-      ((or (op-op expr) (call-p expr) (cons-p expr))
-         (fourth expr))))
+      ((or (op-p expr) (call-p expr) (cons-p expr))
+         (fourth expr))
+      (t (error 'type-invalid-error :text (tostring "Cannot deduce type of expression ~a" expr)))))
 
 (defun lookup-definition-types (defs pred)
    (when-let ((def (lookup-definition defs pred)))
@@ -297,6 +304,7 @@
                      ((tail-p expr) (aux (tail-list expr)))
                      ((not-p expr) (aux (not-expr expr)))
                      ((test-nil-p expr) (aux (test-nil-expr expr)))
+                     ((convert-float-p expr) (aux (convert-float-expr expr)))
                      ((op-p expr)
                         (aux (op-op1 expr))
                         (aux (op-op2 expr)))
@@ -312,7 +320,8 @@
 (defun all-variables (expr)
    (let ((vars (iterate-expr #'(lambda (x) (when (var-p x) x)) expr)))
       (remove-duplicates vars :test #'equal)))
-      
+
+;; XXX TO remove in the future
 (defun all-variables-0 (expr)
  (cond
    ((subgoal-p expr) (reduce #'(lambda (old arg) (dunion old (all-variables arg))) (subgoal-args expr) :initial-value nil))

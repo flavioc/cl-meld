@@ -13,6 +13,23 @@
    (if (listp list)
       (null (cdr list))
       t))
+   
+(defun at-least-n-p (ls n)
+   (if (zerop n)
+      t
+      (and (not (null ls))
+           (at-least-n-p (cdr ls) (1- n)))))
+           
+(defun get-first-n (ls n &optional (app nil))
+   (if (zerop n)
+      app
+      (cons (car ls)
+            (get-first-n (cdr ls) (1- n) app))))
+            
+(defun drop-first-n (ls n)
+   (if (zerop n)
+      ls
+      (drop-first-n (cdr ls) (1- n))))
 
 (defun try-one (ls)
    (if (one-elem-p ls)
@@ -85,3 +102,6 @@
    (if (null ls)
       nil
       (cons n (addify (rest ls) (+ n (first ls))))))
+      
+(defun merge-strings (ls sep)
+   (reduce #L(if !1 (concatenate 'string !1 (list sep) !2) !2) ls))

@@ -12,9 +12,7 @@
 (defun number-of-nodes (nodes) (hash-table-count nodes))
 
 (defmacro iterate-nodes ((fake real nodes) &body body)
-   `(loop for ,real being the hash-keys of ,nodes
-          using (hash-value ,fake)
-          do (progn ,@body)))
+   `(iterate-hash (,nodes ,real ,fake) ,@body))
           
 (defun flip-nodes (hash expr)
    (iterate-expr #'(lambda (expr)
@@ -38,7 +36,7 @@
 (defun add-edge-to-set (hash info)
    (let ((from (first info))
          (to (second info)))
-      (format t "from ~a to ~a~%" from to)
+      ;(format t "from ~a to ~a~%" from to)
       (setf (gethash from hash) (cons to (gethash from hash)))))
       
 (defun get-neighbors-from-set (hash from)
@@ -74,11 +72,10 @@
          (unless queue
             (push (get-random-node-from-node-set node-set) queue))
          (unless queue
-            (format t "FAIL~%")
             (return-from bfs-ordering mapping-set))
          (let* ((node (pop queue))
                 (new-edges (get-neighbors-from-set edge-set node)))
-            (format t "ADD ~a(~a) QUEUE ~a~%" node count (append queue new-edges))
+            ;(format t "ADD ~a(~a) QUEUE ~a~%" node count (append queue new-edges))
             (add-mapping mapping-set node count)
             (remove-hash-set node-set node)
             (bfs-ordering edge-set node-set mapping-set (append queue new-edges) (1+ count))))))
@@ -98,7 +95,7 @@
    (let* ((edge-set (find-edge-set ast (get-routes ast)))
           (node-set (create-hash-set (defined-nodes ast)))
           (mapping (bfs-ordering edge-set node-set)))
-      (print-mapping mapping)
+      ;(print-mapping mapping)
       (setf (defined-nodes ast) mapping)
       (do-clauses (clauses ast) (:head head :body body)
          (flip-nodes mapping (append head body)))

@@ -1,6 +1,6 @@
 (in-package :cl-meld)
 
-(define-condition output-invalid-error (error)
+(define-condition compile-invalid-error (error)
    ((text :initarg :text :reader text)))
 
 (defun get-matching-clauses (subgoal-name code)
@@ -76,14 +76,19 @@
          
 (defun compile-expr (expr &optional dest)
    (cond
-      ((int-p expr)
+      ((int-p expr) ;; Int expression in the previous phases maybe coerced into a float
          (let ((typ (expr-type expr)))
             (return-expr (funcall (if (type-int-p typ) #'make-vm-int #'make-vm-float)
                               (int-val expr)))))
+      ((float-p expr) (return-expr (make-vm-float (float-val expr))))
       ((addr-p expr) (return-expr (make-vm-addr (addr-num expr))))
       ((host-id-p expr) (return-expr (make-vm-host-id)))
       ((var-p expr) (return-expr (lookup-used-var (var-name expr))))
       ((call-p expr) (compile-call (call-name expr) (call-args expr) nil nil))
+      ((convert-float-p expr)
+         (with-compiled-expr (place code) (convert-float-expr expr)
+            (with-dest-or-new-reg (dest)
+               (return-expr dest `(,@code ,(make-vm-convert-float place dest))))))
       ((tail-p expr) (with-compiled-expr (place code) (tail-list expr)
                         (with-dest-or-new-reg (dest)
                            (return-expr dest `(,@code ,(make-vm-tail place dest (expr-type expr)))))))
@@ -108,7 +113,7 @@
             (with-compiled-expr (place2 code2) (op-op2 expr)
                (with-dest-or-new-reg (dest)
                   (return-expr dest (generate-op-instr expr dest place1 place2 code1 code2))))))
-      (t (error 'compile-invalid-error :text "unknown expression to compile"))))
+      (t (error 'compile-invalid-error :text (tostring "Unknown expression to compile: ~a" expr)))))
       
 (defun generate-op-instr (expr dest place1 place2 code1 code2)
    (let* ((base-op (op-op expr))
@@ -229,11 +234,14 @@
                constraints :initial-value inner-code :from-end t)))
 
 (defun compile-initial-subgoal (body orig-body head options subgoal code)
-   (with-reg (sub-reg subgoal)
-      (let ((start-code (if (null (subgoal-args subgoal)) nil (list (make-move :tuple sub-reg))))
-            (low-constraints (add-subgoal subgoal sub-reg))
-            (inner-code (compile-iterate (remove-tree subgoal body) orig-body head options code)))
-         `(,@start-code ,@(compile-low-constraints low-constraints inner-code)))))
+   (let ((without-subgoal (remove-tree subgoal body)))
+      (if (null (subgoal-args subgoal))
+         (compile-iterate without-subgoal orig-body head options code)
+         (with-reg (sub-reg subgoal)
+            (let ((start-code (make-move :tuple sub-reg))
+                  (low-constraints (add-subgoal subgoal sub-reg))
+                  (inner-code (compile-iterate without-subgoal orig-body head options code)))
+               `(,start-code ,@(compile-low-constraints low-constraints inner-code)))))))
 
 (defun build-process (name clauses code)
    (unless clauses (return-from build-process nil))

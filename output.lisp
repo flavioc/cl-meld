@@ -34,7 +34,7 @@
       ((tuple-p val) (list #b011111))
       ((reg-p val) (list (logior #b100000 (logand #b011111 (reg-num val)))))
       ((reg-dot-p val) (list #b000010 (list (reg-dot-field val) (reg-num (reg-dot-reg val)))))
-      (t (error 'output-invalid-error :text "invalid expression value"))))
+      (t (error 'output-invalid-error :text (tostring "Invalid expression value: ~a" val)))))
 
 (defmacro add-byte (b vec) `(vector-push-extend ,b ,vec))
 (defun add-bytes (vec &rest bs)
@@ -120,14 +120,26 @@
       (setf (aref vec pos) (first ls)
             (aref vec (1+ pos)) (second ls))))
             
+(defconstant +code-offset-size+ 4)
+(defun write-offset (vec off &optional (pos 0))
+   (let ((ls (output-int off)))
+   (format t "writting offset ~a at ~a~%" off pos)
+      (loop for i from 0 to 3
+            for part in ls
+            do (setf (aref vec (+ pos i)) part))))
+            
 (defmacro jumps-here (vec)
    `(progn
       (add-byte #b0 ,vec)
       (add-byte #b0 ,vec)))
       
+(defmacro save-pos ((pos vec) &body body)
+   `(let ((,pos (length ,vec)))
+      ,@body))
+      
 (defmacro write-jump (vec jump-many &body body)
    (with-gensyms (pos)
-      `(let ((,pos (length ,vec)))
+      `(save-pos (,pos ,vec)
           ,@body
          (write-int-vec ,vec (- (length ,vec) ,pos) (+ ,pos ,jump-many)))))
          
@@ -214,7 +226,47 @@
                   (output-cons-type (vm-tail-type instr))
                   (logand *value-mask* first-value)
                   (logand *value-mask* second-value)))
-      (otherwise (error 'output-invalid-error :text "unknown instruction to output"))))
+      (:convert-float (do-vm-values vec ((vm-convert-float-place instr) (vm-convert-float-dest instr))
+                        #b00001001
+                        (logand *value-mask* first-value)
+                        (logand *value-mask* second-value)))
+      (:select-node (let* ((total-nodes (number-of-nodes (defined-nodes ast)))
+                           (table-size (* total-nodes +code-offset-size+))
+                           (size-header (* 2 +code-offset-size+))
+                           (hash (make-hash-table))
+                           (end-hash (make-hash-table)))
+                        (add-byte #b00001010 vec)
+                        (save-pos (start vec)
+                           (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) ; size of complete select instruction
+                           (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) ; table size
+                           (write-offset vec total-nodes (+ start +code-offset-size+))
+                           (format t "start is ~a table size is ~a~%" start table-size)
+                           (loop for i from 0 to (1- total-nodes)
+                                 do (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec))
+                           (save-pos (begin-instrs vec)
+                              (format t "begin-instrs is ~a~%" begin-instrs)
+                              (vm-select-node-iterate instr (n instrs)
+                                 (save-pos (cur vec)
+                                    (format t "offset of ~a is ~a~%" n (- cur begin-instrs))
+                                    (setf (gethash n hash) (- cur begin-instrs))
+                                    (output-instrs instrs vec ast)
+                                    (save-pos (end vec)
+                                       (setf (gethash n end-hash) (- end +code-offset-size+))))))
+                           (save-pos (end-select vec)
+                              (loop for i from 0 to (1- total-nodes)
+                                    for pos = (* i +code-offset-size+)
+                                    do (format t "node ~a~%" i)
+                                    do (when-let ((offset (gethash i hash)))
+                                          (format t "item ")
+                                          ;; offset is always one more, since when 0 it means there is
+                                          ;; no code for the corresponding node
+                                          (write-offset vec (1+ offset) (+ start size-header pos)))
+                                    do (when-let ((write-end (gethash i end-hash)))
+                                          (format t "end ")
+                                          (write-offset vec (- end-select (1- write-end)) write-end)))
+                              (write-offset vec (- end-select (1- start)) start)))))
+      (:return-select (add-byte #b00001011 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec))
+      (otherwise (error 'output-invalid-error :text (tostring "Unknown instruction to output ~a" instr)))))
                 
 (defun output-instrs (ls vec ast)
    (dolist (instr ls)
@@ -324,7 +376,7 @@
          (descriptors (output-descriptors ast)))
       (loop for vec-desc in descriptors
             for vec-proc in processes
-            do (write-short-stream stream (length vec-proc)) ; write code size first
+            do (write-int-stream stream (length vec-proc)) ; write code size first
             do (write-vec stream vec-desc))
       (dolist (vec processes) (write-vec stream vec))))
    
