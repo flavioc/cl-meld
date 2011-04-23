@@ -103,6 +103,13 @@
                   (null stripped-body))
                (clause-add-option clause `(:route ,(var-name from)))
                (values clause nil))
+            ((and (eq order 'forward)
+                  (null stripped-body))
+               (add-route-fact-to-invert (subgoal-name route-subgoal))
+               (setf stripped-body `(,new-routing ,@assignments ,@constraints ,@subgoals))
+               (clause-add-option clause `(:route ,(var-name from)))
+               (setf (clause-body clause) stripped-body)
+               (values clause nil))
             (t
                (when new-routing
                   (add-route-fact-to-invert (subgoal-name route-subgoal))
