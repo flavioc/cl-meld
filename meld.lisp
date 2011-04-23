@@ -7,8 +7,8 @@
 
 (defun localize-code (file)
    (let* ((ast (add-base-tuples (parse-meld-file file)))
-          (topoliged (optimize-topology ast))
-          (typechecked (type-check topoliged)))
+          (topo (optimize-topology ast))
+          (typechecked (type-check topo)))
       (setf *ast* (localize typechecked))))
       
 (defun do-meld-compile (file out)
@@ -26,6 +26,9 @@
       (compile-invalid-error (c) (format t "Compile error: ~a~%" (text c)))
       (output-invalid-error (c) (format t "Output error: ~a~%" (text c)))))
 
-(defparameter *selected-file* "pagerank.meld")
-(defparameter *out* (meld-compile (concatenate 'string "/Users/flaviocruz/Projects/meld/progs/" *selected-file*)
-                              "/Users/flaviocruz/Projects/meld/base"))
+;; this is to be removed... soon
+(defun comp (prog &optional (out "base"))
+   (meld-compile (concatenate 'string "/Users/flaviocruz/Projects/meld/progs/" prog ".meld")
+                 (concatenate 'string "/Users/flaviocruz/Projects/meld/" out)))
+                 
+(defparameter *force* (comp "pagerank"))

@@ -123,7 +123,6 @@
 (defconstant +code-offset-size+ 4)
 (defun write-offset (vec off &optional (pos 0))
    (let ((ls (output-int off)))
-   (format t "writting offset ~a at ~a~%" off pos)
       (loop for i from 0 to 3
             for part in ls
             do (setf (aref vec (+ pos i)) part))))
@@ -231,7 +230,6 @@
                         (logand *value-mask* first-value)
                         (logand *value-mask* second-value)))
       (:select-node (let* ((total-nodes (number-of-nodes (defined-nodes ast)))
-                           (table-size (* total-nodes +code-offset-size+))
                            (size-header (* 2 +code-offset-size+))
                            (hash (make-hash-table))
                            (end-hash (make-hash-table)))
@@ -240,14 +238,11 @@
                            (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) ; size of complete select instruction
                            (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) ; table size
                            (write-offset vec total-nodes (+ start +code-offset-size+))
-                           (format t "start is ~a table size is ~a~%" start table-size)
                            (loop for i from 0 to (1- total-nodes)
                                  do (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec))
                            (save-pos (begin-instrs vec)
-                              (format t "begin-instrs is ~a~%" begin-instrs)
                               (vm-select-node-iterate instr (n instrs)
                                  (save-pos (cur vec)
-                                    (format t "offset of ~a is ~a~%" n (- cur begin-instrs))
                                     (setf (gethash n hash) (- cur begin-instrs))
                                     (output-instrs instrs vec ast)
                                     (save-pos (end vec)
@@ -255,14 +250,11 @@
                            (save-pos (end-select vec)
                               (loop for i from 0 to (1- total-nodes)
                                     for pos = (* i +code-offset-size+)
-                                    do (format t "node ~a~%" i)
                                     do (when-let ((offset (gethash i hash)))
-                                          (format t "item ")
                                           ;; offset is always one more, since when 0 it means there is
                                           ;; no code for the corresponding node
                                           (write-offset vec (1+ offset) (+ start size-header pos)))
                                     do (when-let ((write-end (gethash i end-hash)))
-                                          (format t "end ")
                                           (write-offset vec (- end-select (1- write-end)) write-end)))
                               (write-offset vec (- end-select (1- start)) start)))))
       (:return-select (add-byte #b00001011 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec))
