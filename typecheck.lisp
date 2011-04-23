@@ -41,13 +41,14 @@
 (defun has-variables-defined (expr) (every #'variable-defined-p (all-variables expr)))
 
 (defun set-type (expr typs)
-   (cond
-      ((or (nil-p expr)) (setf (cdr expr) (list (try-one typs))))
-      ((or (var-p expr) (int-p expr) (float-p expr) (tail-p expr) (head-p expr)
-            (not-p expr) (test-nil-p expr) (addr-p expr) (convert-float-p expr))
-         (setf (cddr expr) (list (try-one typs))))
-      ((or (call-p expr) (op-p expr) (cons-p expr)) (setf (cdddr expr) (list (try-one typs))))
-      (t (error 'type-invalid-error :text (tostring "Unknown expression ~a to set-type" expr)))))
+   (let ((typ (list (try-one typs))))
+      (cond
+         ((or (nil-p expr) (world-p expr)) (setf (cdr expr) typ))
+         ((or (var-p expr) (int-p expr) (float-p expr) (tail-p expr) (head-p expr)
+               (not-p expr) (test-nil-p expr) (addr-p expr) (convert-float-p expr))
+            (setf (cddr expr) typ))
+         ((or (call-p expr) (op-p expr) (cons-p expr)) (setf (cdddr expr) typ))
+         (t (error 'type-invalid-error :text (tostring "Unknown expression ~a to set-type" expr))))))
       
 (defun force-constraint (var new-types)
    (multiple-value-bind (types ok) (gethash var *constraints*)
@@ -94,6 +95,7 @@
                   (get-type (convert-float-expr expr) '(:type-int) defs)
                   (merge-types forced-types '(:type-float)))
                ((nil-p expr) (merge-types forced-types *list-types*))
+               ((world-p expr) (merge-types '(:type-int) forced-types))
                ((cons-p expr)
                   (let* ((tail (cons-tail expr))
                          (head (cons-head expr))

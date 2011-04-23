@@ -21,6 +21,7 @@
 (defun meld-compile (file out)
    (handler-case (do-meld-compile file out)
       (yacc-parse-error (c) (format t "Parse error: ~a~%" c))
+      (expr-invalid-error (c) (format t "Expression error: ~a~%" (text c)))
       (type-invalid-error (c) (format t "Type error: ~a~%" (text c)))
       (localize-invalid-error (c) (format t "Localization error: ~a~%" (text c)))
       (compile-invalid-error (c) (format t "Compile error: ~a~%" (text c)))

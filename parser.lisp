@@ -10,6 +10,7 @@
 	("node"        (return (values :type-addr $@)))
 	("list"        (return (values :type-list $@)))
 	("include"     (return (values :include $@)))
+	("@world"      (return (values :world $@)))
 	(":-"          (return (values :arrow  $@)))
 	("\\("			(return (values :lparen $@)))
 	("\\)"			(return (values :rparen $@)))
@@ -85,7 +86,7 @@
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl :min :max :first :sum
 								:lsparen :rsparen :nil :bar :type-list :local
-								:route :include :file))
+								:route :include :file :world))
 	(program
 	  (includes definitions statements #L(make-ast !2 !3)))
 	  
@@ -188,6 +189,7 @@
 		(:number #L(parse-number !1))
 	   (:lparen expr :rparen #'(lambda (l expr r) (declare (ignore l r)) expr))
 	   (:type-float :lparen expr :rparen #'(lambda (f l expr r) (declare (ignore f l r)) (make-convert-float expr)))
+	   (:world (return-const (make-world)))
 	   (expr :minus expr #'make-minus)
 	   (expr :mul expr #'make-mul)
 	   (expr :mod expr #'make-mod)

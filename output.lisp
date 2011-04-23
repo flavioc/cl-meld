@@ -3,6 +3,8 @@
 
 (define-condition output-invalid-error (error)
    ((text :initarg :text :reader text)))
+   
+(defvar *output-ast* nil)
 
 (defmacro with-memory-stream (s &body body)
    `(let ((,s (make-in-memory-output-stream)))
@@ -31,6 +33,7 @@
       ((vm-addr-p val) (list  #b000101 (output-int (vm-addr-num val))))
       ((vm-host-id-p val) (list #b000011))
       ((vm-nil-p val) (list #b000100))
+      ((vm-world-p val) (output-value (make-vm-int (number-of-nodes (defined-nodes *output-ast*)))))
       ((tuple-p val) (list #b011111))
       ((reg-p val) (list (logior #b100000 (logand #b011111 (reg-num val)))))
       ((reg-dot-p val) (list #b000010 (list (reg-dot-field val) (reg-num (reg-dot-reg val)))))
@@ -154,7 +157,7 @@
 (defparameter *tuple-id-mask* #b01111111)
 (defparameter *extern-id-mask* #b01111111)
 
-(defun output-instr (ast instr vec)
+(defun output-instr (instr vec)
    (case (instr-type instr)
       (:return (add-byte #x0 vec))
       (:op (let ((op (get-op-byte (vm-op-op instr))))
@@ -164,7 +167,7 @@
                            (logand *value-mask* second-value)
                            (logand *value-mask* third-value)
                            (logand *op-mask* op))))
-      (:alloc (let ((tuple-id (lookup-tuple-id ast (vm-alloc-tuple instr)))
+      (:alloc (let ((tuple-id (lookup-tuple-id *output-ast* (vm-alloc-tuple instr)))
                     (reg (reg-to-byte (vm-alloc-reg instr))))
                   (add-byte #b01000000 vec)
                   (add-byte (logand *tuple-id-mask* tuple-id) vec)
@@ -172,7 +175,7 @@
       (:send (add-byte #b00001000 vec)
              (add-byte (logand *reg-mask* (reg-to-byte (send-from instr))) vec)
              (add-byte (logand *reg-mask* (reg-to-byte (send-to instr))) vec))
-      (:call (let ((extern-id (lookup-extern-id ast (vm-call-name instr)))
+      (:call (let ((extern-id (lookup-extern-id *output-ast* (vm-call-name instr)))
                    (args (vm-call-args instr)))
                (add-byte #b00100000 vec)
                (add-byte (logand *extern-id-mask* extern-id) vec)
@@ -186,13 +189,13 @@
                (add-byte #b01100000 vec)
                (add-byte (logand *reg-mask* reg-b) vec)
                (jumps-here vec)
-               (output-instrs (if-instrs instr) vec ast))))
+               (output-instrs (if-instrs instr) vec))))
       (:iterate (write-jump vec 2
                   (add-byte #b10100000 vec)
-                  (add-byte (lookup-tuple-id ast (iterate-name instr)) vec)
+                  (add-byte (lookup-tuple-id *output-ast* (iterate-name instr)) vec)
                   (jumps-here vec)
                   (output-matches (iterate-matches instr) vec)
-                  (output-instrs (iterate-instrs instr) vec ast)
+                  (output-instrs (iterate-instrs instr) vec)
                   (add-byte #b00000001 vec)))
       (:move (do-vm-values vec ((move-from instr) (move-to instr))
                 #b00110000
@@ -229,7 +232,7 @@
                         #b00001001
                         (logand *value-mask* first-value)
                         (logand *value-mask* second-value)))
-      (:select-node (let* ((total-nodes (number-of-nodes (defined-nodes ast)))
+      (:select-node (let* ((total-nodes (number-of-nodes (defined-nodes *output-ast*)))
                            (size-header (* 2 +code-offset-size+))
                            (hash (make-hash-table))
                            (end-hash (make-hash-table)))
@@ -244,7 +247,7 @@
                               (vm-select-node-iterate instr (n instrs)
                                  (save-pos (cur vec)
                                     (setf (gethash n hash) (- cur begin-instrs))
-                                    (output-instrs instrs vec ast)
+                                    (output-instrs instrs vec)
                                     (save-pos (end vec)
                                        (setf (gethash n end-hash) (- end +code-offset-size+))))))
                            (save-pos (end-select vec)
@@ -260,14 +263,15 @@
       (:return-select (add-byte #b00001011 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec))
       (otherwise (error 'output-invalid-error :text (tostring "Unknown instruction to output ~a" instr)))))
                 
-(defun output-instrs (ls vec ast)
+(defun output-instrs (ls vec)
    (dolist (instr ls)
-      (output-instr ast instr vec)))
+      (output-instr instr vec)))
                              
 (defun output-processes (ast code)
+   (declare (ignore ast))
    (do-processes code (:instrs instrs :operation collect)
       (letret (vec (create-bin-array))
-         (output-instrs instrs vec ast))))
+         (output-instrs instrs vec))))
 
 (defun output-arg-type (typ vec)
    (add-byte
@@ -381,6 +385,7 @@
    
 (defun output-code (ast code file)
    (let ((*total-written* 0)
+         (*output-ast* ast)
          (byte-file (concatenate 'string file ".m"))
          (ast-file (concatenate 'string file ".m.ast"))
          (code-file (concatenate 'string file ".m.code")))

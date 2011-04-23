@@ -114,7 +114,7 @@
 (define-ops :int :float :var :plus :minus :mul :div :mod
             :equal :not-equal
             :lesser :lesser-equal :greater :greater-equal
-            :convert-float)
+            :convert-float :world)
 
 (defun const-p (s)
    (or (int-p s) (float-p s) (call-p s)
@@ -138,6 +138,8 @@
 
 (defun make-convert-float (expr) `(:convert-float ,expr))
 (defun convert-float-expr (flt) (second flt))
+
+(defun make-world () (list :world))
 
 (defun var-name (val) (second val))
 (defun var-eq-p (v1 v2) (equal (var-name v1) (var-name v2)))
@@ -295,6 +297,7 @@
                      ((float-p expr) nil)
                      ((host-id-p expr) nil)
                      ((nil-p expr) nil)
+                     ((world-p expr) nil)
                      ((addr-p expr) nil)
                      ((call-p expr) (dolist (arg (call-args expr)) (aux arg)))
                      ((cons-p expr)
@@ -313,7 +316,7 @@
                            (listp (first expr)))
                         (dolist (el expr)
                            (aux el)))
-                     (t (error 'expr-invalid-error :text "Invalid expression")))))
+                     (t (error 'expr-invalid-error :text (tostring "Invalid expression: ~a" expr))))))
             (aux expr)
             ls)))
       

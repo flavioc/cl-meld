@@ -108,6 +108,7 @@
                            (with-dest-or-new-reg (dest)
                               (return-expr dest `(,@code-expr ,(make-vm-test-nil place-expr dest))))))
       ((nil-p expr) (return-expr (make-vm-nil)))
+      ((world-p expr) (return-expr (make-vm-world)))
       ((op-p expr)
          (with-compiled-expr (place1 code1) (op-op1 expr)
             (with-compiled-expr (place2 code2) (op-op2 expr)

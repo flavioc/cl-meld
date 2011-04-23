@@ -51,6 +51,9 @@
 (defun make-vm-nil () :nil)
 (defun vm-nil-p (n) (eq n :nil))
 
+(defun make-vm-world () :world)
+(defun vm-world-p (w) (eq w :world))
+
 (defun make-vm-not (place dest) `(:not ,place ,dest))
 (defun vm-not-place (n) (second n))
 (defun vm-not-dest (n) (third n))
@@ -146,8 +149,9 @@
       ((vm-int-p place) (tostring "~a" (vm-int-val place)))
       ((vm-float-p place) (tostring "~a" (vm-float-val place)))
       ((vm-host-id-p place) "host-id")
-      ((vm-addr-p place) (tostring "addr(~a)" (vm-addr-num place)))
+      ((vm-addr-p place) (tostring "@~a" (vm-addr-num place)))
       ((vm-nil-p place) "nil")
+      ((vm-world-p place) "@world")
       ((reg-p place) (tostring "reg ~a" (reg-num place)))
       ((reg-dot-p place)
          (tostring "~a.~a"
