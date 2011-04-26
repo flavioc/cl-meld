@@ -46,6 +46,7 @@
 		 			                      "compile"
 		 			                      "models/parallel"
 		 			                      "optimize"
+		 			                      "typecheck"
 		 			                      "output"))
 		 			(:file "models/base"
 		 			         :depends-on ("manip"

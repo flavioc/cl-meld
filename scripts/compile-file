@@ -1,0 +1,10 @@
+#!/opt/local/bin/sbcl --script
+
+(require 'asdf)
+(require 'asdf-install)
+(push "/Users/flaviocruz/Projects/LispMeld/" asdf:*central-registry*)
+(asdf:oos 'asdf:load-op 'cl-meld)
+
+(let ((params (rest sb-ext:*posix-argv*)))
+	(if (= (length params) 2)
+		(cl-meld:meld-compile (first params) (second params))))
