@@ -160,14 +160,13 @@
 (defun edges-equal-to (host) #L(or (var-eq-p host (get-first-arg !1)) (var-eq-p host (get-second-arg !1))))
 (defun localize-start (code clause routes host)
    (let ((paths (get-paths (clause-body clause) routes)))
-      (unless paths
-         (return-from localize-start t)) ; no localization needed
       (let ((home-arguments (get-reachable-nodes paths host)))
          (check-subgoal-arguments home-arguments clause)
          (let* ((fun (edges-equal-to host))
                 (edges (filter fun paths))
                 (remaining (remove-if fun paths)))
-            (do-localize host code clause edges remaining)))))
+            (when fun
+               (do-localize host code clause edges remaining))))))
       
 (defun localize-check-head (head)
    (let ((home (host-node head)))
