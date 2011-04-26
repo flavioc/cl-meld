@@ -269,7 +269,8 @@
                              
 (defun output-processes (ast code)
    (declare (ignore ast))
-   (do-processes code (:instrs instrs :operation collect)
+   (do-processes code (:name name :instrs instrs :operation collect)
+      (printdbg "Processing predicate ~a..." name)
       (letret (vec (create-bin-array))
          (output-instrs instrs vec))))
 

@@ -1,23 +1,34 @@
 (in-package :cl-meld)
-
+       
 ;; debug variables
 (defvar *prog* nil)
 (defvar *ast* nil)
 (defvar *code* nil)
 
 (defun localize-code (file)
-   (let* ((ast (add-base-tuples (parse-meld-file file)))
-          (topo (optimize-topology ast))
-          (typechecked (type-check topo)))
-      (setf *ast* (localize typechecked))))
-      
+   (printdbg "Parsing file ~a" file)
+   (let ((ast (add-base-tuples (parse-meld-file file))))
+      (printdbg "Parsing done. Optimizing topology...")
+      (let ((ast (optimize-topology ast)))
+         (printdbg "Topology optimized. Type-checking...")
+         (let ((ast (type-check ast)))
+            (printdbg "Type checked. Localizing rules...")
+            (let ((ast (localize ast)))
+               (printdbg "Localization done.")
+               (setf *ast* ast))))))
+                     
 (defun do-meld-compile (file out)
-   (let* ((localized-ast (localize-code file))
-          (compiled (compile-ast localized-ast)))
-      (optimize-code localized-ast compiled)
-      (setf *code* compiled)
-      (output-code localized-ast compiled out)))
-
+   (let ((ast (localize-code file)))
+      (printdbg "Compiling AST into VM instructions...")
+      (let ((compiled (compile-ast ast)))
+         (printdbg "All compiled. Now optimizing result...")
+         (let ((compiled (optimize-code ast compiled)))
+            (printdbg "Optimized. Now writing results to ~a" out)
+            (setf *code* compiled)
+            (output-code ast compiled out)
+            (printdbg "All done.")
+            t))))
+         
 (defun meld-compile (file out)
    (handler-case (do-meld-compile file out)
       (yacc-parse-error (c) (format t "Parse error: ~a~%" c))
@@ -32,4 +43,4 @@
    (meld-compile (concatenate 'string "/Users/flaviocruz/Projects/meld/progs/" prog ".meld")
                  (concatenate 'string "/Users/flaviocruz/Projects/meld/" out)))
                  
-(defparameter *force* (comp "pagerank"))
+; (defparameter *force* (comp "pagerank"))

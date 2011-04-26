@@ -55,5 +55,5 @@
                
 (defun optimize-code (ast code)
    (optimize-init ast code)
-   )
+   code)
    

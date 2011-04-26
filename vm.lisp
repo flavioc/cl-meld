@@ -219,7 +219,7 @@
 (defun print-vm-list (out instrs)
    (dolist (instr instrs)
       (format out "~a~%" (print-instr instr))))
-      
+
 (defun process-print (proc &optional (str t))
    (with-process proc (:name name :instrs instrs)
       (format str "PROCESS ~a:~%" name)
