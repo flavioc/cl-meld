@@ -98,8 +98,8 @@
 	   (:include :file #'(lambda (i f) (declare (ignore i)) (add-included-file f))))
 
 	(definitions
-	 (definition #'list)
-	 (definition definitions #L(if !1 (cons !1 !2) !2)))
+	 ()
+	 (definition definitions #'cons))
 
 	(definition
 	 (:extern atype const :lparen type-args :rparen :dot #'(lambda (e ret-type name l args r d)
@@ -152,7 +152,7 @@
 	   
 
 	(statements
-	 (statement #'list)
+	 ()
 	 (statement statements #'cons))
 
 	(statement
