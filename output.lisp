@@ -118,11 +118,6 @@
       (t (output-match (first matches) vec #b00000000)
          (output-matches (rest matches) vec))))
 
-(defun write-int-vec (vec int &optional (pos 0))
-   (let ((ls (output-int int)))
-      (setf (aref vec pos) (first ls)
-            (aref vec (1+ pos)) (second ls))))
-            
 (defconstant +code-offset-size+ 4)
 (defun write-offset (vec off &optional (pos 0))
    (let ((ls (output-int off)))
@@ -132,6 +127,8 @@
             
 (defmacro jumps-here (vec)
    `(progn
+      (add-byte #b0 ,vec)
+      (add-byte #b0 ,vec)
       (add-byte #b0 ,vec)
       (add-byte #b0 ,vec)))
       
@@ -143,7 +140,7 @@
    (with-gensyms (pos)
       `(save-pos (,pos ,vec)
           ,@body
-         (write-int-vec ,vec (- (length ,vec) ,pos) (+ ,pos ,jump-many)))))
+         (write-offset ,vec (- (length ,vec) ,pos) (+ ,pos ,jump-many)))))
          
 (defun output-cons-type (typ)
    (case typ
