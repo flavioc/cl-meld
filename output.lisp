@@ -261,6 +261,12 @@
                                           (write-offset vec (- end-select (1- write-end)) write-end)))
                               (write-offset vec (- end-select (1- start)) start)))))
       (:return-select (add-byte #b00001011 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec))
+      (:colocated
+         (do-vm-values vec ((vm-colocated-first instr) (vm-colocated-second instr))
+            #b00001100
+            (logand *value-mask* first-value)
+            (logand *value-mask* second-value)
+            (logand *reg-mask* (reg-to-byte (vm-colocated-dest instr)))))
       (otherwise (error 'output-invalid-error :text (tostring "Unknown instruction to output ~a" instr)))))
                 
 (defun output-instrs (ls vec)
@@ -361,6 +367,8 @@
       (write-hexa stream part)))
 
 (defun write-nodes (stream nodes)
+   (when (zerop (number-of-nodes nodes))
+      (format t "WARNING: there are no nodes defined in this program~%"))
    (write-int-stream stream (number-of-nodes nodes))
    (iterate-nodes (fake-id real-id nodes)
       (write-int-stream stream fake-id)

@@ -1,8 +1,5 @@
 (in-package :cl-meld)
 
-(define-condition expr-invalid-error (error)
-   ((text :initarg :text :reader text)))
-
 (defun node-used-id (mapping-set id)
    (gethash id mapping-set))
    

@@ -140,6 +140,12 @@
           ,operation ,@body))
 (defun vm-select-node-push (vsn n instrs)
    (setf (cdr vsn) (cons `(,n (,@instrs ,(make-return-select))) (cdr vsn))))
+   
+(defun make-vm-colocated (h1 h2 dest) (list :colocated h1 h2 dest))
+(defun vm-colocated-first (c) (second c))
+(defun vm-colocated-second (c) (third c))
+(defun vm-colocated-dest (c) (fourth c))
+(defun vm-colocated-p (c) (tagged-p c :colocated))
 
 (defun tuple-p (tp) (eq tp :tuple))
 (defun match-p (m) (eq m :match))
@@ -214,6 +220,9 @@
       (:convert-float (tostring "FLOAT ~a TO ~a" (print-place (vm-convert-float-place instr)) (print-place (vm-convert-float-dest instr))))
       (:select-node (tostring "START SELECT BY NODE~%~a~%-~%END SELECT BY NODE" (print-select-node instr)))
       (:return-select (tostring "RETURN SELECT"))
+      (:colocated (tostring "COLOCATED (~a, ~a) TO ~a" (print-place (vm-colocated-first instr))
+                                 (print-place (vm-colocated-second instr))
+                                 (print-place (vm-colocated-dest instr))))
       (t (error 'compile-invalid-error :text (tostring "Unknown instruction to print: ~a" instr)))))
 
 (defun print-vm-list (out instrs)

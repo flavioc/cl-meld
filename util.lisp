@@ -110,4 +110,6 @@
       (cons n (addify (rest ls) (+ n (first ls))))))
       
 (defun merge-strings (ls sep)
-   (reduce #L(if !1 (concatenate 'string !1 (list sep) !2) !2) ls))
+   (if (null ls)
+      ""
+      (reduce #L(if !1 (concatenate 'string !1 (list sep) !2) !2) ls)))

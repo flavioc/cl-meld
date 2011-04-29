@@ -1,5 +1,8 @@
 (in-package :cl-meld)
 
+(define-condition expr-invalid-error (error)
+   ((text :initarg :text :reader text)))
+
 (defmacro define-makes (&rest symbs)
    `(on-top-level
       ,@(mapcar #'(lambda (sym)
@@ -61,7 +64,17 @@
 (defun clause-options (clause) (fourth clause))
 (defun clause-add-option (clause opt) (push opt (fourth clause))) 
 
-(defun make-subgoal (name args) (list :subgoal name args))
+(defun make-colocated (h1 h2)
+   (list :colocated h1 h2))
+(defun colocated-first (c) (second c))
+(defun colocated-second (c) (third c))
+      
+(defun make-subgoal (name args)
+   (if (equal name "colocated")
+       (cond
+          ((= (length args) 2) (make-constraint (make-colocated (first args) (second args))))
+          (t (error 'expr-invalid-error "Colocated expression must have two arguments")))
+       (list :subgoal name args)))
 (defun make-var (var &optional typ) `(:var ,(if (stringp var) (str->sym var) var) ,@(if typ `(,typ) nil)))
 
 (defun make-definition (name typs &rest options) `(:definition ,name ,typs ,options))
@@ -114,7 +127,7 @@
 (define-ops :int :float :var :plus :minus :mul :div :mod
             :equal :not-equal
             :lesser :lesser-equal :greater :greater-equal
-            :convert-float :world)
+            :convert-float :world :colocated)
 
 (defun const-p (s)
    (or (int-p s) (float-p s) (call-p s)
@@ -284,8 +297,10 @@
    (let ((ls (list)))
       (labels ((aux (expr)
                   (let ((val (funcall fn expr)))
-                     (when val
-                        (push val ls)))
+                     (cond
+                        ((eq val :stop) (return-from aux))
+                        (val
+                           (push val ls))))
                   (cond
                      ((subgoal-p expr) (dolist (arg (subgoal-args expr)) (aux arg)))
                      ((constraint-p expr) (aux (constraint-expr expr)))
@@ -308,6 +323,9 @@
                      ((not-p expr) (aux (not-expr expr)))
                      ((test-nil-p expr) (aux (test-nil-expr expr)))
                      ((convert-float-p expr) (aux (convert-float-expr expr)))
+                     ((colocated-p expr)
+                        (aux (colocated-first expr))
+                        (aux (colocated-second expr)))
                      ((op-p expr)
                         (aux (op-op1 expr))
                         (aux (op-op2 expr)))
@@ -321,7 +339,9 @@
             ls)))
       
 (defun all-variables (expr)
-   (let ((vars (iterate-expr #'(lambda (x) (when (var-p x) x)) expr)))
+   (let ((vars (iterate-expr #'(lambda (x)
+                                 (cond
+                                    ((var-p x) x))) expr)))
       (remove-duplicates vars :test #'equal)))
 
 ;; XXX TO remove in the future
