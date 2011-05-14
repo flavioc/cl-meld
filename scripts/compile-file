@@ -1,10 +1,21 @@
-#!/opt/local/bin/sbcl --script
+#!/opt/local/bin/sbcl --noinform --noprint --script
+
+(defvar *params* (rest sb-ext:*posix-argv*))
+
+(when (null *params*)
+ 	(format t "Usage: compile-file <file1 output1> <file2 output2> ...~%")
+	(quit))
 
 (require 'asdf)
+(setf asdf:*asdf-verbose* nil) ; die messages die!
 (require 'asdf-install)
 (push "/Users/flaviocruz/Projects/LispMeld/" asdf:*central-registry*)
+(format t "Loading compiler code...~%")
 (asdf:oos 'asdf:load-op 'cl-meld)
 
-(let ((params (rest sb-ext:*posix-argv*)))
-	(if (= (length params) 2)
-		(cl-meld:meld-compile (first params) (second params))))
+(defun compile-file-list (params)
+ (unless (null params)
+	(cl-meld:meld-compile (first params) (second params))
+	(compile-file-list (rest (rest params)))))
+
+(compile-file-list *params*)
