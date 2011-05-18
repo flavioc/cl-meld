@@ -76,10 +76,10 @@
 (defmacro equal-or (ls &body rest)
    `(or ,@(mapcar #'(lambda (el) `(equal ',el ,ls)) rest)))
    
-(defmacro iterate-hash ((hash key val) &body body)
+(defmacro iterate-hash ((hash key val &key (op 'do)) &body body)
    `(loop for ,key being the hash-keys of ,hash
           using (hash-value ,val)
-          do ,@body))
+          ,op ,@body))
 
 ;; Meld related code
 

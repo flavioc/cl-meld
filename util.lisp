@@ -73,7 +73,14 @@
       (cons a (enumerate (1+ a) b))))
 
 (defun remove-tree (tree ls) (remove tree ls :test #'equal))
-(defun delete-all (from ls) (dolist (el ls) (setf from (delete el from :test #'equal))) from)
+
+(defmacro delete-all (from ls)
+   (with-gensyms (el)
+      `(progn
+         (dolist (,el ,ls)
+            (setf ,from (delete ,el ,from :test #'equal)))
+         ,from)))
+
 (defun remove-all (from ls) (reduce #L(remove-tree !2 !1) ls :initial-value from))
 
 (defmacro push-all (ls to)
@@ -113,3 +120,9 @@
    (if (null ls)
       ""
       (reduce #L(if !1 (concatenate 'string !1 (list sep) !2) !2) ls)))
+      
+(defun get-tagged-elem (ls key)
+   (when ls
+      (let ((found (find-if #L(eq (first !1) key) ls)))
+         (when found
+            (rest found)))))

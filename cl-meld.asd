@@ -47,7 +47,14 @@
 		 			                      "models/parallel"
 		 			                      "optimize"
 		 			                      "typecheck"
-		 			                      "output"))
+		 			                      "output"
+		 			                      "stratification"))
+		 			(:file "stratification"
+		 			         :depends-on ("manip"
+		 			                      "util"
+		 			                      "macros"
+		 			                      "localize"
+		 			                      "typecheck"))
 		 			(:file "models/base"
 		 			         :depends-on ("manip"
 		 			                      "macros"
@@ -60,7 +67,8 @@
 		 			                      "compile"
 		 			                      "vm"
 		 			                      "topology"
-		 			                      "localize"))
+		 			                      "localize"
+		 			                      "stratification"))
 		 			(:file "optimize"
 		 			         :depends-on ("manip"
 		 			                      "util"

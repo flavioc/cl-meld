@@ -10,7 +10,7 @@
 
 (defmacro iterate-nodes ((fake real nodes) &body body)
    `(iterate-hash (,nodes ,real ,fake) ,@body))
-          
+
 (defun flip-nodes (hash expr)
    (iterate-expr #'(lambda (expr)
                      (if (addr-p expr)
@@ -89,7 +89,7 @@
       (format t "REAL: ~a FAKE: ~a~%" real fake)))
 
 (defun optimize-topology (ast)
-   (let* ((edge-set (find-edge-set ast (get-routes ast)))
+   (let* ((edge-set (find-edge-set ast (get-route-names ast)))
           (node-set (create-hash-set (defined-nodes ast)))
           ;(mapping (naive-ordering (defined-nodes ast)))
           (mapping (bfs-ordering edge-set node-set))

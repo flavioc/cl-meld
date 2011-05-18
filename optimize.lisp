@@ -1,10 +1,5 @@
 
 (in-package :cl-meld)
-
-(defun find-init-predicate (ast)
-   (do-definitions ast (:definition def)
-      (when (definition-has-option-p def :init-tuple)
-         (return-from find-init-predicate def))))
          
 (defun matches-op-host-p (instr)
    (and (vm-op-p instr)
@@ -46,7 +41,8 @@
          (vm-select-node-push instr node instrs))))
       
 (defun optimize-init (ast code)
-   (let ((def (find-init-predicate ast)))
+   (let ((def (find-init-predicate (definitions ast))))
+      (assert (not (null def)))
       (with-definition def (:name init-name)
          (with-process (vm-find code init-name) (:instrs instrs :proc proc)
             (multiple-value-bind (hash to-keep) (select-node-init instrs)

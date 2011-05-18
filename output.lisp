@@ -264,6 +264,10 @@
             (logand *value-mask* first-value)
             (logand *value-mask* second-value)
             (logand *reg-mask* (reg-to-byte (vm-colocated-dest instr)))))
+      (:delete (do-vm-values vec ((vm-delete-filter instr))
+                  #b00001101
+                  (logand *tuple-id-mask* (lookup-tuple-id *output-ast* (vm-delete-name instr)))
+                  (logand *value-mask* first-value)))
       (otherwise (error 'output-invalid-error :text (tostring "Unknown instruction to output ~a" instr)))))
                 
 (defun output-instrs (ls vec)
@@ -320,30 +324,58 @@
 
 (defparameter *max-tuple-name* 32)
 (defparameter *max-tuple-args* 32)
+(defparameter *max-agg-info* 32)
+
+(defun output-remain-empty (vec start max)
+   (loop for i from start to max
+         do (add-byte #b0 vec)))
 
 (defun output-tuple-name (name vec)
    (let ((len (length name)))
       (loop for x being the elements of name
          do (add-byte (char-code x) vec))
-      (loop for i from (1+ len) to *max-tuple-name*
-         do (add-byte #b0 vec))))
+      (output-remain-empty vec (1+ len) *max-tuple-name*)))
          
 (defun output-tuple-type-args (types vec)
    (let* ((args (definition-arg-types types))
           (len (length args)))
       (dolist (typ args)
          (output-arg-type typ vec))
-      (loop for i from (1+ len) to *max-tuple-args*
-         do (add-byte #b0 vec))))
+      (output-remain-empty vec (1+ len) *max-tuple-args*)))
+         
+(defun output-stratification-level (def)
+   (let ((level (definition-get-tagged-option def :strat)))
+      (assert (not (null level)))
+      (coerce level '(unsigned-byte 8))))
       
+(defun output-aggregate-component-info (vec size)
+   (let ((total-size (length size))
+         (indices (mapcar #L(lookup-tuple-id *output-ast* !1) size)))
+      (add-byte total-size vec)
+      (loop for ind in indices
+         do (add-byte ind vec))
+      (1+ total-size)))
+      
+(defun output-aggregate-info (def vec)
+   (let ((local-size (definition-get-local-size def))
+         (remote-size (definition-get-remote-size def))
+         (used-info 0))
+      (incf used-info (output-aggregate-component-info vec local-size))
+      (incf used-info (output-aggregate-component-info vec remote-size))
+      (format t "used for ~a = ~a~%" def used-info)
+      (output-remain-empty vec (1+ used-info) *max-agg-info*)))
+
 (defun output-descriptors (ast)
-   (do-definitions ast (:name name :types types :operation collect)
+   (do-definitions ast (:definition def :name name :types types :operation collect)
       (letret (vec (create-bin-array))
          (add-byte (output-properties types) vec) ; property byte
          (add-byte (output-aggregate types) vec) ; aggregate byte
+         (add-byte (output-stratification-level def) vec)
          (add-byte (length types) vec) ; number of args
          (output-tuple-type-args types vec) ; argument type information
-         (output-tuple-name name vec)))) ;; predicate name
+         (output-tuple-name name vec) ;; predicate name
+         (output-aggregate-info def vec) ;; aggregate info
+         )))
             
 (defparameter *total-written* 0)
 

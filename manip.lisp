@@ -54,6 +54,8 @@
    (setf (second addr) new-num))
 (defsetf addr-num set-addr-num)
 
+(defun option-has-tag-p (opts opt) (some #L(tagged-p !1 opt) opts))
+
 (defun make-clause (perm conc &rest options) `(:clause ,perm ,conc ,options))
 (defun clause-head (clause) (third clause))
 (defun clause-body (clause) (second clause))
@@ -63,6 +65,19 @@
 
 (defun clause-options (clause) (fourth clause))
 (defun clause-add-option (clause opt) (push opt (fourth clause))) 
+(defun clause-has-tagged-option-p (clause opt) (option-has-tag-p (clause-options clause) opt))
+(defun clause-get-tagged-option (clause opt)
+   (let ((res (find-if #L(tagged-p !1 opt) (clause-options clause))))
+      (when res
+         (rest res))))
+(defun clause-get-remote-dest (clause)
+   (first (clause-get-tagged-option clause :route)))
+(defun clause-is-remote-p (clause) (clause-has-tagged-option-p clause :route))
+(defun clause-has-delete-p (clause) (clause-has-tagged-option-p clause :delete))
+(defun clause-get-delete (clause) (clause-get-tagged-option clause :delete))
+   
+(defun clause-host-node (clause)
+   (first (subgoal-args (first (clause-head clause)))))
 
 (defun make-colocated (h1 h2)
    (list :colocated h1 h2))
@@ -86,15 +101,31 @@
 (defsetf definition-types set-definition-types)
 (defun definition-options (def) (fourth def))
 (defun definition-add-option (def opt) (push opt (fourth def)))
-(defun definition-has-option-p (def opt) (has-elem-p (definition-options def) opt))
+(defun definition-has-option-p (def opt)
+   (has-elem-p (definition-options def) opt))
+(defun definition-has-tagged-option-p (def opt)
+   (some #L(tagged-p !1 opt) (definition-options def)))
+(defun definition-get-tagged-option (def opt)
+   (let ((res (find-if #L(tagged-p !1 opt) (definition-options def))))
+      (when res
+         (second res))))
 
+(defun is-init-p (def)
+   (definition-has-option-p def :init-tuple))
 (defun is-route-p (def)
-   (with-definition def (:types typs :options opts)
-      (and (>= (length typs) 2)
-           (type-addr-p (second typs))
-           (has-elem-p opts :route))))
+   (definition-has-option-p def :route))
+(defun find-init-predicate (defs) (find-if #'is-init-p defs))
+(defun find-init-predicate-name (defs)
+   (definition-name (find-init-predicate defs)))
 (defun get-routes (code)
-   (mapfilter #'definition-name #'is-route-p (definitions code)))
+   (filter #'is-route-p (definitions code)))
+(defun get-route-names (code)
+   (mapcar #'definition-name (get-routes code)))
+   
+(defun subgoal-matches-def-p (sub def)
+   (equal (subgoal-name sub) (definition-name def)))
+(defun subgoal-match-p (sub1 sub2)
+   (equal (subgoal-name sub1) (subgoal-name sub2)))
 
 (defun make-aggregate (agg typ) `(:aggregate ,agg ,typ))
 (defun aggregate-p (agg) (tagged-p agg :aggregate))
@@ -105,6 +136,10 @@
        (aggregate-type arg)
        arg))
 (defun definition-arg-types (typs) (mapcar #'arg-type typs))
+
+(defun definition-aggregate-p (def)
+   (with-definition def (:types typs)
+      (some #'aggregate-p typs)))
 
 (defun make-extern (name ret-type types) `(:extern ,name ,ret-type ,types))
 (defun extern-p (ext) (tagged-p ext :extern))
@@ -141,10 +176,14 @@
    (any (plus-p minus-p mul-p div-p mod-p not-equal-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p) val))
 
 (defun int-val (val) (second val))
-(defun make-int (int) `(:int ,int))
+(defun make-int (int &optional typ)
+   (if typ
+      `(:int ,int ,typ)
+      `(:int ,int)))
+(defun make-forced-int (int) (make-int int :type-int))
 
 (defun float-val (val) (second val))
-(defun make-float (flt) `(:float ,flt))
+(defun make-float (flt) `(:float ,flt :type-float))
 
 (defun make-host-id () '(:host-id :type-addr))
 (defun host-id-p (h) (tagged-p h :host-id))
@@ -343,28 +382,7 @@
                                  (cond
                                     ((var-p x) x))) expr)))
       (remove-duplicates vars :test #'equal)))
-
-;; XXX TO remove in the future
-(defun all-variables-0 (expr)
- (cond
-   ((subgoal-p expr) (reduce #'(lambda (old arg) (dunion old (all-variables arg))) (subgoal-args expr) :initial-value nil))
-   ((constraint-p expr) (all-variables (constraint-expr expr)))
-   ((assignment-p expr) (dunion (list (assignment-var expr)) (all-variables (assignment-expr expr))))
-   ((var-p expr) (list expr))
-   ((int-p expr) nil)
-   ((nil-p expr) nil)
-   ((float-p expr) nil)
-   ((host-id-p expr) nil)
-   ((addr-p expr) nil)
-   ((call-p expr) (all-variables (call-args expr)))
-   ((cons-p expr) (dunion (all-variables (cons-head expr)) (all-variables (cons-tail expr))))
-   ((head-p expr) (all-variables (head-list expr)))
-   ((tail-p expr) (all-variables (tail-list expr)))
-   ((not-p expr) (all-variables (not-expr expr)))
-   ((test-nil-p expr) (all-variables (test-nil-expr expr)))
-   ((op-p expr) (dunion (all-variables (op-op1 expr)) (all-variables (op-op2 expr))))
-   ((listp expr) (reduce #'(lambda (old arg) (dunion old (all-variables arg))) expr :initial-value nil))))
-   
+      
 (defun all-variable-names (expr) (mapcar #'var-name (all-variables expr)))
 
 (defparameter *var-counter* 0)
@@ -394,3 +412,16 @@
          do (setf ass next-ass
                   body (remove-all body next-unneeded))
          finally (return body)))
+         
+(defun is-fact-p (code pred-name)
+   "Given a predicate name tells you if it is a fact in the program."
+   (do-clauses (clauses code) (:body body)
+      (if (some #'(lambda (sub) (equal (subgoal-name sub) pred-name)) (get-subgoals body))
+         (return-from is-fact-p t)))
+   nil)
+
+(defun find-constraints (body fn)
+   (filter #L(and (constraint-p !1) (funcall fn (constraint-expr !1))) body))
+   
+(defun constraint-by-var1 (var-name expr) (var-eq-p var-name (op-op1 expr)))
+(defun constraint-by-var2 (var-name expr) (var-eq-p var-name (op-op2 expr)))

@@ -147,6 +147,11 @@
 (defun vm-colocated-dest (c) (fourth c))
 (defun vm-colocated-p (c) (tagged-p c :colocated))
 
+(defun make-vm-delete (pred filter) `(:delete ,pred ,filter))
+(defun vm-delete-name (d) (second d))
+(defun vm-delete-filter (d) (third d))
+(defun vm-delete-p (d) (tagged-p d :delete))
+
 (defun tuple-p (tp) (eq tp :tuple))
 (defun match-p (m) (eq m :match))
 
@@ -223,6 +228,7 @@
       (:colocated (tostring "COLOCATED (~a, ~a) TO ~a" (print-place (vm-colocated-first instr))
                                  (print-place (vm-colocated-second instr))
                                  (print-place (vm-colocated-dest instr))))
+      (:delete (tostring "DELETE ~a FROM ~a" (vm-delete-name instr) (print-place (vm-delete-filter instr))))
       (t (error 'compile-invalid-error :text (tostring "Unknown instruction to print: ~a" instr)))))
 
 (defun print-vm-list (out instrs)

@@ -99,7 +99,7 @@
 
 	(definitions
 	 ()
-	 (definition definitions #'cons))
+	 (definition definitions #'(lambda (x xs) (if (null x) xs (cons x xs)))))
 
 	(definition
 	 (:extern atype const :lparen type-args :rparen :dot #'(lambda (e ret-type name l args r d)

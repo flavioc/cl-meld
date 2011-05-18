@@ -227,18 +227,24 @@
    (mapcar #L(transform-constant-to-constraint clause !1) args))
                          
 (defun transform-bodyless-clause (clause init-name)
-   (setf (clause-body clause) `(,@(clause-body clause) ,(make-subgoal init-name `(,(first (subgoal-args (first (clause-head clause)))))))))
+   (setf (clause-body clause)
+            `(,@(clause-body clause)
+                  ,(make-subgoal init-name
+                                    (list (clause-host-node clause))))))
 (defun transform-bodyless-clauses (code)
-   (let ((init-name (definition-name (find-if #'(lambda (d) (equal '(:init-tuple) (definition-options d)))
-                              (definitions code)))))
+   (let ((init-name (find-init-predicate-name (definitions code))))
       (do-clauses (clauses code) (:body body :clause clause)
          (unless (filter #'subgoal-p body) (transform-bodyless-clause clause init-name)))))
 
+(defun add-variable-head-clause (clause)
+   (do-subgoals (clause-head clause) (:args args :orig sub)
+      (setf (first (subgoal-args sub))
+               (transform-constant-to-constraint clause
+                     (first args)))))
+                     
 (defun add-variable-head (code)
-   (do-clauses (clauses code) (:clause clause :head head)
-      (do-subgoals head (:args args :orig sub)
-         (setf (first (subgoal-args sub)) (transform-constant-to-constraint clause
-                        (first args))))))
+   (do-clauses (clauses code) (:clause clause)
+      (add-variable-head-clause clause)))
 
 (defun type-check (code)
    (do-definitions code (:name name :types typs)
