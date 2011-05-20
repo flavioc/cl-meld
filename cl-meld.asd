@@ -9,10 +9,15 @@
  :author "Flavio Cruz"
  :description "Meld compiler"
  :depends-on (:cl-lex :yacc :arnesi :alexandria :unit-test :flexi-streams :ieee-floats)
- :components ((:file "parser"
+ :components ( (:file "conf"
+                        :depends-on ("package"))
+               (:file "external"
+                        :depends-on ("package"))
+               (:file "parser"
 		 						:depends-on ("package"
 		 						             "macros"
-		 						             "manip"))
+		 						             "manip"
+		 						             "conf"))
 		 			(:file "util"
 		 			         :depends-on ("package"
 		 			                       "macros"))
@@ -54,7 +59,8 @@
 		 			                      "util"
 		 			                      "macros"
 		 			                      "localize"
-		 			                      "typecheck"))
+		 			                      "typecheck"
+		 			                      "conf"))
 		 			(:file "models/base"
 		 			         :depends-on ("manip"
 		 			                      "macros"
@@ -68,7 +74,8 @@
 		 			                      "vm"
 		 			                      "topology"
 		 			                      "localize"
-		 			                      "stratification"))
+		 			                      "stratification"
+		 			                      "external"))
 		 			(:file "optimize"
 		 			         :depends-on ("manip"
 		 			                      "util"

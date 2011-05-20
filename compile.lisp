@@ -59,18 +59,19 @@
    (cond
       ((vm-nil-p from) (make-move-nil to))
       (t (make-move from to))))
-      
+
 (defmacro compile-expr-to (expr place)
    (with-gensyms (new-place code)
       `(multiple-value-bind (,new-place ,code *used-regs*) (compile-expr ,expr ,place)
          (if (not (equal ,new-place ,place))
-            (list (build-special-move ,new-place ,place))
+            (append ,code (list (build-special-move ,new-place ,place)))
             ,code))))
-   
+
 (defun compile-call (name args regs code)
    (if (null args)
       (with-reg (new-reg)
-         (return-expr new-reg `(,@code ,(make-vm-call name new-reg regs))))
+         (let ((new-code `(,@code ,(make-vm-call name new-reg regs))))
+            (return-expr new-reg new-code)))
       (with-compiled-expr (arg-place arg-code) (first args)
          (compile-call name (rest args) `(,@regs ,arg-place) `(,@code ,@arg-code)))))
          
@@ -84,7 +85,9 @@
       ((addr-p expr) (return-expr (make-vm-addr (addr-num expr))))
       ((host-id-p expr) (return-expr (make-vm-host-id)))
       ((var-p expr) (return-expr (lookup-used-var (var-name expr))))
-      ((call-p expr) (compile-call (call-name expr) (call-args expr) nil nil))
+      ((call-p expr) (multiple-value-bind (dest code)
+                                 (compile-call (call-name expr) (call-args expr) nil nil)
+                        (return-expr dest code)))
       ((convert-float-p expr)
          (with-compiled-expr (place code) (convert-float-expr expr)
             (with-dest-or-new-reg (dest)
@@ -161,12 +164,13 @@
 (defun do-compile-head-subgoals (head clause)
    (do-subgoals head (:name name :args args :operation append)
       (with-reg (tuple-reg)
-         `(,(make-vm-alloc name tuple-reg)
+         (let ((res `(,(make-vm-alloc name tuple-reg)
             ,@(loop for arg in args
                   for i upto (length args)
                   append (compile-head-move arg i tuple-reg))
             ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code clause tuple-reg)
-               `(,@extra-code ,(make-send tuple-reg send-to)))))))
+               `(,@extra-code ,(make-send tuple-reg send-to))))))
+            res))))
 
 (defun compile-deletes (deletes)
    (loop for delete in deletes
@@ -182,7 +186,6 @@
    (let ((subgoal-code (do-compile-head-subgoals head clause)))
       (if (clause-has-delete-p clause)
          (let ((delete-code (compile-deletes (clause-get-delete clause))))
-            (format t "delete-code ~a~%" delete-code)
             `(,@subgoal-code ,@delete-code))
          subgoal-code)))
       

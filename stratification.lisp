@@ -328,7 +328,7 @@
             (do-strat-loop remain)))))
    
 (defun stratify (ast)
-   (let* ((*strat-defs* (all-definitions ast))
+   (let* ((*strat-defs* (definitions ast))
           (*strat-routes* (get-routes ast))
           (*current-strat-level* 0)
           (*strat-ctx* (make-stratification-ctx))
@@ -338,5 +338,7 @@
       (let ((init-def (find-init-predicate *strat-defs*)))
          (set-generated-by-all init-def)
          (push-strata init-def *current-strat-level*))
-      (do-strat-loop clauses)
+      (if *use-stratification*
+         (do-strat-loop clauses)
+         (mark-unstratified-predicates))
       ast))
