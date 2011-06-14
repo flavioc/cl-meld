@@ -18,9 +18,50 @@
          (typ (aggregate-type agg)))
       (case agg
          (:first t)
-         ((:min :sum :max) (eq-or typ :type-int :type-float)))))
+         (:sum
+            (eq-or typ :type-int :type-float :type-list-int :type-list-float))
+         ((:min :max)
+            (eq-or typ :type-int :type-float)))))
 
-(defun check-aggregates (name typs)
+(defun update-aggregate-input (code edge-name agg-name get-fun)
+   "For an aggregate that has an INPUT/OUTPUT modifier, executes source code transformations
+   that puts the input/output node as the last argument of the aggregate"
+   (do-clauses (clauses code) (:head head :body body)
+      (let ((head-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals head))))
+         (when head-subs
+            (let* ((host (head-host-node head))
+                   (routes (filter #L(equal (subgoal-name !1) edge-name) (get-subgoals body))))
+               (if routes
+                  (setf host (funcall get-fun (subgoal-args (first routes)))))
+               (loop for sub in head-subs
+                     do (push-end host (subgoal-args sub))))))
+      (let ((body-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals body))))
+         (loop for sub in body-subs
+               do (push-end (generate-random-var) (subgoal-args sub)))))
+   (let ((def (lookup-definition (definitions code) agg-name)))
+      (assert (not (null def)))
+      (push-end :type-addr (definition-types def))))
+
+(defun valid-aggregate-modifier-p (agg-name agg code)
+   (let ((aggmod (aggregate-mod agg)))
+      (cond
+         ((null aggmod) t)
+         ((tagged-p aggmod :input)
+            (let* ((name (second aggmod))
+                   (def (lookup-definition (definitions code) name))
+                   (ret (and def (is-route-p def))))
+               (when ret
+                  (update-aggregate-input code name agg-name #'first))
+               ret))
+         ((tagged-p aggmod :output)
+            (let* ((name (second aggmod))
+                   (def (lookup-definition (definitions code) name))
+                   (ret (and def (is-route-p def))))
+               (when ret
+                  (update-aggregate-input code name agg-name #'second))
+               ret)))))
+
+(defun check-aggregates (name typs code)
    (let ((total (count-if #'aggregate-p typs)))
       (unless (<= total 1)
          (error 'type-invalid-error
@@ -28,7 +69,11 @@
       (when-let ((agg (find-if #'aggregate-p typs)))
          (unless (valid-aggregate-p agg)
             (error 'type-invalid-error
-               :text "invalid aggregate type")))))
+               :text "invalid aggregate type"))
+         (unless (valid-aggregate-modifier-p name agg code)
+            (error 'type-invalid-error
+               :text "invalid aggregate modifier"))
+         )))
          
 (defun no-types-p (ls) (null ls))
 (defun merge-types (ls types) (intersection ls types))
@@ -147,7 +192,7 @@
          (error 'type-invalid-error :text (tostring "Invalid number of arguments in subgoal ~a~a" name args)))
       (dolist2 (arg args) (forced-type (definition-arg-types definition))
          (when (and force-vars (not (var-p arg)))
-            (error 'type-invalid-error :text "only variables at body"))
+            (error 'type-invalid-error :text (tostring "only variables at body: ~a" arg)))
          (unless (one-elem-p (get-type arg `(,forced-type) defs))
             (error 'type-invalid-error :text "type error"))
          (when (var-p arg)
@@ -249,7 +294,7 @@
 (defun type-check (code)
    (do-definitions code (:name name :types typs)
       (check-home-argument name typs)
-      (check-aggregates name typs))
+      (check-aggregates name typs code))
    (add-variable-head code)
    (transform-bodyless-clauses code)
    (do-clauses (clauses code) (:clause clause :body body)

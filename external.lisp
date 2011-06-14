@@ -11,12 +11,16 @@
       (unless found-p
          (error 'external-invalid-error :text (tostring "invalid external function: ~a" name)))
       id))
-      
-(defmacro define-external-functions (&rest names)
-   `(on-top-level
-      ,@(mapcar #'(lambda (name)
-                     (setf (gethash name *external-functions*) *external-functions-counter*)
-                     (incf *external-functions-counter*))
-               names)))
 
-(define-external-functions "sigmoid")
+(defmacro define-external-function (name)
+   `(progn
+      (setf (gethash ,name *external-functions*) *external-functions-counter*)
+      (incf *external-functions-counter*)))
+
+(define-external-function "sigmoid")
+(define-external-function "randint")
+(define-external-function "normalize")
+(define-external-function "damp")
+(define-external-function "divide")
+(define-external-function "convolve")
+(define-external-function "addfloatlists")

@@ -106,7 +106,7 @@
       (values filtered removed)))
          
 (defmacro push-end (el ls)
-   `(setf ,ls (append ,ls (list ,el))))
+   `(nconc ,ls (list ,el)))
    
 (defmacro format-keyword (control &rest arguments)
    `(format-symbol "KEYWORD" ,control ,@arguments))

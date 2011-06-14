@@ -18,7 +18,6 @@
 
 (defun make-stratification-ctx () (list))
 (defun push-strata (def level)
-   (format t "~a -> ~a~%" def level)
    (definition-add-option def `(:strat ,level))
    (push def *strat-ctx*))
    
@@ -127,6 +126,7 @@
                         
 (defun make-definition-size (locals remotes)
    (with-ret ret
+      (setf remotes nil) ; XXX
       (when locals
          (setf ret `((:local ,@locals))))
       (when remotes
@@ -311,7 +311,15 @@
 (defun mark-unstratified-predicates ()
    (dolist (def *strat-defs*)
       (unless (definition-has-tagged-option-p def :strat)
-         (push-strata def *current-strat-level*))))
+         (with-definition def (:name name)
+            ;; XXX: remove
+            (when (equal name "receive")
+               (set-definition-size def 
+                  (make-definition-size nil (list (generate-inverse-name "link")))))
+            (when (equal name "allhiddengrad")
+               (set-definition-size def
+                  (make-definition-size nil (list "link"))))
+            (push-strata def *current-strat-level*)))))
 
 (defun do-strat-loop (clauses)
    (incf *current-strat-level*)
@@ -340,5 +348,7 @@
          (push-strata init-def *current-strat-level*))
       (if *use-stratification*
          (do-strat-loop clauses)
-         (mark-unstratified-predicates))
+         (progn
+            (incf *current-strat-level*)
+            (mark-unstratified-predicates)))
       ast))

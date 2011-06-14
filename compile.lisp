@@ -73,7 +73,9 @@
          (let ((new-code `(,@code ,(make-vm-call name new-reg regs))))
             (return-expr new-reg new-code)))
       (with-compiled-expr (arg-place arg-code) (first args)
-         (compile-call name (rest args) `(,@regs ,arg-place) `(,@code ,@arg-code)))))
+         (multiple-value-bind (place code *used-regs*)
+            (compile-call name (rest args) `(,@regs ,arg-place) `(,@code ,@arg-code))
+            (return-expr place code)))))
          
 (defun compile-expr (expr &optional dest)
    (cond
@@ -85,9 +87,8 @@
       ((addr-p expr) (return-expr (make-vm-addr (addr-num expr))))
       ((host-id-p expr) (return-expr (make-vm-host-id)))
       ((var-p expr) (return-expr (lookup-used-var (var-name expr))))
-      ((call-p expr) (multiple-value-bind (dest code)
-                                 (compile-call (call-name expr) (call-args expr) nil nil)
-                        (return-expr dest code)))
+      ((call-p expr)
+         (compile-call (call-name expr) (call-args expr) nil nil))
       ((convert-float-p expr)
          (with-compiled-expr (place code) (convert-float-expr expr)
             (with-dest-or-new-reg (dest)

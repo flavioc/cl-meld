@@ -10,16 +10,6 @@
    `(let ((,s (make-in-memory-output-stream)))
       ,@body
       s))
-
-(defun output-external-functions (code s)
-   (format s "#include \"extern_functions.h\"~%Register (*extern_functs[])() = {")
-   (do-externs code (:name name :id id)
-      (format s "~a(Register (*)())&~a" (if (> id 0) ", " "") name))
-   (format s "};~%")
-   (format s "int extern_functs_args[] = {")
-   (do-externs code (:types typs)
-      (format s "~a," (length typs)))
-   (format s "};~%"))
    
 (defun output-int (int)
    (loop for i upto 3
@@ -305,7 +295,9 @@
                (:type-float #b0101)))
       (:sum (case typ
                (:type-int #b0100)
-               (:type-float #b0111)))))
+               (:type-float #b0111)
+               (:type-list-float #b1011)
+               ))))
                
 (defun output-aggregate (types)
    (let ((agg (find-if #'aggregate-p types)))
@@ -317,11 +309,13 @@
                     (logand #b00001111 pos)))
          #b00000000)))
          
-(defun output-properties (types)
-   (let ((agg (find-if #'aggregate-p types)))
-      (if agg
-         #b00000001
-         #b00000000)))
+(defun output-properties (def)
+   (letret (prop #b00000000)
+      (when (definition-aggregate def)
+         (setf prop (logior prop #b00000001)))
+      (cond
+         ((is-reverse-route-p def) (setf prop (logior prop #b00000100)))
+         ((is-route-p def) (setf prop (logior prop #b00000010))))))
 
 (defparameter *max-tuple-name* 32)
 (defparameter *max-tuple-args* 32)
@@ -357,19 +351,32 @@
          do (add-byte ind vec))
       (1+ total-size)))
       
+(defun get-aggregate-remote-size (def)
+   "Gets remote size from a definition (only applicable to aggregates."
+   (let ((rem (definition-get-remote-size def))
+         (agg (definition-aggregate def)))
+      (when agg
+         (let ((mod (aggregate-mod agg)))
+            (when (tagged-p mod :input)
+               (assert (null rem))
+               (return-from get-aggregate-remote-size `(,(generate-inverse-name (second mod)))))
+            (when (tagged-p mod :output)
+               (assert (null rem))
+               (return-from get-aggregate-remote-size `(,(second mod))))))
+      rem))
+      
 (defun output-aggregate-info (def vec)
    (let ((local-size (definition-get-local-size def))
-         (remote-size (definition-get-remote-size def))
+         (remote-size (get-aggregate-remote-size def))
          (used-info 0))
       (incf used-info (output-aggregate-component-info vec local-size))
       (incf used-info (output-aggregate-component-info vec remote-size))
-      (format t "used for ~a = ~a~%" def used-info)
       (output-remain-empty vec (1+ used-info) *max-agg-info*)))
 
 (defun output-descriptors (ast)
    (do-definitions ast (:definition def :name name :types types :operation collect)
       (letret (vec (create-bin-array))
-         (add-byte (output-properties types) vec) ; property byte
+         (add-byte (output-properties def) vec) ; property byte
          (add-byte (output-aggregate types) vec) ; aggregate byte
          (add-byte (output-stratification-level def) vec)
          (add-byte (length types) vec) ; number of args

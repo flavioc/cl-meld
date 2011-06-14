@@ -18,6 +18,9 @@
 	("\\]"         (return (values :rsparen $@)))
 	("\\|"         (return (values :bar $@)))
 	("nil"         (return (values :nil $@)))
+	("[-+]?[0-9]+(\.[0-9]+|[0-9]+)?" (return (values :number $@)))
+	("\\<-"        (return (values :input $@)))
+	("\\->"        (return (values :output $@)))
 	("\\."         (return (values :dot $@)))
 	("\\,"         (return (values :comma $@)))
 	("\\+"         (return (values :plus $@)))
@@ -36,7 +39,6 @@
 	("first"       (return (values :first $@)))
 	("route"       (return (values :route $@)))
 	("@"           (return (values :local $@)))
-	("[-+]?[0-9]+(\.[0-9]+|[0-9]+)?" (return (values :number $@)))
 	("_"				                  (return (values :variable $@)))
  	("[a-z]([a-z]|[A-Z]|\_)*"		         (return (values :const $@)))
 	("'\\w+"		                     (return (values :const $@)))
@@ -86,7 +88,8 @@
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl :min :max :first :sum
 								:lsparen :rsparen :nil :bar :type-list :local
-								:route :include :file :world))
+								:route :include :file :world
+								:output :input))
 	(program
 	  (includes definitions statements #L(make-ast !2 !3)))
 	  
@@ -128,13 +131,18 @@
 
    (type-decl
     (atype #'identity)
-    (aggregate-decl atype #'make-aggregate))
+    (aggregate-decl atype aggregate-mods #'make-aggregate))
     
    (aggregate-decl
     (:min (return-const :min))
     (:max (return-const :max))
     (:first (return-const :first))
     (:sum (return-const :sum)))
+    
+   (aggregate-mods
+     ()
+     (:lsparen :input const :rsparen #'(lambda (l i name r) (declare (ignore l i r)) (list :input name)))
+     (:lsparen :output const :rsparen #'(lambda (l i name r) (declare (ignore l i r)) (list :output name)))) 
     
 	(atype
 	 base-type
