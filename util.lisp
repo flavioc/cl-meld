@@ -101,16 +101,17 @@
       (if l1
          (cons l1 (remove-if fn l))
          (cons nil l))))
+
 (defun split-mult-return (fn l)
    (destructuring-bind (filtered . removed) (split fn l)
       (values filtered removed)))
          
 (defmacro push-end (el ls)
    `(nconc ,ls (list ,el)))
-   
+
 (defmacro format-keyword (control &rest arguments)
    `(format-symbol "KEYWORD" ,control ,@arguments))
-   
+
 (defun addify (ls &optional (n 0))
    (if (null ls)
       nil
@@ -126,3 +127,11 @@
       (let ((found (find-if #L(eq (first !1) key) ls)))
          (when found
             (rest found)))))
+            
+(defun shuffle-list (ls)
+   (let ((hash-tbl (make-hash-table :test #'eq)))
+      (sort ls #'< :key #'(lambda (x)
+                              (multiple-value-bind (val found-p) (gethash x hash-tbl)
+                                 (if found-p
+                                    val
+                                    (setf (gethash x hash-tbl) (random 1.0))))))))

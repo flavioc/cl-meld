@@ -84,16 +84,26 @@
             do (add-mapping hash node count))
       hash))
 
+(defparameter *ordering-type* :breadth)
+         
+(defun random-ordering (nodes)
+   (naive-ordering (shuffle-list nodes)))
+
 (defun print-mapping (mapping-set)
    (iterate-nodes (fake real mapping-set)
       (format t "REAL: ~a FAKE: ~a~%" real fake)))
 
+(defun do-topology-ordering (ast)
+   (case *ordering-type*
+      (:naive (naive-ordering (defined-nodes ast)))
+      (:random (random-ordering (defined-nodes ast)))
+      (:breadth (let ((edge-set (find-edge-set ast (get-route-names ast)))
+                      (node-set (create-hash-set (defined-nodes ast))))
+                  (bfs-ordering edge-set node-set)))
+      (otherwise (assert nil))))
+                  
 (defun optimize-topology (ast)
-   (let* ((edge-set (find-edge-set ast (get-route-names ast)))
-          (node-set (create-hash-set (defined-nodes ast)))
-          ;(mapping (naive-ordering (defined-nodes ast)))
-          (mapping (bfs-ordering edge-set node-set))
-          )
+   (let ((mapping (do-topology-ordering ast)))
       ;(print-mapping mapping)
       (setf (defined-nodes ast) mapping)
       (do-clauses (clauses ast) (:head head :body body)
