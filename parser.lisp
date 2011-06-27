@@ -2,6 +2,11 @@
 (in-package :cl-meld)
 
 (define-string-lexer meld-lexer
+   ("[-+]?[0-9]+(\.[0-9]+|[0-9]+)?" (return (values :number $@)))
+	("\\,"                           (return (values :comma $@)))
+	("\\["                           (return (values :lsparen $@)))
+	("\\]"                           (return (values :rsparen $@)))
+   ("\\."                           (return (values :dot $@)))
  	("type"			                  (return (values :type $@)))
  	("extern"                        (return (values :extern $@)))
  	("const"                         (return (values :const-decl $@)))
@@ -14,16 +19,11 @@
 	(":-"                            (return (values :arrow  $@)))
 	("\\("			                  (return (values :lparen $@)))
 	("\\)"			                  (return (values :rparen $@)))
-	("\\["                           (return (values :lsparen $@)))
-	("\\]"                           (return (values :rsparen $@)))
 	("\\|"                           (return (values :bar $@)))
 	("nil"                           (return (values :nil $@)))
 	("/\\*.*\\*/"                    (return (values :comment)))
-	("[-+]?[0-9]+(\.[0-9]+|[0-9]+)?" (return (values :number $@)))
 	("\\<-"                          (return (values :input $@)))
 	("\\->"                          (return (values :output $@)))
-	("\\."                           (return (values :dot $@)))
-	("\\,"                           (return (values :comma $@)))
 	("\\+"                           (return (values :plus $@)))
 	("\\-"                           (return (values :minus $@)))
 	("\\*"                           (return (values :mul $@)))
@@ -232,35 +232,26 @@
 	 (:const #'identity)))
       
 (defun parse-meld (str)
- (let* ((lexer (meld-lexer str))
-        (*parsed-consts* nil)
-        (*found-nodes* (make-hash-table))
-        (result (parse-with-lexer lexer meld-parser)))
-   (make-ast (all-definitions result)
-             (clauses result)
-             (defined-nodes-list))))
-             
-(defun read-file (file)
-   (with-open-file (str file
-                        :direction :input
-                        :if-does-not-exist :error)
-      (reduce #L(concatenate 'string !1 !2 (list #\newline))
-         (loop for line = (read-line str nil nil)
-                while line
-                collect line) :initial-value "")))
+   "Parses a string of Meld code."
+   (let* ((lexer (meld-lexer str))
+          (*parsed-consts* nil)
+          (*found-nodes* (make-hash-table))
+          (result (parse-with-lexer lexer meld-parser)))
+      (make-ast (all-definitions result)
+                (clauses result)
+                (defined-nodes-list))))
 
+(defun merge-asts (ast1 ast2)
+   "Merges two ASTs together. Note that ast1 is modified."
+   (make-ast (nconc (all-definitions ast1) (all-definitions ast2))
+             (nconc (clauses ast1) (clauses ast2))
+             (nconc (defined-nodes ast1) (defined-nodes ast2))))
+             
 (defun parse-meld-file (file)
-   (let* ((pn (pathname file))
-          (old-directory *default-pathname-defaults*)
-          (*included-files* nil)
+   "Parses a Meld file, including included files."
+   (let* ((*included-files* nil)
           (str (read-file file)))
-      (setf *default-pathname-defaults* (pathname (directory-namestring pn)))
-      (let ((ast (parse-meld str)))
-         (loop for aux-file in *included-files*
-               do (let ((ast-aux (parse-meld-file aux-file)))
-                     (setf ast (make-ast (append (all-definitions ast-aux) (all-definitions ast))
-                                         (append (clauses ast-aux) (clauses ast))
-                                         (append (defined-nodes ast-aux) (defined-nodes ast))))))
-         (setf *default-pathname-defaults* old-directory)
-         ast)))
-         
+      (in-directory (pathname (directory-namestring (pathname file)))
+         (let* ((ast (parse-meld str))
+                (other-asts (mapcar #L(parse-meld-file !1) *included-files*)))
+            (reduce #'merge-asts other-asts :initial-value ast)))))

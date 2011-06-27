@@ -80,6 +80,15 @@
    `(loop for ,key being the hash-keys of ,hash
           using (hash-value ,val)
           ,op ,@body))
+          
+(defmacro in-directory (new-dir &body body)
+   (with-gensyms (old-dir)
+      `(let ((,old-dir *default-pathname-defaults*))
+         (unwind-protect
+            (progn
+               (setf *default-pathname-defaults* ,new-dir)
+               ,@body)
+            (setf *default-pathname-defaults* ,old-dir)))))
 
 ;; Meld related code
 

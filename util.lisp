@@ -135,3 +135,13 @@
                                  (if found-p
                                     val
                                     (setf (gethash x hash-tbl) (random 1.0))))))))
+
+(defun read-file (file)
+   "Reads the entire file and returns a string."
+   (with-open-file (str file
+                        :direction :input
+                        :if-does-not-exist :error)
+      (reduce #L(concatenate 'string !1 !2 (list #\newline))
+         (loop for line = (read-line str nil nil)
+                while line
+                collect line) :initial-value "")))
