@@ -84,7 +84,8 @@
 		 			                      "compile"))
 		 			(:file "topology"
 		 			         :depends-on ("manip"
-		 			                      "util"))
+		 			                      "util"
+		 			                      "conf"))
 		 			(:file "print"
 		 			         :depends-on ("package"
 		 			                      "manip"))

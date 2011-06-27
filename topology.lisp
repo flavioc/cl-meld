@@ -83,8 +83,6 @@
             for count = 0 then (1+ count)
             do (add-mapping hash node count))
       hash))
-
-(defparameter *ordering-type* :breadth)
          
 (defun random-ordering (nodes)
    (naive-ordering (shuffle-list nodes)))

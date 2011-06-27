@@ -21,19 +21,37 @@
 (defun get-target-node (op-instr) (addr-num (vm-op-v2 op-instr)))
 
 (defun select-node-init (start-instrs)
-   (let ((hash (make-hash-table)))
-      (labels ((aux (instrs)
-               (cond
-                  ((at-least-n-p instrs 2)
-                     (if (and (matches-op-host-p (nth 0 instrs))
-                              (matches-op-if-0-p (nth 1 instrs)))
-                        (let ((not-selected (aux (drop-first-n instrs 2))))
-                           (add-instrs-to-node hash (get-target-node (nth 0 instrs)) (if-instrs (nth 1 instrs)))
-                           not-selected)
-                        (let ((not-selected (aux (drop-first-n instrs 1))))
-                           (get-first-n instrs 1 not-selected))))
-                  (t instrs))))
-         (values hash (aux start-instrs)))))
+   (let ((hash (make-hash-table))
+         (new-start nil)
+         (ptr nil)
+         (current start-instrs))
+      (loop while (not (null current))
+            do (cond
+                  ((at-least-n-p current 2)
+                     (cond
+                        ((and (matches-op-host-p (nth 0 current))
+                              (matches-op-if-0-p (nth 1 current)))
+                           (add-instrs-to-node hash (get-target-node (nth 0 current)) (if-instrs (nth 1 current)))
+                           (setf current (drop-first-n current 2)))
+                        (new-start
+                           (setf (cdr ptr) current
+                                 ptr current
+                                 current (cdr current)
+                                 (cdr ptr) nil))
+                        (t
+                           (setf new-start current
+                                 ptr current
+                                 current (cdr current)
+                                 (cdr ptr) nil))))
+                  (t
+                     (cond
+                        (new-start
+                           (setf (cdr ptr) current
+                                 current nil))
+                        (t
+                           (setf new-start current
+                                 current nil))))))
+      (values hash new-start)))
             
 (defun make-vm-select-with-rules (hash)
    (letret (instr (make-vm-select-node))
