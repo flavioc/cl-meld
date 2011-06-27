@@ -21,6 +21,7 @@
 (defun get-target-node (op-instr) (addr-num (vm-op-v2 op-instr)))
 
 (defun select-node-init (start-instrs)
+   (declare (optimize (speed 3) (safety 0)))
    (let ((hash (make-hash-table))
          (new-start nil)
          (ptr nil)
