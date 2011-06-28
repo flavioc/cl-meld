@@ -4,7 +4,6 @@
 (define-condition stratification-error (error)
    ((text :initarg :text :reader text)))
    
-(defvar *strat-defs* nil)
 (defvar *strat-ctx* nil)
 (defvar *strat-routes* nil)
 (defvar *current-strat-level* 0)
@@ -59,7 +58,7 @@
 (defun get-head-subgoal (clause) (first (clause-head clause)))
 (defun get-head-subgoal-name (clause) (subgoal-name (get-head-subgoal clause)))  
 (defun lookup-subgoal-definition (subgoal) 
-   (lookup-definition *strat-defs* (subgoal-name subgoal)))
+   (lookup-definition (definitions) (subgoal-name subgoal)))
                   
 (defun group-clauses-by-head (clauses)
    (let ((hash (make-hash-table :test #'equal)))
@@ -154,7 +153,7 @@
       
 (defun process-unrecursive-aggs (agg-clauses)
    (loop for clauses in agg-clauses
-         for def = (lookup-definition *strat-defs*
+         for def = (lookup-definition (definitions)
                         (get-head-subgoal-name (first clauses)))
          do (push-strata def *current-strat-level*)
          do (when (every #'local-clause-p clauses)
@@ -309,7 +308,7 @@
                (remove-all clauses will-really-fire))))))
 
 (defun mark-unstratified-predicates ()
-   (dolist (def *strat-defs*)
+   (dolist (def (definitions))
       (unless (definition-has-tagged-option-p def :strat)
          (with-definition def (:name name)
             ;; XXX: remove
@@ -335,20 +334,18 @@
          (t
             (do-strat-loop remain)))))
    
-(defun stratify (ast)
-   (let* ((*strat-defs* (definitions ast))
-          (*strat-routes* (get-routes ast))
+(defun stratify ()
+   (let* ((*strat-routes* (get-routes))
           (*current-strat-level* 0)
           (*strat-ctx* (make-stratification-ctx))
-          (clauses (remove-if (clause-edge-fact-p *strat-routes*) (clauses ast))))
+          (clauses (remove-if (clause-edge-fact-p *strat-routes*) (clauses))))
       (dolist (rout *strat-routes*)
          (push-strata rout *current-strat-level*))
-      (let ((init-def (find-init-predicate *strat-defs*)))
+      (let ((init-def (find-init-predicate (definitions))))
          (set-generated-by-all init-def)
          (push-strata init-def *current-strat-level*))
       (if *use-stratification*
          (do-strat-loop clauses)
          (progn
             (incf *current-strat-level*)
-            (mark-unstratified-predicates)))
-      ast))
+            (mark-unstratified-predicates)))))

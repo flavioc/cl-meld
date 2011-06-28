@@ -87,9 +87,9 @@
                   body (remove-all body next-unneeded))
          finally (return body)))
          
-(defun is-fact-p (code pred-name)
+(defun is-fact-p (pred-name)
    "Given a predicate name tells you if it is a fact in the program."
-   (do-clauses (clauses code) (:body body)
+   (do-clauses (clauses) (:body body)
       (if (some #'(lambda (sub) (equal (subgoal-name sub) pred-name)) (get-subgoals body))
          (return-from is-fact-p t)))
    nil)

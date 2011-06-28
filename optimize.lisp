@@ -59,16 +59,15 @@
       (iterate-hash (hash node instrs)
          (vm-select-node-push instr node instrs))))
       
-(defun optimize-init (ast code)
-   (let ((def (find-init-predicate (definitions ast))))
+(defun optimize-init ()
+   (let ((def (find-init-predicate (definitions))))
       (assert (not (null def)))
       (with-definition def (:name init-name)
-         (with-process (vm-find code init-name) (:instrs instrs :proc proc)
+         (with-process (vm-find init-name) (:instrs instrs :proc proc)
             (multiple-value-bind (hash to-keep) (select-node-init instrs)
                (let ((new-instr (make-vm-select-with-rules hash)))
                   (setf (process-instrs proc) (cons new-instr to-keep))))))))
                
-(defun optimize-code (ast code)
-   (optimize-init ast code)
-   code)
+(defun optimize-code ()
+   (optimize-init))
    

@@ -121,9 +121,10 @@
 (defun find-init-predicate (defs) (find-if #'is-init-p defs))
 (defun find-init-predicate-name (defs)
    (definition-name (find-init-predicate defs)))
-(defun get-routes (code)
+(defun get-routes (&optional (code *ast*))
    (filter #'is-route-p (definitions code)))
-(defun get-route-names (code)
+   
+(defun get-route-names (&optional (code *ast*))
    (mapcar #'definition-name (get-routes code)))
    
 (defun subgoal-matches-def-p (sub def)
@@ -202,30 +203,6 @@
 
 (defun var-name (val) (second val))
 (defun var-eq-p (v1 v2) (equal (var-name v1) (var-name v2)))
-
-;;;; AST
-
-(defun make-ast (defs clauses &optional nodes)
-   `(:definitions ,defs :clauses ,clauses :nodes ,nodes))
-            
-(defun all-definitions (code) (second code))
-(defun definitions (code) (filter #'definition-p (all-definitions code)))
-(defun set-definitions (code new-defs)
-   (setf (second code) new-defs))
-(defsetf definitions set-definitions)
-(defsetf all-definitions set-definitions)
-
-(defun externs (code) (filter #'extern-p (all-definitions code)))
-  
-(defun clauses (code) (fourth code))
-(defun set-clauses (code new-clauses)
-   (setf (fourth code) new-clauses))
-(defsetf clauses set-clauses)
-
-(defun defined-nodes (code) (sixth code))
-(defun set-defined-nodes (code new-nodes)
-   (setf (sixth code) new-nodes))
-(defsetf defined-nodes set-defined-nodes)
 
 ;;;; ASSIGNMENTS
 

@@ -9,6 +9,5 @@
    `(unless (base-tuple-defined-p ,(symbol-name name))
       (push (make-definition ,(string-downcase (symbol-name name)) ',types ,@options) *base-tuples*)))
       
-(defun add-base-tuples (ast)
-   (setf (definitions ast) (append (mapcar #'copy-tree *base-tuples*) (all-definitions ast)))
-   ast)
+(defun add-base-tuples ()
+   (setf (definitions) (append (mapcar #'copy-tree *base-tuples*) (all-definitions))))

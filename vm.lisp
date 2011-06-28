@@ -241,12 +241,12 @@
       (print-vm-list str instrs)
       (format str "~%")))
       
-(defun print-vm (processls)
+(defun print-vm (&optional (processls *code*))
    (with-output-to-string (str)
       (do-processes processls (:proc proc)
          (process-print proc str))))
          
-(defun vm-find (processls name-find)
+(defun vm-find (name-find &optional (processls *code*))
    (do-processes processls (:name name :proc proc)
       (when (equal name-find name)
          (return-from vm-find proc))))

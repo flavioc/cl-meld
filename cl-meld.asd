@@ -24,16 +24,34 @@
 		 			(:file "manip"
 		 			         :depends-on ("package"
 		 			                      "util"
+		 			                      "macros"
+		 			                      "ast"
+		 			                      "context"))
+		 			(:file "search"
+		 			         :depends-on ("package"
+		 			                      "util"
+		 			                      "manip"
+		 			                      "macros"))
+		 			(:file "types"
+		 			         :depends-on ("package"
+		 			                      "util"
+		 			                      "manip"
 		 			                      "macros"))
 		 			(:file "macros"
+		 			         :depends-on ("package"))
+		 			(:file "ast"
+		 			         :depends-on ("context"
+		 			                      "util"))
+		 			(:file "context"
 		 			         :depends-on ("package"))
 		 			(:file "typecheck"
 		 			         :depends-on ("package"
 		 			                      "manip"
-		 			                      "macros"))
+		 			                      "macros"
+		 			                      "types"))
 		 			(:file "localize"
 		 			         :depends-on ("package"
-		 			                      "manip"
+		 			                      "search"
 		 			                      "macros"))
 		 			(:file "vm"
 		 			         :depends-on ("util"
@@ -53,6 +71,7 @@
 		 			                      "optimize"
 		 			                      "typecheck"
 		 			                      "output"
+		 			                      "context"
 		 			                      "stratification"))
 		 			(:file "stratification"
 		 			         :depends-on ("manip"

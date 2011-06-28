@@ -26,24 +26,24 @@
 (defun generate-mangled-name ()
    (with-output-to-string (a) (format a "__mangledname~a" (incf *name-counter*))))
 
-(defun create-inverse-non-fact-route-definition (code route new-name)
-   (let* ((old-definition (lookup-definition-types (definitions code) route))
+(defun create-inverse-non-fact-route-definition (route new-name)
+   (let* ((old-definition (lookup-definition-types (definitions) route))
           (new-definition (make-definition new-name old-definition :route `(:reverse-route ,route))))
-      (push new-definition (all-definitions code))
+      (push new-definition (all-definitions))
       new-definition))
       
-(defun create-inverse-non-fact-route (code route new-name new-definition)
+(defun create-inverse-non-fact-route (route new-name new-definition)
    (let* ((typs (definition-arg-types (definition-types new-definition)))
           (args (generate-args (length typs) typs))
           (new-clause (make-clause `(,(make-subgoal route args))
                   `(,(make-subgoal new-name
                                    (swap-first-two-args args)))
                   `(:route ,(var-name (second args))))))
-      (push new-clause (clauses code))))
+      (push new-clause (clauses))))
    
-(defun add-inverse-route-facts (code route new-name init-name)
+(defun add-inverse-route-facts (route new-name init-name)
    (with-ret to-ret
-      (do-clauses (clauses code) (:head head :body body)
+      (do-clauses (clauses) (:head head :body body)
          (do-subgoals head (:name name :args args)
             (if (equal route name)
                (let* ((reverse-host (second args))
@@ -57,16 +57,16 @@
                   (transform-bodyless-clause new-clause init-name)
                   (push new-clause to-ret)))))))
       
-(defun create-inverse-routes (code)
+(defun create-inverse-routes ()
    (dolist (route *route-facts-to-invert*)
       (let* ((new-name (generate-inverse-name route))
-             (new-definition (create-inverse-non-fact-route-definition code route new-name)))
-         (if (is-fact-p code route)
-            (let ((init-name (find-init-predicate-name (definitions code))))
-               (let ((new-ones (add-inverse-route-facts code route new-name init-name)))
+             (new-definition (create-inverse-non-fact-route-definition route new-name)))
+         (if (is-fact-p route)
+            (let ((init-name (find-init-predicate-name (definitions))))
+               (let ((new-ones (add-inverse-route-facts route new-name init-name)))
                   (when new-ones
-                     (setf (clauses code) (append new-ones (clauses code))))))
-            (create-inverse-non-fact-route code route new-name new-definition)))))
+                     (setf (clauses) (append new-ones (clauses))))))
+            (create-inverse-non-fact-route route new-name new-definition)))))
          
 (defun select-valid-constraints (body vars) (filter #L(subsetp (all-variable-names !1) vars) (get-constraints body)))
 (defun generate-inverse-subgoal (new-name to needed-vars)
@@ -115,16 +115,14 @@
          (dolist (arg args)
             (push-dunion-all (all-variables arg) ret)))))
                      
-(defun variables-undefined-head (head body host to)
+(defun variables-undefined-head (head body host)
    (set-tree-difference (variables-undefined-on-head-and-body head body) (list host)))
-   ;(set-tree-difference (variables-undefined-on-head-and-body head body to)
-   ;                     (variables-defined-on-body body host to)))
 
 (defun get-inverse-route (route-subgoal)
    (make-subgoal (generate-inverse-name (subgoal-name route-subgoal))
                 (swap-first-two-args (subgoal-args route-subgoal))))
 
-(defun do-localize-one (code clause from to route-subgoal remaining &optional (order 'forward))
+(defun do-localize-one (clause from to route-subgoal remaining &optional (order 'forward))
    (let* ((reachable (get-reachable-nodes remaining to))
           (subgoals (select-subgoals-by-home (clause-body clause) reachable)))
       (unless subgoals
@@ -153,7 +151,7 @@
                   (add-route-fact-to-invert (subgoal-name route-subgoal))
                   (push new-routing subgoals))
                (let* ((new-clause-body `(,@subgoals ,@assignments ,@constraints))
-                      (variables-undef-head (variables-undefined-head head stripped-body from to))
+                      (variables-undef-head (variables-undefined-head head stripped-body from))
                       (variables-subgoals (variables-defined-on-body new-clause-body to))
                       (needed-vars (tree-intersection variables-subgoals variables-undef-head))
                       (new-subgoal (generate-inverse-subgoal (generate-mangled-name)
@@ -161,7 +159,7 @@
                   (setf (clause-body clause) (remove-unneeded-assignments `(,new-subgoal ,@stripped-body) head))
                   (with-subgoal new-subgoal (:name name)
                      (push (make-definition name `(:type-addr ,@(mapcar #'expr-type needed-vars)) `(:routed-tuple))
-                           (all-definitions code)))
+                           (all-definitions)))
                   (let* ((new-clause-head `(,(copy-tree new-subgoal)))
                          (new-clause-body (remove-unneeded-assignments new-clause-body new-clause-head))
                          (route-to (var-name from)))
@@ -173,7 +171,7 @@
        (values 'forward (get-second-arg edge))
        (values 'backward (get-first-arg edge))))
           
-(defun do-localize (host code clause edges remaining)
+(defun do-localize (host clause edges remaining)
    "From node HOST in clause CLAUSE localize from EDGES"
    (dolist (edge edges)
       (multiple-value-bind (order to) (get-direction-and-dest host edge)
@@ -181,12 +179,12 @@
                 (new-edges (filter fun remaining))
                 (new-remaining (remove-if fun remaining)))
             (multiple-value-bind (target-clause add-to-program-p)
-                                    (do-localize-one code clause host to edge remaining order)
+                                    (do-localize-one clause host to edge remaining order)
                (when target-clause
                   (if add-to-program-p
-                     (push target-clause (clauses code)))
+                     (push target-clause (clauses)))
                   (when new-edges
-                     (do-localize to code target-clause new-edges new-remaining))))))))
+                     (do-localize to target-clause new-edges new-remaining))))))))
 
 (defun check-subgoal-arguments (homes clause)
    (with-clause clause (:body body :head head)
@@ -195,8 +193,10 @@
             (error 'localize-invalid-error
                   :text (tostring "Subgoal ~a has a bad home argument: ~a" name (first args)))))))
    
-(defun edges-equal-to (host) #L(or (var-eq-p host (get-first-arg !1)) (var-eq-p host (get-second-arg !1))))
-(defun localize-start (code clause routes host)
+(defun edges-equal-to (host)
+   #L(or (var-eq-p host (get-first-arg !1)) (var-eq-p host (get-second-arg !1))))
+
+(defun localize-start (clause routes host)
    (let ((paths (get-paths (clause-body clause) routes)))
       (let ((home-arguments (get-reachable-nodes paths host)))
          (check-subgoal-arguments home-arguments clause)
@@ -204,7 +204,7 @@
                 (edges (filter fun paths))
                 (remaining (remove-if fun paths)))
             (when fun
-               (do-localize host code clause edges remaining))))))
+               (do-localize host clause edges remaining))))))
       
 (defun localize-check-head (head)
    (let ((home (host-node head)))
@@ -213,8 +213,8 @@
             (error 'localize-invalid-error
                :text "All head subgoals must have the same home argument")))))
 
-(defun remove-home-argument (code)
-   (do-clauses (clauses code) (:head head :body body :clause clause)
+(defun remove-home-argument ()
+   (do-clauses (clauses) (:head head :body body)
       (let (head-var
             (host-id (make-host-id)))
          (do-subgoals (append body head)
@@ -224,15 +224,14 @@
          (when head ; change home argument to host-id
             (nsubst host-id head-var head :test #'equal)
             (nsubst host-id head-var body :test #'equal)))) 
-   (do-definitions code (:definition def :types typs)
+   (do-definitions *ast* (:definition def :types typs)
       (setf (definition-types def) (rest typs))))
 
-(defun localize (code)
-   (let ((routes (get-route-names code))
+(defun localize ()
+   (let ((routes (get-route-names))
          (*route-facts-to-invert* nil))
-      (do-clauses (clauses code) (:clause clause :head head)
+      (do-clauses (clauses) (:clause clause :head head)
          (localize-check-head head)
-         (localize-start code clause routes (clause-host-node clause)))
-      (create-inverse-routes code))
-   (remove-home-argument code)
-   code)
+         (localize-start clause routes (clause-host-node clause)))
+      (create-inverse-routes))
+   (remove-home-argument))

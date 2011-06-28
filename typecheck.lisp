@@ -23,10 +23,10 @@
          ((:min :max)
             (eq-or typ :type-int :type-float)))))
 
-(defun update-aggregate-input (code edge-name agg-name get-fun)
+(defun update-aggregate-input (edge-name agg-name get-fun)
    "For an aggregate that has an INPUT/OUTPUT modifier, executes source code transformations
    that puts the input/output node as the last argument of the aggregate"
-   (do-clauses (clauses code) (:head head :body body)
+   (do-clauses (clauses) (:head head :body body)
       (let ((head-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals head))))
          (when head-subs
             (let* ((host (head-host-node head))
@@ -38,30 +38,30 @@
       (let ((body-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals body))))
          (loop for sub in body-subs
                do (push-end (generate-random-var) (subgoal-args sub)))))
-   (let ((def (lookup-definition (definitions code) agg-name)))
+   (let ((def (lookup-definition (definitions) agg-name)))
       (assert (not (null def)))
       (push-end :type-addr (definition-types def))))
 
-(defun valid-aggregate-modifier-p (agg-name agg code)
+(defun valid-aggregate-modifier-p (agg-name agg)
    (let ((aggmod (aggregate-mod agg)))
       (cond
          ((null aggmod) t)
          ((tagged-p aggmod :input)
             (let* ((name (second aggmod))
-                   (def (lookup-definition (definitions code) name))
+                   (def (lookup-definition (definitions) name))
                    (ret (and def (is-route-p def))))
                (when ret
-                  (update-aggregate-input code name agg-name #'first))
+                  (update-aggregate-input name agg-name #'first))
                ret))
          ((tagged-p aggmod :output)
             (let* ((name (second aggmod))
-                   (def (lookup-definition (definitions code) name))
+                   (def (lookup-definition (definitions) name))
                    (ret (and def (is-route-p def))))
                (when ret
-                  (update-aggregate-input code name agg-name #'second))
+                  (update-aggregate-input name agg-name #'second))
                ret)))))
 
-(defun check-aggregates (name typs code)
+(defun check-aggregates (name typs)
    (let ((total (count-if #'aggregate-p typs)))
       (unless (<= total 1)
          (error 'type-invalid-error
@@ -70,7 +70,7 @@
          (unless (valid-aggregate-p agg)
             (error 'type-invalid-error
                :text "invalid aggregate type"))
-         (unless (valid-aggregate-modifier-p name agg code)
+         (unless (valid-aggregate-modifier-p name agg)
             (error 'type-invalid-error
                :text "invalid aggregate modifier"))
          )))
@@ -276,9 +276,9 @@
             `(,@(clause-body clause)
                   ,(make-subgoal init-name
                                     (list (clause-host-node clause))))))
-(defun transform-bodyless-clauses (code)
-   (let ((init-name (find-init-predicate-name (definitions code))))
-      (do-clauses (clauses code) (:body body :clause clause)
+(defun transform-bodyless-clauses ()
+   (let ((init-name (find-init-predicate-name (definitions))))
+      (do-clauses (clauses) (:body body :clause clause)
          (unless (filter #'subgoal-p body) (transform-bodyless-clause clause init-name)))))
 
 (defun add-variable-head-clause (clause)
@@ -287,23 +287,23 @@
                (transform-constant-to-constraint clause
                      (first args)))))
                      
-(defun add-variable-head (code)
-   (do-clauses (clauses code) (:clause clause)
+(defun add-variable-head ()
+   (do-clauses (clauses) (:clause clause)
       (add-variable-head-clause clause)))
 
-(defun type-check (code)
-   (do-definitions code (:name name :types typs)
+(defun type-check ()
+   (do-definitions *ast* (:name name :types typs)
       (check-home-argument name typs)
-      (check-aggregates name typs code))
-   (add-variable-head code)
-   (transform-bodyless-clauses code)
-   (do-clauses (clauses code) (:clause clause :body body)
+      (check-aggregates name typs))
+   (add-variable-head)
+   (transform-bodyless-clauses)
+   (do-clauses (clauses) (:clause clause :body body)
       (do-subgoals body (:args args :orig sub)
          (setf (subgoal-args sub) (transform-constants-to-constraints clause args))))
-   (do-clauses (clauses code) (:head head :body body :clause clause)
+   (do-clauses (clauses) (:head head :body body :clause clause)
       (let ((*constraints* (make-hash-table))
             (*defined* nil)
-            (definitions (all-definitions code)))
+            (definitions (all-definitions)))
          (do-subgoals body (:name name :args args)
             (do-type-check-subgoal definitions name args t))
          (create-assignments body)
@@ -317,5 +317,4 @@
             (do-type-check-constraints expr definitions))
          (do-type-check-assignments
             (setf (clause-body clause) (remove-unneeded-assignments body head))
-            #'single-typed-var-p definitions)))
-   code)
+            #'single-typed-var-p definitions))))

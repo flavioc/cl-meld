@@ -3,8 +3,6 @@
 
 (define-condition output-invalid-error (error)
    ((text :initarg :text :reader text)))
-   
-(defvar *output-ast* nil)
 
 (defmacro with-memory-stream (s &body body)
    `(let ((,s (make-in-memory-output-stream)))
@@ -23,7 +21,7 @@
       ((vm-addr-p val) (list  #b000101 (output-int (vm-addr-num val))))
       ((vm-host-id-p val) (list #b000011))
       ((vm-nil-p val) (list #b000100))
-      ((vm-world-p val) (output-value (make-vm-int (number-of-nodes (defined-nodes *output-ast*)))))
+      ((vm-world-p val) (output-value (make-vm-int (number-of-nodes (defined-nodes)))))
       ((tuple-p val) (list #b011111))
       ((reg-p val) (list (logior #b100000 (logand #b011111 (reg-num val)))))
       ((reg-dot-p val) (list #b000010 (list (reg-dot-field val) (reg-num (reg-dot-reg val)))))
@@ -80,8 +78,8 @@
       
 (defun reg-to-byte (reg) (reg-num reg))
 
-(defun lookup-tuple-id (ast tuple)
-   (do-definitions ast (:id id :name name)
+(defun lookup-tuple-id (tuple)
+   (do-definitions *ast* (:id id :name name)
       (if (equal name tuple) (return-from lookup-tuple-id id))))
       
 (defun lookup-extern-id (ast extern)
@@ -154,7 +152,7 @@
                            (logand *value-mask* second-value)
                            (logand *value-mask* third-value)
                            (logand *op-mask* op))))
-      (:alloc (let ((tuple-id (lookup-tuple-id *output-ast* (vm-alloc-tuple instr)))
+      (:alloc (let ((tuple-id (lookup-tuple-id (vm-alloc-tuple instr)))
                     (reg (reg-to-byte (vm-alloc-reg instr))))
                   (add-byte #b01000000 vec)
                   (add-byte (logand *tuple-id-mask* tuple-id) vec)
@@ -180,7 +178,7 @@
                (output-instrs (if-instrs instr) vec))))
       (:iterate (write-jump vec 2
                   (add-byte #b10100000 vec)
-                  (add-byte (lookup-tuple-id *output-ast* (iterate-name instr)) vec)
+                  (add-byte (lookup-tuple-id (iterate-name instr)) vec)
                   (jumps-here vec)
                   (output-matches (iterate-matches instr) vec)
                   (output-instrs (iterate-instrs instr) vec)
@@ -220,7 +218,7 @@
                         #b00001001
                         (logand *value-mask* first-value)
                         (logand *value-mask* second-value)))
-      (:select-node (let* ((total-nodes (number-of-nodes (defined-nodes *output-ast*)))
+      (:select-node (let* ((total-nodes (number-of-nodes (defined-nodes)))
                            (size-header (* 2 +code-offset-size+))
                            (hash (make-hash-table))
                            (end-hash (make-hash-table)))
@@ -257,7 +255,7 @@
             (logand *reg-mask* (reg-to-byte (vm-colocated-dest instr)))))
       (:delete (do-vm-values vec ((vm-delete-filter instr))
                   #b00001101
-                  (logand *tuple-id-mask* (lookup-tuple-id *output-ast* (vm-delete-name instr)))
+                  (logand *tuple-id-mask* (lookup-tuple-id (vm-delete-name instr)))
                   (logand *value-mask* first-value)))
       (otherwise (error 'output-invalid-error :text (tostring "Unknown instruction to output ~a" instr)))))
                 
@@ -265,9 +263,8 @@
    (dolist (instr ls)
       (output-instr instr vec)))
                              
-(defun output-processes (ast code)
-   (declare (ignore ast))
-   (do-processes code (:name name :instrs instrs :operation collect)
+(defun output-processes ()
+   (do-processes *code* (:name name :instrs instrs :operation collect)
       (printdbg "Processing predicate ~a..." name)
       (letret (vec (create-bin-array))
          (output-instrs instrs vec))))
@@ -345,7 +342,7 @@
       
 (defun output-aggregate-component-info (vec size)
    (let ((total-size (length size))
-         (indices (mapcar #L(lookup-tuple-id *output-ast* !1) size)))
+         (indices (mapcar #L(lookup-tuple-id !1) size)))
       (add-byte total-size vec)
       (loop for ind in indices
          do (add-byte ind vec))
@@ -373,8 +370,8 @@
       (incf used-info (output-aggregate-component-info vec remote-size))
       (output-remain-empty vec (1+ used-info) *max-agg-info*)))
 
-(defun output-descriptors (ast)
-   (do-definitions ast (:definition def :name name :types types :operation collect)
+(defun output-descriptors ()
+   (do-definitions *ast* (:definition def :name name :types types :operation collect)
       (letret (vec (create-bin-array))
          (add-byte (output-properties def) vec) ; property byte
          (add-byte (output-aggregate types) vec) ; aggregate byte
@@ -411,11 +408,11 @@
       (write-int-stream stream fake-id)
       (write-int-stream stream real-id)))
       
-(defun do-output-code (ast code stream)
-   (write-hexa stream (length (definitions ast)))
-   (write-nodes stream (defined-nodes ast))
-   (let ((processes (output-processes ast code))
-         (descriptors (output-descriptors ast)))
+(defun do-output-code (stream)
+   (write-hexa stream (length (definitions)))
+   (write-nodes stream (defined-nodes))
+   (let ((processes (output-processes))
+         (descriptors (output-descriptors)))
       (loop for vec-desc in descriptors
             for vec-proc in processes
             do (write-int-stream stream (length vec-proc)) ; write code size first
@@ -429,9 +426,8 @@
                         :if-does-not-exist :create)
       ,@body))
    
-(defun output-code (ast code file)
+(defun output-code (file)
    (let ((*total-written* 0)
-         (*output-ast* ast)
          (byte-file (concatenate 'string file ".m"))
          (ast-file (concatenate 'string file ".m.ast"))
          (code-file (concatenate 'string file ".m.code")))
@@ -440,8 +436,8 @@
                         :if-exists :supersede
                         :if-does-not-exist :create
                         :element-type '(unsigned-byte 8))
-         (do-output-code ast code stream))
+         (do-output-code stream))
       (with-output-file (stream ast-file)
-         (format stream "~a~%" ast))
+         (format stream "~a~%" *ast*))
       (with-output-file (stream code-file)
-         (format stream "~a" (print-vm code)))))
+         (format stream "~a" (print-vm)))))
