@@ -41,20 +41,19 @@
                   `(:route ,(var-name (second args))))))
       (push new-clause (clauses))))
    
-(defun add-inverse-route-facts (route new-name init-name)
+(defun add-inverse-route-facts (route new-name)
    (with-ret to-ret
-      (do-clauses (clauses) (:head head :body body)
+      (do-clauses (axioms) (:head head :body body)
          (do-subgoals head (:name name :args args)
             (if (equal route name)
                (let* ((reverse-host (second args))
                       (host-var (first args))
                       (constraint (first (find-constraints body
-                                          #L(and (equal-p !1) (constraint-by-var1 host-var !1)))))
+                                 #L(and (equal-p !1) (constraint-by-var1 host-var !1)))))
                       (real-host (op-op2 (constraint-expr constraint)))
                       (remain-args (drop-first-n args 2))
                       (new-clause (make-clause nil `(,(make-subgoal new-name `(,reverse-host ,real-host ,@remain-args)))))) 
                   (add-variable-head-clause new-clause)
-                  (transform-bodyless-clause new-clause init-name)
                   (push new-clause to-ret)))))))
       
 (defun create-inverse-routes ()
@@ -62,10 +61,9 @@
       (let* ((new-name (generate-inverse-name route))
              (new-definition (create-inverse-non-fact-route-definition route new-name)))
          (if (is-fact-p route)
-            (let ((init-name (find-init-predicate-name (definitions))))
-               (let ((new-ones (add-inverse-route-facts route new-name init-name)))
-                  (when new-ones
-                     (setf (clauses) (append new-ones (clauses))))))
+            (let ((new-ones (add-inverse-route-facts route new-name)))
+               (when new-ones
+                  (setf (axioms) (append new-ones (axioms)))))
             (create-inverse-non-fact-route route new-name new-definition)))))
          
 (defun select-valid-constraints (body vars) (filter #L(subsetp (all-variable-names !1) vars) (get-constraints body)))
@@ -213,17 +211,22 @@
             (error 'localize-invalid-error
                :text "All head subgoals must have the same home argument")))))
 
+(defun remove-home-argument-clause (head body)
+   (let (head-var
+         (host-id (make-host-id)))
+      (do-subgoals (append body head)
+                  (:args args :orig sub)
+         (unless head-var (setf head-var (first args)))
+         (setf (subgoal-args sub) (rest args)))
+      (when head ; change home argument to host-id
+         (nsubst host-id head-var head :test #'equal)
+         (nsubst host-id head-var body :test #'equal))))
+         
 (defun remove-home-argument ()
    (do-clauses (clauses) (:head head :body body)
-      (let (head-var
-            (host-id (make-host-id)))
-         (do-subgoals (append body head)
-                     (:args args :orig sub)
-            (unless head-var (setf head-var (first args)))
-            (setf (subgoal-args sub) (rest args)))
-         (when head ; change home argument to host-id
-            (nsubst host-id head-var head :test #'equal)
-            (nsubst host-id head-var body :test #'equal)))) 
+      (remove-home-argument-clause head body))
+   (do-clauses (axioms) (:head head :body body)
+      (remove-home-argument-clause head body))
    (do-definitions *ast* (:definition def :types typs)
       (setf (definition-types def) (rest typs))))
 

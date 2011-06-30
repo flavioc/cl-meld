@@ -94,7 +94,9 @@
 								:route :include :file :world
 								:output :input))
 	(program
-	  (includes definitions statements #L(make-ast !2 !3)))
+	  (includes definitions statements #L(make-ast !2 (remove-if #'is-axiom-p !3)
+	                                                  (filter #'is-axiom-p !3)
+	                                                  (defined-nodes-list))))
 	  
 	(includes
 	   ()
@@ -235,20 +237,23 @@
    "Parses a string of Meld code."
    (let* ((lexer (meld-lexer str))
           (*parsed-consts* nil)
-          (*found-nodes* (make-hash-table))
-          (result (parse-with-lexer lexer meld-parser)))
-      (make-ast (all-definitions result)
-                (clauses result)
-                (defined-nodes-list))))
+          (*found-nodes* (make-hash-table))) ;; needed to detect repeated nodes
+      (parse-with-lexer lexer meld-parser)))
 
 (defun merge-asts (ast1 ast2)
    "Merges two ASTs together. Note that ast1 is modified."
    (make-ast (nconc (all-definitions ast1) (all-definitions ast2))
              (nconc (clauses ast1) (clauses ast2))
+             (nconc (axioms ast1) (axioms ast2))
              (nconc (defined-nodes ast1) (defined-nodes ast2))))
+             
+(define-condition file-not-found-error (error)
+   ((text :initarg :text :reader text)))
              
 (defun parse-meld-file (file)
    "Parses a Meld file, including included files."
+   (unless (file-exists-p file)
+      (error 'file-not-found-error :text file))
    (let* ((*included-files* nil)
           (str (read-file file)))
       (in-directory (pathname (directory-namestring (pathname file)))

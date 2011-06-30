@@ -3,15 +3,9 @@
 (define-condition compile-invalid-error (error)
    ((text :initarg :text :reader text)))
 
-(defun get-matching-clauses (subgoal-name)
-   (filter #L(some #'(lambda (sub) (equal (subgoal-name sub) subgoal-name)) (clause-body !1))
-         (clauses)))
-
 (defun alloc-reg (regs data)
    (let ((reg (make-reg (length regs))))
       (values reg (cons data regs))))
-
-(defun get-my-subgoals (body name) (filter #L(equal (subgoal-name !1) name) (get-subgoals body)))
 
 (defparameter *vars-places* nil)
 (defparameter *used-regs* nil)
@@ -269,18 +263,31 @@
                   (low-constraints (add-subgoal subgoal sub-reg))
                   (inner-code (compile-iterate without-subgoal orig-body head clause)))
                `(,start-code ,@(compile-low-constraints low-constraints inner-code)))))))
-
-(defun build-process (name clauses)
-   (unless clauses (return-from build-process nil))
+               
+(defun get-my-subgoals (body name)
+   (filter #L(equal (subgoal-name !1) name) (get-subgoals body)))
+   
+(defun compile-with-starting-subgoal (body head clause &optional subgoal)
+   (let-compile
+      (multiple-value-bind (first-constraints first-assignments) (get-compile-constraints-and-assignments body)
+         (let* ((remaining (remove-unneeded-assignments (remove-all body first-constraints) head))
+               (inner-code (compile-initial-subgoal remaining body head clause subgoal)))
+            (compile-constraints-and-assignments first-constraints first-assignments inner-code)))))
+            
+(defun compile-normal-process (name clauses)
+   (unless clauses (return-from compile-normal-process nil))
    (do-clauses clauses (:body body :head head :clause clause :operation append)
       (loop-list (subgoal (get-my-subgoals body name) :operation append)
-         (let-compile
-            (multiple-value-bind (first-constraints first-assignments) (get-compile-constraints-and-assignments body)
-               (let* ((remaining (remove-unneeded-assignments (remove-all body first-constraints) head))
-                     (inner-code (compile-initial-subgoal remaining body head clause subgoal)))
-                  (compile-constraints-and-assignments first-constraints first-assignments inner-code)))))))
-
+         (compile-with-starting-subgoal body head clause subgoal))))
+                  
+(defun compile-init-process ()
+   (unless (axioms) (return-from compile-init-process nil))
+   (do-clauses (axioms) (:body body :head head :clause clause :operation :append)
+      (compile-with-starting-subgoal body head clause)))
+      
 (defun compile-ast ()
-   (do-definitions *ast* (:name name :operation collect)
-      (let ((clauses (get-matching-clauses name)))
-         (make-process name `(,@(build-process name clauses) ,(make-return))))))
+   (do-definitions *ast* (:definition def :name name :operation collect)
+      (if (is-init-p def)
+         (make-process name `(,@(compile-init-process) ,(make-return)))
+         (make-process name `(,@(compile-normal-process name (find-clause-with-body-subgoal name))
+                              ,(make-return))))))

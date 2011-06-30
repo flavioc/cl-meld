@@ -3,7 +3,7 @@
 (defun localize-code (file)
    (printdbg "Parsing file ~a" file)
    (let ((ast (parse-meld-file file)))
-      (setf *ast* ast)
+      (set-abstract-syntax-tree ast)
       (add-base-tuples)
       (printdbg "Parsing done. Optimizing topology...")
       (optimize-topology)
@@ -30,6 +30,7 @@
        
 (defun meld-compile (file out)
    (handler-case (do-meld-compile file out)
+      (file-not-found-error (c) (format t "File not found: ~a~%" (text c)))
       (yacc-parse-error (c) (format t "Parse error: ~a~%" c))
       (expr-invalid-error (c) (format t "Expression error: ~a~%" (text c)))
       (type-invalid-error (c) (format t "Type error: ~a~%" (text c)))

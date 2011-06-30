@@ -55,26 +55,6 @@
 (defsetf addr-num set-addr-num)
 
 (defun option-has-tag-p (opts opt) (some #L(tagged-p !1 opt) opts))
-
-(defun make-clause (perm conc &rest options) `(:clause ,perm ,conc ,options))
-(defun clause-head (clause) (third clause))
-(defun clause-body (clause) (second clause))
-(defun set-clause-body (clause new-body)
-   (setf (second clause) new-body))
-(defsetf clause-body set-clause-body)
-
-(defun clause-options (clause) (fourth clause))
-(defun clause-add-option (clause opt) (push opt (fourth clause))) 
-(defun clause-has-tagged-option-p (clause opt) (option-has-tag-p (clause-options clause) opt))
-(defun clause-get-tagged-option (clause opt)
-   (let ((res (find-if #L(tagged-p !1 opt) (clause-options clause))))
-      (when res
-         (rest res))))
-(defun clause-get-remote-dest (clause)
-   (first (clause-get-tagged-option clause :route)))
-(defun clause-is-remote-p (clause) (clause-has-tagged-option-p clause :route))
-(defun clause-has-delete-p (clause) (clause-has-tagged-option-p clause :delete))
-(defun clause-get-delete (clause) (clause-get-tagged-option clause :delete))
    
 (defun head-host-node (head-list)
    (first (subgoal-args (first head-list))))
@@ -218,11 +198,6 @@
 (defun set-subgoal-args (subgoal new-args)
    (setf (third subgoal) new-args))
 (defsetf subgoal-args set-subgoal-args)
-
-(defun get-assignments (body) (filter #'assignment-p body))
-(defun get-assignment-vars (assignments) (mapcar #'assignment-var assignments))
-(defun get-subgoals (code) (filter #'subgoal-p code))
-(defun get-constraints (code) (remove-if-not #'constraint-p code))
 
 (defun lookup-definition-types (defs pred)
    (when-let ((def (lookup-definition defs pred)))

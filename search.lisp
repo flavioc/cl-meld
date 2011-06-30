@@ -5,6 +5,11 @@
 (defun generate-random-var ()
    "Generates a new variable name."
    (make-var (tostring "MV~a" (incf *var-counter*))))
+   
+(defun get-assignments (body) (filter #'assignment-p body))
+(defun get-assignment-vars (assignments) (mapcar #'assignment-var assignments))
+(defun get-subgoals (code) (filter #'subgoal-p code))
+(defun get-constraints (code) (remove-if-not #'constraint-p code))
 
 (defun iterate-expr (fn expr)
    (unless expr
@@ -89,13 +94,18 @@
          
 (defun is-fact-p (pred-name)
    "Given a predicate name tells you if it is a fact in the program."
-   (do-clauses (clauses) (:body body)
-      (if (some #'(lambda (sub) (equal (subgoal-name sub) pred-name)) (get-subgoals body))
-         (return-from is-fact-p t)))
-   nil)
+   t)
 
 (defun find-constraints (body fn)
    (filter #L(and (constraint-p !1) (funcall fn (constraint-expr !1))) body))
    
 (defun constraint-by-var1 (var-name expr) (var-eq-p var-name (op-op1 expr)))
 (defun constraint-by-var2 (var-name expr) (var-eq-p var-name (op-op2 expr)))
+
+(defun clause-body-matches-subgoal-p (clause subgoal-name)
+   (some #L(equal (subgoal-name !1) subgoal-name) (get-subgoals (clause-body clause))))
+   
+(defun find-clause-with-body-subgoal (subgoal-name)
+   (append (filter #L(clause-body-matches-subgoal-p !1 subgoal-name) (clauses))
+           (filter #L(clause-body-matches-subgoal-p !1 subgoal-name) (axioms))))
+           

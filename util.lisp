@@ -145,3 +145,6 @@
          (loop for line = (read-line str nil nil)
                 while line
                 collect line) :initial-value "")))
+                
+(defun file-exists-p (file)
+   (probe-file file))

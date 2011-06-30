@@ -44,7 +44,7 @@
 
 (defun find-edge-set (routes)
    (let ((hash (make-hash-table :test #'eq)))
-      (do-clauses (clauses) (:body body :head head)
+      (do-clauses (axioms) (:body body :head head)
          (when (and (null body) (link-head-p head routes))
             (let ((info (get-link-info head)))
                (add-edge-to-set hash info))))
@@ -104,5 +104,5 @@
    (let ((mapping (do-topology-ordering)))
       ;(print-mapping mapping)
       (setf (defined-nodes) mapping)
-      (do-clauses (clauses) (:head head :body body)
+      (do-clauses (axioms) (:head head :body body)
          (flip-nodes mapping (append head body)))))

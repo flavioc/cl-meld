@@ -12,7 +12,8 @@
  :components ( (:file "conf"
                         :depends-on ("package"))
                (:file "external"
-                        :depends-on ("package"))
+                        :depends-on ("package"
+                                     "util"))
                (:file "parser"
 		 						:depends-on ("package"
 		 						             "macros"
