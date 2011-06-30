@@ -43,7 +43,7 @@
    
 (defun add-inverse-route-facts (route new-name)
    (with-ret to-ret
-      (do-clauses (axioms) (:head head :body body)
+      (do-axioms (:head head :body body)
          (do-subgoals head (:name name :args args)
             (if (equal route name)
                (let* ((reverse-host (second args))
@@ -185,11 +185,10 @@
                      (do-localize to target-clause new-edges new-remaining))))))))
 
 (defun check-subgoal-arguments (homes clause)
-   (with-clause clause (:body body :head head)
-      (do-subgoals (append body head) (:args args :name name)
-         (unless (some #'(lambda (h) (var-eq-p (first args) h)) homes)
-            (error 'localize-invalid-error
-                  :text (tostring "Subgoal ~a has a bad home argument: ~a" name (first args)))))))
+   (do-subgoals clause (:args args :name name)
+      (unless (some #'(lambda (h) (var-eq-p (first args) h)) homes)
+         (error 'localize-invalid-error
+               :text (tostring "Subgoal ~a has a bad home argument: ~a" name (first args))))))
    
 (defun edges-equal-to (host)
    #L(or (var-eq-p host (get-first-arg !1)) (var-eq-p host (get-second-arg !1))))
@@ -211,29 +210,26 @@
             (error 'localize-invalid-error
                :text "All head subgoals must have the same home argument")))))
 
-(defun remove-home-argument-clause (head body)
-   (let (head-var
-         (host-id (make-host-id)))
-      (do-subgoals (append body head)
-                  (:args args :orig sub)
+(defun remove-home-argument-clause (clause)
+   (let (head-var)
+      (do-subgoals clause (:args args :subgoal sub)
          (unless head-var (setf head-var (first args)))
          (setf (subgoal-args sub) (rest args)))
-      (when head ; change home argument to host-id
-         (nsubst host-id head-var head :test #'equal)
-         (nsubst host-id head-var body :test #'equal))))
+      ; change home argument to host-id XXX change this thing
+      (when head-var (nsubst (make-host-id) head-var clause :test #'equal))))
          
 (defun remove-home-argument ()
-   (do-clauses (clauses) (:head head :body body)
-      (remove-home-argument-clause head body))
-   (do-clauses (axioms) (:head head :body body)
-      (remove-home-argument-clause head body))
-   (do-definitions *ast* (:definition def :types typs)
+   (do-rules (:clause clause)
+      (remove-home-argument-clause clause))
+   (do-axioms (:clause clause)
+      (remove-home-argument-clause clause))
+   (do-definitions (:definition def :types typs)
       (setf (definition-types def) (rest typs))))
 
 (defun localize ()
    (let ((routes (get-route-names))
          (*route-facts-to-invert* nil))
-      (do-clauses (clauses) (:clause clause :head head)
+      (do-rules (:clause clause :head head)
          (localize-check-head head)
          (localize-start clause routes (clause-host-node clause)))
       (create-inverse-routes))

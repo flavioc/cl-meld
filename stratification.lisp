@@ -108,7 +108,7 @@
 (defun compute-clause-size (clause)
    (cond
       ((clause-has-tagged-option-p clause :route)
-         (do-subgoals (clause-body clause) (:orig sub :name name)
+         (do-subgoals (clause-body clause) (:subgoal sub :name name)
             (let ((def (lookup-subgoal-definition sub)))
                (when (find def *strat-routes* :test #'equal)
                   (let ((inverted (generate-inverse-name name)))
@@ -116,7 +116,7 @@
       (t
          (let (ret)
             (with-clause clause (:body body)
-               (do-subgoals body (:orig sub :operation collect)
+               (do-subgoals body (:subgoal sub :operation collect)
                   (let ((def (lookup-subgoal-definition sub)))
                      (unless (is-init-p def)
                         (push (definition-name def) ret)))))
@@ -168,7 +168,7 @@
 (defun process-unrecursive-non-agg-clause (clause)
    (let ((by-all (clause-generated-by-all-p clause)))
       (with-clause clause (:head head)
-         (do-subgoals head (:orig sub)
+         (do-subgoals head (:subgoal sub)
             (let ((def (lookup-subgoal-definition sub)))
                (push-strata def *current-strat-level*)
                (if by-all
@@ -181,7 +181,7 @@
 (defun get-head-definitions (clauses)
    (with-ret defs
       (do-clauses clauses (:head head)
-         (do-subgoals head (:orig sub)
+         (do-subgoals head (:subgoal sub)
             (push (lookup-subgoal-definition sub) defs)))))
             
 (defun definition-has-stage-argument (def)
@@ -252,7 +252,7 @@
 (defun find-needed-defs (remain-clauses initial-defs)
    (with-ret new-defs
       (do-clauses remain-clauses (:body body)
-         (do-subgoals body (:orig sub)
+         (do-subgoals body (:subgoal sub)
             (unless (subgoal-matches-any-def-p sub (append initial-defs *strat-ctx*))
                (push (lookup-subgoal-definition sub) new-defs))))))
 

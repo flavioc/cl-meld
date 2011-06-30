@@ -9,6 +9,7 @@
 
 (defparameter *vars-places* nil)
 (defparameter *used-regs* nil)
+
 (defmacro let-compile (&body body)
    `(let ((*vars-places* (make-hash-table))
           (*used-regs* nil))
@@ -266,7 +267,7 @@
                
 (defun get-my-subgoals (body name)
    (filter #L(equal (subgoal-name !1) name) (get-subgoals body)))
-   
+
 (defun compile-with-starting-subgoal (body head clause &optional subgoal)
    (let-compile
       (multiple-value-bind (first-constraints first-assignments) (get-compile-constraints-and-assignments body)
@@ -279,14 +280,14 @@
    (do-clauses clauses (:body body :head head :clause clause :operation append)
       (loop-list (subgoal (get-my-subgoals body name) :operation append)
          (compile-with-starting-subgoal body head clause subgoal))))
-                  
+
 (defun compile-init-process ()
    (unless (axioms) (return-from compile-init-process nil))
-   (do-clauses (axioms) (:body body :head head :clause clause :operation :append)
+   (do-axioms (:body body :head head :clause clause :operation :append)
       (compile-with-starting-subgoal body head clause)))
       
 (defun compile-ast ()
-   (do-definitions *ast* (:definition def :name name :operation collect)
+   (do-definitions (:definition def :name name :operation collect)
       (if (is-init-p def)
          (make-process name `(,@(compile-init-process) ,(make-return)))
          (make-process name `(,@(compile-normal-process name (find-clause-with-body-subgoal name))

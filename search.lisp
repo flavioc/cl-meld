@@ -108,4 +108,3 @@
 (defun find-clause-with-body-subgoal (subgoal-name)
    (append (filter #L(clause-body-matches-subgoal-p !1 subgoal-name) (clauses))
            (filter #L(clause-body-matches-subgoal-p !1 subgoal-name) (axioms))))
-           

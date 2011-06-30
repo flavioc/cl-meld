@@ -26,7 +26,7 @@
 (defun update-aggregate-input (edge-name agg-name get-fun)
    "For an aggregate that has an INPUT/OUTPUT modifier, executes source code transformations
    that puts the input/output node as the last argument of the aggregate"
-   (do-clauses (clauses) (:head head :body body)
+   (do-rules (:head head :body body)
       (let ((head-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals head))))
          (when head-subs
             (let* ((host (head-host-node head))
@@ -239,7 +239,7 @@
 (defun create-assignments (body)
    "Turn undefined equal constraints to assignments"
    (let (vars)
-      (do-constraints body (:expr expr :orig orig)
+      (do-constraints body (:expr expr :constraint orig)
          (let ((op1 (op-op1 expr)) (op2 (op-op2 expr)))
             (when (and (op-p expr) (equal-p expr) (var-p op1)
                         (not (variable-defined-p op1))
@@ -272,15 +272,15 @@
    (mapcar #L(transform-constant-to-constraint clause !1 only-addr-p) args))
 
 (defun add-variable-head-clause (clause)
-   (do-subgoals (clause-head clause) (:args args :orig sub)
+   (do-subgoals (clause-head clause) (:args args :subgoal sub)
       (setf (first (subgoal-args sub))
                (transform-constant-to-constraint clause
                      (first args)))))
                      
 (defun add-variable-head ()
-   (do-clauses (clauses) (:clause clause)
+   (do-rules (:clause clause)
       (add-variable-head-clause clause))
-   (do-clauses (axioms) (:clause clause)
+   (do-axioms (:clause clause)
       (add-variable-head-clause clause)))
       
 (defun type-check-clause (head body clause axiom-p)
@@ -305,19 +305,19 @@
          #'single-typed-var-p definitions)))
 
 (defun transform-clause-constants (clause)
-   (do-subgoals (clause-body clause) (:args args :orig sub)
+   (do-subgoals (clause-body clause) (:args args :subgoal sub)
       (setf (subgoal-args sub) (transform-constants-to-constraints clause args))))
             
 (defun type-check ()
-   (do-definitions *ast* (:name name :types typs)
+   (do-definitions (:name name :types typs)
       (check-home-argument name typs)
       (check-aggregates name typs))
    (add-variable-head)
-   (do-clauses (clauses) (:clause clause)
+   (do-rules (:clause clause)
       (transform-clause-constants clause))
-   (do-clauses (axioms) (:clause clause)
+   (do-axioms (:clause clause)
       (transform-clause-constants clause))
-   (do-clauses (clauses) (:head head :body body :clause clause)
+   (do-rules (:head head :body body :clause clause)
       (type-check-clause head body clause nil))
-   (do-clauses (axioms) (:head head :body body :clause clause)
+   (do-axioms (:head head :body body :clause clause)
       (type-check-clause head body clause t)))

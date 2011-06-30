@@ -46,6 +46,7 @@
 ;;;;;;;;;;;;;;;;;;;
 
 (defun make-clause (perm conc &rest options) `(:clause ,perm ,conc ,options))
+(defun clause-p (clause) (tagged-p clause :clause))
 (defun clause-head (clause) (third clause))
 (defun clause-body (clause) (second clause))
 (defun set-clause-body (clause new-body)

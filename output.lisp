@@ -79,7 +79,7 @@
 (defun reg-to-byte (reg) (reg-num reg))
 
 (defun lookup-tuple-id (tuple)
-   (do-definitions *ast* (:id id :name name)
+   (do-definitions (:id id :name name)
       (if (equal name tuple) (return-from lookup-tuple-id id))))
       
 (defun lookup-extern-id (ast extern)
@@ -264,7 +264,7 @@
       (output-instr instr vec)))
                              
 (defun output-processes ()
-   (do-processes *code* (:name name :instrs instrs :operation collect)
+   (do-processes (:name name :instrs instrs :operation collect)
       (printdbg "Processing predicate ~a..." name)
       (letret (vec (create-bin-array))
          (output-instrs instrs vec))))
@@ -293,8 +293,7 @@
       (:sum (case typ
                (:type-int #b0100)
                (:type-float #b0111)
-               (:type-list-float #b1011)
-               ))))
+               (:type-list-float #b1011)))))
                
 (defun output-aggregate (types)
    (let ((agg (find-if #'aggregate-p types)))
@@ -371,7 +370,7 @@
       (output-remain-empty vec (1+ used-info) *max-agg-info*)))
 
 (defun output-descriptors ()
-   (do-definitions *ast* (:definition def :name name :types types :operation collect)
+   (do-definitions (:definition def :name name :types types :operation collect)
       (letret (vec (create-bin-array))
          (add-byte (output-properties def) vec) ; property byte
          (add-byte (output-aggregate types) vec) ; aggregate byte

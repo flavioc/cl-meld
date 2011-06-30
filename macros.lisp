@@ -82,6 +82,7 @@
           ,op ,@body))
           
 (defmacro in-directory (new-dir &body body)
+   "Executes a piece of code inside directory 'new-dir' and goes back to the initial directory."
    (with-gensyms (old-dir)
       `(let ((,old-dir *default-pathname-defaults*))
          (unwind-protect
@@ -99,9 +100,9 @@
           ,@(build-bind definition def))
       ,@body))
       
-(defmacro do-definitions (code (&key (definition nil) (name nil) (types nil) (options nil) (operation 'do) (id nil)) &body body)
+(defmacro do-definitions ((&key (definition nil) (name nil) (types nil) (options nil) (operation 'do) (id nil)) &body body)
    (with-gensyms (el)
-      `(loop-list (,el (definitions ,code) :id ,id :operation ,operation)
+      `(loop-list (,el *definitions* :id ,id :operation ,operation)
          (with-definition ,el (:name ,name :types ,types :options ,options :definition ,definition)
             ,@body))))
                    
@@ -123,29 +124,57 @@
           ,@(build-bind options `(clause-options ,clause)))
       ,@rest))
 
-(defmacro do-clauses (clauses (&key (head nil) (body nil) (clause nil) (options nil) (id nil) (operation 'do)) &body rest)
+(defmacro do-clauses (clauses (&key (head nil) (body nil) (clause nil)
+                                    (options nil) (id nil) (operation 'do)) &body rest)
    (with-gensyms (el)
       `(loop-list (,el ,clauses :id ,id :operation ,operation)
          (let (,@(build-bind clause el))
             (with-clause ,el (:head ,head :body ,body :options ,options)
                ,@rest)))))
+               
+(defmacro do-rules ((&key (head nil) (body nil) (clause nil) (options nil)
+                                    (id nil) (operation 'do)) &body rest)
+   `(do-clauses *clauses* (:head ,head :body ,body :clause ,clause
+                           :options ,options :id ,id :operation ,operation)
+      ,@rest))
+      
+(defmacro do-axioms ((&key (head nil) (body nil) (clause nil) (options nil)
+                                    (id nil) (operation 'do)) &body rest)
+   `(do-clauses *axioms* (:head ,head :body ,body :clause ,clause
+                           :options ,options :id ,id :operation ,operation)
+      ,@rest))
             
 (defmacro with-subgoal (subgoal (&key (name nil) (args nil)) &body body)
    `(let (,@(build-bind name `(subgoal-name ,subgoal))
           ,@(build-bind args `(subgoal-args ,subgoal)))
       ,@body))
-
-(defmacro do-subgoals (subgoals (&key (name nil) (args nil) (id nil) (orig nil) (operation 'do)) &body body)
+      
+(defmacro do-subgoal-list (ls (&key (name nil) (args nil) (id nil)
+                                    (subgoal nil) (operation 'do))
+                               &body body)
    (with-gensyms (el)
-      `(loop-list (,el (filter #'subgoal-p ,subgoals) :id ,id :operation ,operation)
-         (let (,@(build-bind orig el))
-            (with-subgoal ,el (:name ,name :args ,args)
-               ,@body)))))
-               
-(defmacro do-constraints (constraints (&key (expr nil) (orig nil) (id nil)) &body body)
+      `(loop-list (,el ,ls :id ,id :operation ,operation)
+         (let (,@(build-bind subgoal el))
+            (when (subgoal-p ,el)
+               (with-subgoal ,el (:name ,name :args ,args)
+                  ,@body))))))
+
+(defmacro do-subgoals (subgoals (&key (name nil) (args nil) (id nil)
+                                      (subgoal nil) (operation 'do))
+                                 &body body)
+   (let ((arg-list `(:name ,name :args ,args :id ,id
+                     :subgoal ,subgoal :operation ,operation)))
+      `(cond
+         ((clause-p ,subgoals)
+            (do-subgoal-list (clause-body ,subgoals) ,arg-list ,@body)
+            (do-subgoal-list (clause-head ,subgoals) ,arg-list ,@body))
+         (t (do-subgoal-list ,subgoals ,arg-list ,@body)))))
+
+(defmacro do-constraints (constraints (&key (expr nil) (constraint nil) (id nil)) &body body)
    (with-gensyms (el)
       `(dolist-filter (,el ,constraints constraint-p ,id)
-         (let (,@(if expr `((,expr (constraint-expr ,el))) nil) ,@(if orig `((,orig ,el))))
+         (let (,@(build-bind expr `(constraint-expr ,el))
+               ,@(build-bind constraint el))
             ,@body))))
             
 (defmacro do-assignments (assignments (&key (var nil) (expr nil) (assignment nil) (id nil)) &body body)
@@ -164,8 +193,9 @@
                ,@(build-bind instrs `(process-instrs ,el)))
             ,@body))))
             
-(defmacro do-processes (procs (&key (proc nil) (name nil) (instrs nil) (operation 'do)) &body body)
+(defmacro do-processes ((&key (proc nil) (name nil) (instrs nil) (operation 'do)) &body body)
    (with-gensyms (el)
-      `(loop-list (,el ,procs :operation ,operation)
+      `(loop-list (,el *code* :operation ,operation)
          (with-process ,el (:name ,name :instrs ,instrs :proc ,proc)
             ,@body))))
+            
