@@ -18,10 +18,8 @@
 (defun make-call (name args) `(:call ,name ,args))
 (defun call-name (call) (second call))
 (defun call-args (call) (third call))
-(defun call-p (call) (tagged-p call :call))
 
 (defun make-cons (h ts) `(:cons ,h ,ts))
-(defun cons-p (c) (tagged-p c :cons))
 (defun cons-head (c) (second c))
 (defun cons-tail (c) (third c))
 
@@ -35,7 +33,6 @@
 
 (defun make-head (c) `(:head ,c))
 (defun head-list (c) (second c))
-(defun head-p (c) (tagged-p c :head))
 
 (defun set-head-list (head list)
    (setf (second head) list))
@@ -43,7 +40,6 @@
 
 (defun make-tail (c) `(:tail ,c))
 (defun tail-list (c) (second c))
-(defun tail-p (c) (tagged-p c :tail))
 
 (defun set-tail-list (tail list)
    (setf (second tail) list))
@@ -51,12 +47,9 @@
 
 (defun make-true () '(:true))
 (defun make-false () '(:false))
-(defun true-p (true) (tagged-p true :true))
-(defun false-p (false) (tagged-p false :false))
 
 (defun make-not (expr) `(:not ,expr))
 (defun not-expr (not) (second not))
-(defun not-p (expr) (tagged-p expr :not))
 
 (defun set-not-expr (not expr)
    (setf (second not) expr))
@@ -64,18 +57,15 @@
 
 (defun make-test-nil (expr) `(:test-nil ,expr))
 (defun test-nil-expr (tn) (second tn))
-(defun test-nil-p (tn) (tagged-p tn :test-nil))
 
 (defun set-test-nil-expr (test expr)
    (setf (second test) expr))
 (defsetf test-nil-expr set-test-nil-expr)
 
 (defun make-nil () (list :nil))
-(defun nil-p (n) (tagged-p n :nil))
 
 (defun make-addr (num) (list :addr num :type-addr))
 (defun addr-num (addr) (second addr))
-(defun addr-p (addr) (tagged-p addr :addr))
 (defun set-addr-num (addr new-num)
    (setf (second addr) new-num))
 (defsetf addr-num set-addr-num)
@@ -165,7 +155,6 @@
    (equal (subgoal-name sub1) (subgoal-name sub2)))
 
 (defun make-aggregate (agg typ mod) `(:aggregate ,agg ,typ ,mod))
-(defun aggregate-p (agg) (tagged-p agg :aggregate))
 (defun aggregate-agg (agg) (second agg))
 (defun aggregate-type (agg) (third agg))
 (defun aggregate-mod (agg) (fourth agg))
@@ -182,13 +171,11 @@
       (some #'aggregate-p typs)))
 
 (defun make-extern (name ret-type types) `(:extern ,name ,ret-type ,types))
-(defun extern-p (ext) (tagged-p ext :extern))
 (defun extern-name (ext) (second ext))
 (defun extern-ret-type (ext) (third ext))
 (defun extern-types (ext) (fourth ext))
 
 (defun make-constraint (expr &optional (priority 0)) (list :constraint expr priority))
-(defun constraint-p (ls) (tagged-p ls :constraint))
 (defun constraint-expr (ls) (second ls))
 (defun constraint-priority (ls) (third ls))
 
@@ -196,17 +183,21 @@
    (setf (second constraint) new-expr))
 (defsetf constraint-expr set-constraint-expr)
 
-(defmacro define-ops (&rest symbs)
+(defmacro define-is-p (&rest symbs)
    `(on-top-level
       ,@(mapcar #'(lambda (sy)
             `(defun ,(intern (concatenate 'string (symbol-name sy) "-P")) (val)
                   (tagged-p val ,sy)))
          symbs)))
          
-(define-ops :int :float :var :plus :minus :mul :div :mod
+(define-is-p :int :float :var :plus :minus :mul :div :mod
             :equal :not-equal
             :lesser :lesser-equal :greater :greater-equal
-            :convert-float :world :colocated)
+            :convert-float :world :colocated
+            :constraint :extern :aggregate
+            :true :false :not :head
+            :tail :cons :call :test-nil :addr
+            :nil :host-id)
 
 (defun const-p (s)
    (or (int-p s) (float-p s) (call-p s)
@@ -238,7 +229,6 @@
 (defun make-float (flt) `(:float ,flt :type-float))
 
 (defun make-host-id () '(:host-id :type-addr))
-(defun host-id-p (h) (tagged-p h :host-id))
 
 (defun make-convert-float (expr) `(:convert-float ,expr))
 (defun convert-float-expr (flt) (second flt))
