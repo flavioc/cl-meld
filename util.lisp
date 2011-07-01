@@ -148,3 +148,7 @@
                 
 (defun file-exists-p (file)
    (probe-file file))
+   
+(defun list-of-lists-p (ls)
+   (and (listp ls)
+        (every #'listp ls)))

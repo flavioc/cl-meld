@@ -73,6 +73,28 @@
           ,@(when id `(for ,id upto (length ,list)))
          ,operation ,@body))
          
+(defmacro with-symbol ((symb expr) &body body)
+   `(symbol-macrolet ((,symb ,expr))
+      ,@body))
+      
+(defmacro with-car ((cr cons) &body body)
+   `(with-symbol (,cr (car ,cons))
+      ,@body))
+      
+(defmacro with-cdr ((cr cons) &body body)
+   `(with-symbol (,cr (cdr ,cons))
+      ,@body))
+         
+(defmacro loop-cons ((el list) &body body)
+   `(loop for ,el on ,list
+          do (progn ,@body)))
+         
+(defmacro loop-cons-car ((el-car list) &body body)
+   (with-gensyms (el)
+      `(loop-cons (,el ,list)
+         (with-car (,el-car ,el)
+            ,@body))))
+      
 (defmacro equal-or (ls &body rest)
    `(or ,@(mapcar #'(lambda (el) `(equal ',el ,ls)) rest)))
    

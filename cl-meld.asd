@@ -33,6 +33,11 @@
 		 			                      "util"
 		 			                      "manip"
 		 			                      "macros"))
+		 			(:file "transform"
+		 			         :depends-on ("package"
+		 			                      "util"
+		 			                      "manip"
+		 			                      "macros"))
 		 			(:file "types"
 		 			         :depends-on ("package"
 		 			                      "util"
@@ -53,7 +58,8 @@
 		 			(:file "localize"
 		 			         :depends-on ("package"
 		 			                      "search"
-		 			                      "macros"))
+		 			                      "macros"
+		 			                      "transform"))
 		 			(:file "vm"
 		 			         :depends-on ("util"
 		 			                      "macros"

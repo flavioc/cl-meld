@@ -211,12 +211,9 @@
                :text "All head subgoals must have the same home argument")))))
 
 (defun remove-home-argument-clause (clause)
-   (let (head-var)
-      (do-subgoals clause (:args args :subgoal sub)
-         (unless head-var (setf head-var (first args)))
-         (setf (subgoal-args sub) (rest args)))
-      ; change home argument to host-id XXX change this thing
-      (when head-var (nsubst (make-host-id) head-var clause :test #'equal))))
+   (let ((host (clause-host-node clause)))
+      (transform-drop-subgoal-first-arg clause)
+      (transform-variable-to-host-id clause host)))
          
 (defun remove-home-argument ()
    (do-rules (:clause clause)
@@ -231,6 +228,6 @@
          (*route-facts-to-invert* nil))
       (do-rules (:clause clause :head head)
          (localize-check-head head)
-         (localize-start clause routes (clause-host-node clause)))
+         (localize-start clause routes (clause-head-host-node clause)))
       (create-inverse-routes))
    (remove-home-argument))

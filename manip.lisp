@@ -24,12 +24,30 @@
 (defun cons-p (c) (tagged-p c :cons))
 (defun cons-head (c) (second c))
 (defun cons-tail (c) (third c))
+
+(defun set-cons-head (cons head)
+   (setf (second cons) head))
+(defsetf cons-head set-cons-head)
+
+(defun set-cons-tail (cons tail)
+   (setf (third cons) tail))
+(defsetf cons-tail set-cons-tail)
+
 (defun make-head (c) `(:head ,c))
 (defun head-list (c) (second c))
+(defun head-p (c) (tagged-p c :head))
+
+(defun set-head-list (head list)
+   (setf (second head) list))
+(defsetf head-list set-head-list)
+
 (defun make-tail (c) `(:tail ,c))
 (defun tail-list (c) (second c))
 (defun tail-p (c) (tagged-p c :tail))
-(defun head-p (c) (tagged-p c :head))
+
+(defun set-tail-list (tail list)
+   (setf (second tail) list))
+(defsetf tail-list set-tail-list)
 
 (defun make-true () '(:true))
 (defun make-false () '(:false))
@@ -40,9 +58,17 @@
 (defun not-expr (not) (second not))
 (defun not-p (expr) (tagged-p expr :not))
 
+(defun set-not-expr (not expr)
+   (setf (second not) expr))
+(defsetf not-expr set-not-expr)
+
 (defun make-test-nil (expr) `(:test-nil ,expr))
 (defun test-nil-expr (tn) (second tn))
 (defun test-nil-p (tn) (tagged-p tn :test-nil))
+
+(defun set-test-nil-expr (test expr)
+   (setf (second test) expr))
+(defsetf test-nil-expr set-test-nil-expr)
 
 (defun make-nil () (list :nil))
 (defun nil-p (n) (tagged-p n :nil))
@@ -55,16 +81,42 @@
 (defsetf addr-num set-addr-num)
 
 (defun option-has-tag-p (opts opt) (some #L(tagged-p !1 opt) opts))
-   
+
+;; to take the home node from the head   
 (defun head-host-node (head-list)
    (first (subgoal-args (first head-list))))
-(defun clause-host-node (clause)
+(defun clause-head-host-node (clause)
    (head-host-node (clause-head clause)))
+   
+;; to take the home node from the body
+(defun body-host-node (body-list)
+   "Returns the home body of a body list.
+   Note that other things other than subgoals may be present"
+   (do-subgoals body-list (:args args)
+      (return-from body-host-node (first args))))
+(defun clause-body-host-node (clause)
+   (body-host-node (clause-body clause)))
+   
+(defun clause-host-node (clause)
+   "Returns the host node of a clause.
+   Looks first on the body and then on the head."
+   (let ((host (clause-body-host-node clause)))
+      (if host
+         host
+         (clause-head-host-node clause))))
 
 (defun make-colocated (h1 h2)
    (list :colocated h1 h2))
 (defun colocated-first (c) (second c))
 (defun colocated-second (c) (third c))
+
+(defun set-colocated-first (c new)
+   (setf (second c) new))
+(defsetf colocated-first set-colocated-first)
+
+(defun set-colocated-second (c new)
+   (setf (third c) new))
+(defsetf colocated-second set-colocated-second)
       
 (defun make-subgoal (name args)
    (if (equal name "colocated")
@@ -140,6 +192,10 @@
 (defun constraint-expr (ls) (second ls))
 (defun constraint-priority (ls) (third ls))
 
+(defun set-constraint-expr (constraint new-expr)
+   (setf (second constraint) new-expr))
+(defsetf constraint-expr set-constraint-expr)
+
 (defmacro define-ops (&rest symbs)
    `(on-top-level
       ,@(mapcar #'(lambda (sy)
@@ -160,6 +216,14 @@
 (defun op-op1 (val) (second val))
 (defun op-op2 (val) (third val))
 
+(defun set-op-op1 (o expr)
+   (setf (second o) expr))
+(defsetf op-op1 set-op-op1)
+
+(defun set-op-op2 (o expr)
+   (setf (third o) expr))
+(defsetf op-op2 set-op-op2)
+
 (defun op-p (val)
    (any (plus-p minus-p mul-p div-p mod-p not-equal-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p) val))
 
@@ -179,6 +243,10 @@
 (defun make-convert-float (expr) `(:convert-float ,expr))
 (defun convert-float-expr (flt) (second flt))
 
+(defun set-convert-float-expr (c expr)
+   (setf (second c) expr))
+(defsetf convert-float-expr set-convert-float-expr)
+
 (defun make-world () (list :world))
 
 (defun var-name (val) (second val))
@@ -189,6 +257,14 @@
 (defun assignment-p (ls) (tagged-p ls :assign))
 (defun assignment-var (ls) (second ls))
 (defun assignment-expr (ls) (third ls))
+
+(defun set-assignment-var (ass new-var)
+   (setf (second ass) new-var))
+(defsetf assignment-var set-assignment-var)
+
+(defun set-assignment-expr (ass new-expr)
+   (setf (third ass) new-expr))
+(defsetf assignment-expr set-assignment-expr)
 
 ;;;; SUBGOALS
 
