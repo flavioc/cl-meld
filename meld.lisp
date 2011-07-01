@@ -40,8 +40,10 @@
       (output-invalid-error (c) (format t "Output error: ~a~%" (text c)))))
 
 ;; this is to be removed... soon
+      
+(defun create-debug-file (prog)
+   (concatenate 'string "/Users/flaviocruz/Projects/meld/progs/" prog ".meld"))
+
 (defun comp (prog &optional (out "base"))
-   (meld-compile (concatenate 'string "/Users/flaviocruz/Projects/meld/progs/" prog ".meld")
+   (meld-compile (create-debug-file prog)
                  (concatenate 'string "/Users/flaviocruz/Projects/meld/" out)))
-                 
-; (defparameter *force* (comp "pagerank"))
