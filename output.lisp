@@ -387,8 +387,8 @@
 (declaim (inline write-hexa))
 
 (defun write-vec (stream vec)
-   (loop for b being the elements of vec
-      do (write-hexa stream b)))
+   (write-sequence vec stream)
+   (incf *total-written* (length vec)))
       
 (defun write-short-stream (stream int)
    (let ((ls (output-int int)))

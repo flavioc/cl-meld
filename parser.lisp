@@ -232,14 +232,65 @@
 
 	(const
 	 (:const #'identity)))
-      
-(defun parse-meld (str)
-   "Parses a string of Meld code."
-   (let* ((lexer (meld-lexer str))
-          (*parsed-consts* nil)
+	 
+(defmacro with-parse-context (&body body)
+   `(let ((*parsed-consts* nil)
           (*found-nodes* (make-hash-table))) ;; needed to detect repeated nodes
-      (parse-with-lexer lexer meld-parser)))
+      ,@body))
+      
+(defun read-source-line (stream)
+   (multiple-value-bind (line missing-newline-p) (read-line stream nil nil)
+      (unless missing-newline-p
+         (if (string-equal line "")
+            (read-source-line stream)
+            line))))
 
+(defun simple-stream-lexer (read-source-line string-lexer &key (stream *standard-input*))
+  (let (eof line-lexer (update t))
+    (labels ((update-line-lexer ()
+               (let ((line (funcall read-source-line stream)))
+                  (if (null line)
+                     (setf eof t))
+                  (setf line-lexer (funcall string-lexer line))))
+            (get-next-token ()
+               (multiple-value-bind (token value)
+                     (funcall line-lexer)
+                  (if token
+                     (values token value)
+                     (if eof
+                        nil
+                        (progn
+                           (update-line-lexer)
+                           (get-next-token)))))))
+      (lambda ()
+         (when eof
+            (error 'end-of-file :stream stream))
+         (when update
+            (update-line-lexer)
+            (setf update nil))
+         (get-next-token)))))
+         
+(defun parse-file-as-stream (file)
+   "Takes a stream-based lexer for the file and parses the stream."
+   (with-open-file (input-stream file
+                        :direction :input
+                        :if-does-not-exist :error)
+      (let* ((lexer (simple-stream-lexer #'read-source-line
+                                  #'meld-lexer
+                                  :stream input-stream)))
+         (parse-with-lexer lexer meld-parser))))
+   
+(defun parse-string (str)
+   "Parses a string of Meld code."
+   (let* ((lexer (meld-lexer str)))
+      (parse-with-lexer lexer meld-parser)))
+      
+(defun parse-file (file)
+   "Parses a file of Meld code."
+   (unless (file-exists-p file)
+      (error 'file-not-found-error :text file))
+   (parse-string (read-file file)))
+   
 (defun merge-asts (ast1 ast2)
    "Merges two ASTs together. Note that ast1 is modified."
    (make-ast (nconc (all-definitions ast1) (all-definitions ast2))
@@ -250,13 +301,15 @@
 (define-condition file-not-found-error (error)
    ((text :initarg :text :reader text)))
              
-(defun parse-meld-file (file)
+(defun parse-meld-file-rec (file)
    "Parses a Meld file, including included files."
-   (unless (file-exists-p file)
-      (error 'file-not-found-error :text file))
    (let* ((*included-files* nil)
-          (str (read-file file)))
+          (ast (parse-file-as-stream file)))
       (in-directory (pathname (directory-namestring (pathname file)))
-         (let* ((ast (parse-meld str))
-                (other-asts (mapcar #L(parse-meld-file !1) *included-files*)))
-            (reduce #'merge-asts other-asts :initial-value ast)))))
+         (let ((other-asts (mapcar #L(parse-meld-file-rec !1) *included-files*)))
+            (reduce #'merge-asts other-asts
+                     :initial-value ast)))))
+
+(defun parse-meld-file (file)
+   (with-parse-context
+      (parse-meld-file-rec file)))

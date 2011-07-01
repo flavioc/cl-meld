@@ -1,4 +1,4 @@
-#!/opt/local/bin/sbcl --noinform --noprint --script
+#!/opt/local/bin/sbcl --noinform --control-stack-size 32 --noprint --script
 
 (defvar *params* (rest sb-ext:*posix-argv*))
 
