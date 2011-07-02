@@ -8,7 +8,7 @@
  :version "0.0"
  :author "Flavio Cruz"
  :description "Meld compiler"
- :depends-on (:cl-lex :yacc :arnesi :alexandria :unit-test :flexi-streams :ieee-floats)
+ :depends-on (:cl-lex :yacc :arnesi :alexandria :unit-test :flexi-streams :ieee-floats :cl-funcpar)
  :components ( (:file "conf"
                         :depends-on ("package"))
                (:file "external"

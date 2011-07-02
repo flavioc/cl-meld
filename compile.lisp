@@ -264,7 +264,7 @@
                   (low-constraints (add-subgoal subgoal sub-reg))
                   (inner-code (compile-iterate without-subgoal orig-body head clause)))
                `(,start-code ,@(compile-low-constraints low-constraints inner-code)))))))
-               
+
 (defun get-my-subgoals (body name)
    (filter #L(equal (subgoal-name !1) name) (get-subgoals body)))
 
@@ -287,7 +287,7 @@
       (compile-with-starting-subgoal body head clause)))
       
 (defun compile-ast ()
-   (do-definitions (:definition def :name name :operation collect)
+   (par-collect-definitions (:definition def :name name)
       (if (is-init-p def)
          (make-process name `(,@(compile-init-process) ,(make-return)))
          (make-process name `(,@(compile-normal-process name (find-clause-with-body-subgoal name))

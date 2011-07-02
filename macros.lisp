@@ -127,6 +127,13 @@
       `(loop-list (,el *definitions* :id ,id :operation ,operation)
          (with-definition ,el (:name ,name :types ,types :options ,options :definition ,definition)
             ,@body))))
+            
+(defmacro par-collect-definitions ((&key (definition nil) (name nil) (types nil) (options nil)) &body body)
+   (with-gensyms (el)
+      `(par-mapcar #'(lambda (,el)
+                        (with-definition ,el (:name ,name :types ,types :options ,options :definition ,definition)
+                           ,@body))
+                  *definitions*)))
                    
 (defmacro with-extern (extern (&key (name nil) (ret-type nil) (types nil)) &body body)
    `(let (,@(build-bind name `(extern-name ,extern))
