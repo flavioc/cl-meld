@@ -424,19 +424,19 @@
                         :if-exists :supersede
                         :if-does-not-exist :create)
       ,@body))
-   
-(defun output-code (file)
+
+(defun output-code (file &key (write-ast nil) (write-code nil))
    (let ((*total-written* 0)
-         (byte-file (concatenate 'string file ".m"))
-         (ast-file (concatenate 'string file ".m.ast"))
-         (code-file (concatenate 'string file ".m.code")))
+         (byte-file (concatenate 'string file ".m")))
       (with-open-file (stream byte-file
                         :direction :output
                         :if-exists :supersede
                         :if-does-not-exist :create
                         :element-type '(unsigned-byte 8))
          (do-output-code stream))
-      (with-output-file (stream ast-file)
-         (format stream "~a~%" *ast*))
-      (with-output-file (stream code-file)
-         (format stream "~a" (print-vm)))))
+      (when write-ast
+         (with-output-file (stream (concatenate 'string file ".m.ast"))
+            (format stream "~a~%" *ast*)))
+      (when write-code
+         (with-output-file (stream (concatenate 'string file ".m.code"))
+            (format stream "~a" (print-vm))))))
