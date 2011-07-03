@@ -14,10 +14,6 @@
 (format t "==> Loading CL-Meld...~%")
 (asdf:oos 'asdf:load-op 'cl-meld)
 
-(defun compile-file-list (params)
- (unless (null params)
-	(format t "==> Compiling file ~a~%      to ~a.m~%" (first params) (second params))
-	(cl-meld:meld-compile (first params) (second params))
-	(compile-file-list (rest (rest params)))))
-
-(compile-file-list *params*)
+(let ((ls (loop for (in . (out . nil)) on *params* by #'cddr
+								collect (list in out))))
+	(sb-ext:quit :unix-status (if (cl-meld:meld-compile-list ls) 0 1)))

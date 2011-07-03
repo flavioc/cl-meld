@@ -12,9 +12,9 @@
    `(iterate-hash (,nodes ,real ,fake) ,@body))
 
 (defun flip-nodes (hash expr)
-   (iterate-expr #'(lambda (expr)
-                     (if (addr-p expr)
-                        (setf (addr-num expr) (node-used-id hash (addr-num expr)))))
+   (transform-expr #'addr-p #'(lambda (expr)
+                                 (setf (addr-num expr) (node-used-id hash (addr-num expr)))
+                                 (values nil :stop))
                   expr))
                   
 (defun link-head-p (head routes)
@@ -72,7 +72,6 @@
             (return-from bfs-ordering mapping-set))
          (let* ((node (pop queue))
                 (new-edges (get-neighbors-from-set edge-set node)))
-            ;(format t "ADD ~a(~a) QUEUE ~a~%" node count (append queue new-edges))
             (add-mapping mapping-set node count)
             (remove-hash-set node-set node)
             (bfs-ordering edge-set node-set mapping-set (append queue new-edges) (1+ count))))))
@@ -104,5 +103,6 @@
    (let ((mapping (do-topology-ordering)))
       ;(print-mapping mapping)
       (setf *nodes* mapping)
-      (do-axioms (:head head :body body)
-         (flip-nodes mapping (append head body)))))
+      (do-axioms (:clause clause)
+         (flip-nodes mapping clause))))
+         

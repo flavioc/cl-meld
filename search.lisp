@@ -22,6 +22,9 @@
                         (val
                            (push val ls))))
                   (cond
+                     ((clause-p expr)
+                        (aux (clause-head expr))
+                        (aux (clause-body expr)))
                      ((subgoal-p expr) (dolist (arg (subgoal-args expr)) (aux arg)))
                      ((constraint-p expr) (aux (constraint-expr expr)))
                      ((assignment-p expr)

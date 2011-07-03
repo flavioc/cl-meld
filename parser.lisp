@@ -282,6 +282,8 @@
          
 (defun parse-file-as-stream (file)
    "Takes a stream-based lexer for the file and parses the stream."
+   (unless (file-exists-p file)
+      (error 'file-not-found-error :text file))
    (with-open-file (input-stream file
                         :direction :input
                         :if-does-not-exist :error)

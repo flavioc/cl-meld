@@ -29,6 +29,7 @@
    t)
 
 (defun meld-compile (file out)
+   (format t "==> Compiling file ~a~%      to ~a.m~%" file out)
    (handler-case (do-meld-compile file out)
       (file-not-found-error (c) (format t "File not found: ~a~%" (text c)))
       (yacc-parse-error (c) (format t "Parse error: ~a~%" c))
@@ -38,6 +39,13 @@
       (stratification-error (c) (format t "Stratification error: ~a~%" (text c)))
       (compile-invalid-error (c) (format t "Compile error: ~a~%" (text c)))
       (output-invalid-error (c) (format t "Output error: ~a~%" (text c)))))
+
+(defun meld-compile-list (pairs)
+   (loop for (in out) in pairs
+         do (unless (meld-compile in out)
+               (format t "PROBLEM COMPILING ~a~%" in)
+               (return-from meld-compile-list nil)))
+   t)
 
 ;; this is to be removed... soon
       
