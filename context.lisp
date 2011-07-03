@@ -8,6 +8,7 @@
 (define-symbol-macro *definitions* (definitions *ast*))
 (define-symbol-macro *clauses* (clauses *ast*))
 (define-symbol-macro *axioms* (axioms *ast*))
-(define-symbol-macro *nodes* (defined-nodes *ast*))
+(define-symbol-macro *nodes* (nodes *ast*))
+(define-symbol-macro *externs* (externs *ast*))
 
 (defun set-abstract-syntax-tree (ast) (setf *ast* ast))

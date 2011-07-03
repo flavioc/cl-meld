@@ -60,7 +60,7 @@
          (vm-select-node-push instr node instrs))))
       
 (defun optimize-init ()
-   (let ((def (find-init-predicate (definitions))))
+   (let ((def (find-init-predicate *definitions*)))
       (assert (not (null def)))
       (with-definition def (:name init-name)
          (with-process (vm-find init-name) (:instrs instrs :proc proc)

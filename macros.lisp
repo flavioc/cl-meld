@@ -161,16 +161,34 @@
             (with-clause ,el (:head ,head :body ,body :options ,options)
                ,@rest)))))
                
+(defmacro par-do-clauses (clauses (&key (head nil) (body nil) (clause nil)
+                                    (options nil)) &body rest)
+   (with-gensyms (el)
+      `(par-dolist (,el ,clauses)
+         (let (,@(build-bind clause el))
+            (with-clause ,el (:head ,head :body ,body :options ,options)
+               ,@rest)))))
+               
 (defmacro do-rules ((&key (head nil) (body nil) (clause nil) (options nil)
                                     (id nil) (operation 'do)) &body rest)
    `(do-clauses *clauses* (:head ,head :body ,body :clause ,clause
                            :options ,options :id ,id :operation ,operation)
       ,@rest))
       
+(defmacro par-do-rules ((&key (head nil) (body nil) (clause nil) (options nil))
+                        &body rest)
+   `(par-do-clauses *clauses* (:head ,head :body ,body :clause ,clause :options ,options)
+      ,@rest))
+      
 (defmacro do-axioms ((&key (head nil) (body nil) (clause nil) (options nil)
                                     (id nil) (operation 'do)) &body rest)
    `(do-clauses *axioms* (:head ,head :body ,body :clause ,clause
                            :options ,options :id ,id :operation ,operation)
+      ,@rest))
+      
+(defmacro par-do-axioms ((&key (head nil) (body nil) (clause nil) (options nil))
+                        &body rest)
+   `(par-do-clauses *axioms* (:head ,head :body ,body :clause ,clause :options ,options)
       ,@rest))
             
 (defmacro with-subgoal (subgoal (&key (name nil) (args nil)) &body body)

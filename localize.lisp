@@ -4,32 +4,41 @@
    ((text :initarg :text :reader text)))
    
 (defvar *route-facts-to-invert* nil)
-(defun add-route-fact-to-invert (fact) (push-dunion fact *route-facts-to-invert*))
+(defvar *route-facts-lock* (make-lock))
+(defun add-route-fact-to-invert (fact)
+   (with-lock-held (*route-facts-lock*)
+      (push-dunion fact *route-facts-to-invert*)))
 
-(defun get-first-arg (subgoal) (first (subgoal-args subgoal)))
-(defun get-second-arg (subgoal) (second (subgoal-args subgoal)))
+(defun get-first-arg (subgoal)
+   (first (subgoal-args subgoal)))
+(defun get-second-arg (subgoal)
+   (second (subgoal-args subgoal)))
 
 (defun get-paths (subgoals routes)
    (filter #L(has-test-elem-p routes (subgoal-name !1) #'string-equal) (get-subgoals subgoals)))
 
-(defun equal-to-any-home (arg homes) (some #L(var-eq-p arg !1) homes))
+(defun equal-to-any-home (arg homes)
+   (some #L(var-eq-p arg !1) homes))
 (defun select-subgoals-by-home (subgoals home-vars)
    (filter #L(equal-to-any-home (get-first-arg !1) home-vars) (get-subgoals subgoals)))
 
 (defun generate-args (n typs)
    (mapcar #L(make-var (concatenate 'string "X" (write-to-string !2)) !1) typs (enumerate 0 (1- n))))
-(defun generate-inverse-name (name) (concatenate 'string "___" (reverse name)))
-(defun swap-first-two-args (args) `(,(second args) ,(first args) ,@(rest (rest args))))   
-(defun change-first-arg (args first) `(,first ,@(rest args)))
+(defun generate-inverse-name (name)
+   (concatenate 'string "___" (reverse name)))
+(defun swap-first-two-args (args)
+   `(,(second args) ,(first args) ,@(rest (rest args))))   
+(defun change-first-arg (args first)
+   `(,first ,@(rest args)))
 
 (defparameter *name-counter* 0)
 (defun generate-mangled-name ()
    (with-output-to-string (a) (format a "__mangledname~a" (incf *name-counter*))))
 
 (defun create-inverse-non-fact-route-definition (route new-name)
-   (let* ((old-definition (lookup-definition-types (definitions) route))
+   (let* ((old-definition (lookup-definition-types route))
           (new-definition (make-definition new-name old-definition :route `(:reverse-route ,route))))
-      (push new-definition (all-definitions))
+      (push new-definition *definitions*)
       new-definition))
       
 (defun create-inverse-non-fact-route (route new-name new-definition)
@@ -39,7 +48,7 @@
                   `(,(make-subgoal new-name
                                    (swap-first-two-args args)))
                   `(:route ,(var-name (second args))))))
-      (push new-clause (clauses))))
+      (push new-clause *clauses*)))
    
 (defun add-inverse-route-facts (route new-name)
    (with-ret to-ret
@@ -63,10 +72,11 @@
          (if (is-fact-p route)
             (let ((new-ones (add-inverse-route-facts route new-name)))
                (when new-ones
-                  (setf (axioms) (append new-ones (axioms)))))
+                  (setf *axioms* (append new-ones *axioms*))))
             (create-inverse-non-fact-route route new-name new-definition)))))
          
-(defun select-valid-constraints (body vars) (filter #L(subsetp (all-variable-names !1) vars) (get-constraints body)))
+(defun select-valid-constraints (body vars)
+   (filter #L(subsetp (all-variable-names !1) vars) (get-constraints body)))
 (defun generate-inverse-subgoal (new-name to needed-vars)
    (make-subgoal new-name `(,to ,@needed-vars)))
 
@@ -157,7 +167,7 @@
                   (setf (clause-body clause) (remove-unneeded-assignments `(,new-subgoal ,@stripped-body) head))
                   (with-subgoal new-subgoal (:name name)
                      (push (make-definition name `(:type-addr ,@(mapcar #'expr-type needed-vars)) `(:routed-tuple))
-                           (all-definitions)))
+                           *definitions*))
                   (let* ((new-clause-head `(,(copy-tree new-subgoal)))
                          (new-clause-body (remove-unneeded-assignments new-clause-body new-clause-head))
                          (route-to (var-name from)))
@@ -180,7 +190,7 @@
                                     (do-localize-one clause host to edge remaining order)
                (when target-clause
                   (if add-to-program-p
-                     (push target-clause (clauses)))
+                     (push target-clause *clauses*))
                   (when new-edges
                      (do-localize to target-clause new-edges new-remaining))))))))
 
@@ -223,9 +233,13 @@
    (do-definitions (:definition def :types typs)
       (setf (definition-types def) (rest typs))))
 
+(defmacro with-localize-context ((routes) &body body)
+   `(let ((,routes (get-route-names))
+          (*route-facts-to-invert* nil))
+      ,@body))
+
 (defun localize ()
-   (let ((routes (get-route-names))
-         (*route-facts-to-invert* nil))
+   (with-localize-context (routes)
       (do-rules (:clause clause :head head)
          (localize-check-head head)
          (localize-start clause routes (clause-head-host-node clause)))

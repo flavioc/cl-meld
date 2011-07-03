@@ -83,7 +83,7 @@
             for count = 0 then (1+ count)
             do (add-mapping hash node count))
       hash))
-         
+
 (defun random-ordering (nodes)
    (naive-ordering (shuffle-list nodes)))
 
@@ -93,16 +93,16 @@
 
 (defun do-topology-ordering ()
    (case *ordering-type*
-      (:naive (naive-ordering (defined-nodes)))
-      (:random (random-ordering (defined-nodes)))
+      (:naive (naive-ordering *nodes*))
+      (:random (random-ordering *nodes*))
       (:breadth (let ((edge-set (find-edge-set (get-route-names)))
-                      (node-set (create-hash-set (defined-nodes))))
+                      (node-set (create-hash-set *nodes*)))
                   (bfs-ordering edge-set node-set)))
       (otherwise (assert nil))))
                   
 (defun optimize-topology ()
    (let ((mapping (do-topology-ordering)))
       ;(print-mapping mapping)
-      (setf (defined-nodes) mapping)
+      (setf *nodes* mapping)
       (do-axioms (:head head :body body)
          (flip-nodes mapping (append head body)))))

@@ -58,7 +58,7 @@
 (defun get-head-subgoal (clause) (first (clause-head clause)))
 (defun get-head-subgoal-name (clause) (subgoal-name (get-head-subgoal clause)))  
 (defun lookup-subgoal-definition (subgoal) 
-   (lookup-definition (definitions) (subgoal-name subgoal)))
+   (lookup-definition (subgoal-name subgoal)))
                   
 (defun group-clauses-by-head (clauses)
    (let ((hash (make-hash-table :test #'equal)))
@@ -153,8 +153,7 @@
       
 (defun process-unrecursive-aggs (agg-clauses)
    (loop for clauses in agg-clauses
-         for def = (lookup-definition (definitions)
-                        (get-head-subgoal-name (first clauses)))
+         for def = (lookup-definition (get-head-subgoal-name (first clauses)))
          do (push-strata def *current-strat-level*)
          do (when (every #'local-clause-p clauses)
                (definition-add-option def `(:agg-type :local-agg)))
@@ -308,17 +307,9 @@
                (remove-all clauses will-really-fire))))))
 
 (defun mark-unstratified-predicates ()
-   (dolist (def (definitions))
+   (do-definitions (:definition def)
       (unless (definition-has-tagged-option-p def :strat)
-         (with-definition def (:name name)
-            ;; XXX: remove
-            (when (equal name "receive")
-               (set-definition-size def 
-                  (make-definition-size nil (list (generate-inverse-name "link")))))
-            (when (equal name "allhiddengrad")
-               (set-definition-size def
-                  (make-definition-size nil (list "link"))))
-            (push-strata def *current-strat-level*)))))
+         (push-strata def *current-strat-level*))))
 
 (defun do-strat-loop (clauses)
    (incf *current-strat-level*)
@@ -333,15 +324,20 @@
             (mark-unstratified-predicates))
          (t
             (do-strat-loop remain)))))
+            
+(defmacro with-stratification-context ((routes clauses) &body body)
+   `(let* ((*strat-routes* (get-routes))
+           (*current-strat-level* 0)
+           (*strat-ctx* (make-stratification-ctx))
+           (,routes *strat-routes*)
+           (,clauses (remove-if (clause-edge-fact-p *strat-routes*) *clauses*)))
+      ,@body))
    
 (defun stratify ()
-   (let* ((*strat-routes* (get-routes))
-          (*current-strat-level* 0)
-          (*strat-ctx* (make-stratification-ctx))
-          (clauses (remove-if (clause-edge-fact-p *strat-routes*) (clauses))))
-      (dolist (rout *strat-routes*)
+   (with-stratification-context (routes clauses)
+      (dolist (rout routes)
          (push-strata rout *current-strat-level*))
-      (let ((init-def (find-init-predicate (definitions))))
+      (let ((init-def (find-init-predicate *definitions*)))
          (set-generated-by-all init-def)
          (push-strata init-def *current-strat-level*))
       (if *use-stratification*

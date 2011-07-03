@@ -91,10 +91,6 @@
          do (setf ass next-ass
                   body (remove-all body next-unneeded))
          finally (return body)))
-         
-(defun is-fact-p (pred-name)
-   "Given a predicate name tells you if it is a fact in the program."
-   t)
 
 (defun find-constraints (body fn)
    (filter #L(and (constraint-p !1) (funcall fn (constraint-expr !1))) body))
@@ -102,9 +98,23 @@
 (defun constraint-by-var1 (var-name expr) (var-eq-p var-name (op-op1 expr)))
 (defun constraint-by-var2 (var-name expr) (var-eq-p var-name (op-op2 expr)))
 
-(defun clause-body-matches-subgoal-p (clause subgoal-name)
-   (some #L(equal (subgoal-name !1) subgoal-name) (get-subgoals (clause-body clause))))
+(defun subgoal-appears-code-p (code subgoal-name)
+   (do-subgoals code (:name name)
+      (when (string-equal name subgoal-name)
+         (return-from subgoal-appears-code-p t)))
+   nil)
    
-(defun find-clause-with-body-subgoal (subgoal-name)
-   (append (filter #L(clause-body-matches-subgoal-p !1 subgoal-name) (clauses))
-           (filter #L(clause-body-matches-subgoal-p !1 subgoal-name) (axioms))))
+(defun clause-body-matches-subgoal-p (clause subgoal-name)
+   (subgoal-appears-code-p (clause-body clause) subgoal-name))
+(defun clause-head-matches-subgoal-p (clause subgoal-name)
+   (subgoal-appears-code-p (clause-head clause) subgoal-name))
+   
+(defun is-fact-p (pred-name)
+   "Given a predicate name tells you if it is a fact in the program."
+   (do-rules (:clause clause)
+      (when (clause-head-matches-subgoal-p clause pred-name)
+         (return-from is-fact-p nil)))
+   t)
+
+(defun find-clauses-with-subgoal-in-body (subgoal-name)
+   (filter #L(clause-body-matches-subgoal-p !1 subgoal-name) *clauses*))

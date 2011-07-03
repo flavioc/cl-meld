@@ -1,45 +1,34 @@
 (in-package :cl-meld)
 
-(defun make-ast (defs clauses axioms nodes)
-   `(:ast ,defs ,clauses ,axioms ,nodes))
-            
-(defun all-definitions (&optional (code *ast*))
-   (second code))
-
-(defun definitions (&optional (code *ast*))
-   (filter #'definition-p (all-definitions code)))
-
-(defun set-definitions (new-defs)
-   (setf (second *ast*) new-defs))
-   
-(defsetf definitions set-definitions)
-(defsetf all-definitions set-definitions)
-
-(defun externs (&optional (code *ast*))
-   (filter #'extern-p (all-definitions code)))
-  
-(defun clauses (&optional (code *ast*))
-   (third code))
-   
-(defun set-clauses (new-clauses)
-   (setf (third *ast*) new-clauses))
-(defsetf clauses set-clauses)
-
-(defun defined-nodes (&optional (code *ast*))
-   (fifth code))
-
-(defun set-defined-nodes (new-nodes)
-   (setf (fifth *ast*) new-nodes))
-   
-(defsetf defined-nodes set-defined-nodes)
-
-(defun axioms (&optional (code *ast*))
-   (fourth code))
-   
-(defun set-axioms (new-axioms)
-   (setf (fourth *ast*) new-axioms))
-   
-(defsetf axioms set-axioms)
+(defclass ast ()
+   ((definitions
+      :initarg :definitions
+      :initform (error "missing definitions.")
+      :accessor definitions)
+    (externs
+      :initarg :externs
+      :initform (error "missing externs.")
+      :accessor externs)
+    (clauses
+      :initarg :clauses
+      :initform (error "missing clauses.")
+      :accessor clauses)
+    (axioms
+      :initarg :axioms
+      :initform (error "missing axioms")
+      :accessor axioms)
+    (nodes
+      :initarg :nodes
+      :initform (error "missing nodes")
+      :accessor nodes)))
+      
+(defun make-ast (defs externs clauses axioms nodes)
+   (make-instance 'ast
+      :definitions defs
+      :externs externs
+      :clauses clauses
+      :axioms axioms
+      :nodes nodes))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Clauses

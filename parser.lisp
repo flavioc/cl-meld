@@ -66,7 +66,7 @@
    (const-definition-expr (find-if #L(equal (const-definition-name !1) name) *parsed-consts*)))
    
 (defmacro return-const (const)
-   `#'(lambda (x) (declare (ignore x)) ,const))
+   `#'(lambda (&rest x) (declare (ignore x)) ,const))
    
 (defvar *found-nodes* nil)
 (defun add-found-node (i)
@@ -94,10 +94,12 @@
 								:route :include :file :world
 								:output :input))
 	(program
-	  (includes definitions statements #L(make-ast !2 (remove-if #'is-axiom-p !3)
-	                                                  (filter #'is-axiom-p !3)
-	                                                  (defined-nodes-list))))
-	  
+	  (includes definitions externs consts statements #L(make-ast  !2 ; definitions
+	                                                               !3 ; externs
+	                                                               (remove-if #'is-axiom-p !5) ; clauses
+	                                                               (filter #'is-axiom-p !5) ; axioms
+	                                                               (defined-nodes-list)))) ; nodes
+
 	(includes
 	   ()
 	   (include includes #'(lambda (a b) (declare (ignore a b)))))
@@ -107,23 +109,31 @@
 
 	(definitions
 	 ()
-	 (definition definitions #'(lambda (x xs) (if (null x) xs (cons x xs)))))
+	 (definition definitions #'cons))
 
-	(definition
-	 (:extern atype const :lparen type-args :rparen :dot #'(lambda (e ret-type name l args r d)
-	                                                         (declare (ignore e l r d))
-	                                                         (make-extern name ret-type args)))
-	 (:const-decl const :equal expr :dot #'(lambda (a name e expr dot)
-	                                             (declare (ignore a e dot))
-	                                             (push (make-const-definition name expr) *parsed-consts*)
-	                                             nil))
-	 (predicate-definition #'identity))
-	 
-	
-	(predicate-definition
-	 (:type predicate-option const type-args-part #L(make-definition !3 !4 !2))
-	 (:type const type-args-part #L(make-definition !2 !3)))
-	 							
+   (definition
+      (:type predicate-option const type-args-part #L(make-definition !3 !4 !2))
+      (:type const type-args-part #L(make-definition !2 !3)))
+ 
+   (consts
+      ()
+      (const-definition consts (return-const nil)))
+      
+	(const-definition
+	   (:const-decl const :equal expr :dot #'(lambda (a name e expr dot)
+   	                                             (declare (ignore a e dot))
+   	                                             (push (make-const-definition name expr) *parsed-consts*)
+   	                                             nil)))
+   	         
+   (externs
+      ()
+      (extern-definition externs #'cons))
+                                          
+   (extern-definition
+      (:extern atype const :lparen type-args :rparen :dot #'(lambda (e ret-type name l args r d)
+   	                                                         (declare (ignore e l r d))
+   	                                                         (make-extern name ret-type args))))
+						
 	(predicate-option
 	   (:route (return-const :route)))
 	   
@@ -293,10 +303,11 @@
    
 (defun merge-asts (ast1 ast2)
    "Merges two ASTs together. Note that ast1 is modified."
-   (make-ast (nconc (all-definitions ast1) (all-definitions ast2))
+   (make-ast (nconc (definitions ast1) (definitions ast2))
+             (nconc (externs ast1) (externs ast2))
              (nconc (clauses ast1) (clauses ast2))
              (nconc (axioms ast1) (axioms ast2))
-             (nconc (defined-nodes ast1) (defined-nodes ast2))))
+             (nconc (nodes ast1) (nodes ast2))))
              
 (define-condition file-not-found-error (error)
    ((text :initarg :text :reader text)))

@@ -10,7 +10,7 @@
 (defparameter *vars-places* nil)
 (defparameter *used-regs* nil)
 
-(defmacro let-compile (&body body)
+(defmacro with-compile-context (&body body)
    `(let ((*vars-places* (make-hash-table))
           (*used-regs* nil))
       ,@body))
@@ -269,12 +269,12 @@
    (filter #L(equal (subgoal-name !1) name) (get-subgoals body)))
 
 (defun compile-with-starting-subgoal (body head clause &optional subgoal)
-   (let-compile
+   (with-compile-context
       (multiple-value-bind (first-constraints first-assignments) (get-compile-constraints-and-assignments body)
          (let* ((remaining (remove-unneeded-assignments (remove-all body first-constraints) head))
                (inner-code (compile-initial-subgoal remaining body head clause subgoal)))
             (compile-constraints-and-assignments first-constraints first-assignments inner-code)))))
-            
+
 (defun compile-normal-process (name clauses)
    (unless clauses (return-from compile-normal-process nil))
    (do-clauses clauses (:body body :head head :clause clause :operation append)
@@ -282,13 +282,13 @@
          (compile-with-starting-subgoal body head clause subgoal))))
 
 (defun compile-init-process ()
-   (unless (axioms) (return-from compile-init-process nil))
+   (unless *axioms* (return-from compile-init-process nil))
    (do-axioms (:body body :head head :clause clause :operation :append)
       (compile-with-starting-subgoal body head clause)))
-      
+
 (defun compile-ast ()
    (par-collect-definitions (:definition def :name name)
       (if (is-init-p def)
          (make-process name `(,@(compile-init-process) ,(make-return)))
-         (make-process name `(,@(compile-normal-process name (find-clause-with-body-subgoal name))
+         (make-process name `(,@(compile-normal-process name (find-clauses-with-subgoal-in-body name))
                               ,(make-return))))))

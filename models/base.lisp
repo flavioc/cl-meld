@@ -10,4 +10,5 @@
       (push (make-definition ,(string-downcase (symbol-name name)) ',types ,@options) *base-tuples*)))
       
 (defun add-base-tuples ()
-   (setf (definitions) (append (mapcar #'copy-tree *base-tuples*) (all-definitions))))
+   (let ((copy (mapcar #'copy-tree *base-tuples*)))
+      (setf *definitions* (append copy *definitions*))))

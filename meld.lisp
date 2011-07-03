@@ -27,7 +27,7 @@
       (output-code out)
       (printdbg "All done."))
    t)
-       
+
 (defun meld-compile (file out)
    (handler-case (do-meld-compile file out)
       (file-not-found-error (c) (format t "File not found: ~a~%" (text c)))

@@ -21,7 +21,7 @@
       ((vm-addr-p val) (list  #b000101 (output-int (vm-addr-num val))))
       ((vm-host-id-p val) (list #b000011))
       ((vm-nil-p val) (list #b000100))
-      ((vm-world-p val) (output-value (make-vm-int (number-of-nodes (defined-nodes)))))
+      ((vm-world-p val) (output-value (make-vm-int (number-of-nodes *nodes*))))
       ((tuple-p val) (list #b011111))
       ((reg-p val) (list (logior #b100000 (logand #b011111 (reg-num val)))))
       ((reg-dot-p val) (list #b000010 (list (reg-dot-field val) (reg-num (reg-dot-reg val)))))
@@ -218,7 +218,7 @@
                         #b00001001
                         (logand *value-mask* first-value)
                         (logand *value-mask* second-value)))
-      (:select-node (let* ((total-nodes (number-of-nodes (defined-nodes)))
+      (:select-node (let* ((total-nodes (number-of-nodes *nodes*))
                            (size-header (* 2 +code-offset-size+))
                            (hash (make-hash-table))
                            (end-hash (make-hash-table)))
@@ -316,23 +316,24 @@
 (defparameter *max-tuple-name* 32)
 (defparameter *max-tuple-args* 32)
 (defparameter *max-agg-info* 32)
-
-(defun output-remain-empty (vec start max)
-   (loop for i from start to max
-         do (add-byte #b0 vec)))
+         
+(defmacro refill-up-to ((vec max) &body body)
+   (with-gensyms (pos new-pos)
+      `(save-pos (,pos ,vec)
+         ,@body
+         (save-pos (,new-pos ,vec)
+            (loop for i from (1+ (- ,new-pos ,pos)) to ,max
+                  do (add-byte #b0 ,vec))))))
 
 (defun output-tuple-name (name vec)
-   (let ((len (length name)))
+   (refill-up-to (vec *max-tuple-name*)
       (loop for x being the elements of name
-         do (add-byte (char-code x) vec))
-      (output-remain-empty vec (1+ len) *max-tuple-name*)))
+         do (add-byte (char-code x) vec))))
          
 (defun output-tuple-type-args (types vec)
-   (let* ((args (definition-arg-types types))
-          (len (length args)))
-      (dolist (typ args)
-         (output-arg-type typ vec))
-      (output-remain-empty vec (1+ len) *max-tuple-args*)))
+   (refill-up-to (vec *max-tuple-args*)
+      (dolist (typ (definition-arg-types types))
+         (output-arg-type typ vec))))
          
 (defun output-stratification-level (def)
    (let ((level (definition-get-tagged-option def :strat)))
@@ -340,12 +341,10 @@
       (coerce level '(unsigned-byte 8))))
       
 (defun output-aggregate-component-info (vec size)
-   (let ((total-size (length size))
-         (indices (mapcar #L(lookup-tuple-id !1) size)))
-      (add-byte total-size vec)
+   (let ((indices (mapcar #L(lookup-tuple-id !1) size)))
+      (add-byte (length size) vec)
       (loop for ind in indices
-         do (add-byte ind vec))
-      (1+ total-size)))
+         do (add-byte ind vec))))
       
 (defun get-aggregate-remote-size (def)
    "Gets remote size from a definition (only applicable to aggregates."
@@ -353,21 +352,25 @@
          (agg (definition-aggregate def)))
       (when agg
          (let ((mod (aggregate-mod agg)))
-            (when (tagged-p mod :input)
+            (when (aggregate-mod-is-input-p mod)
                (assert (null rem))
-               (return-from get-aggregate-remote-size `(,(generate-inverse-name (second mod)))))
-            (when (tagged-p mod :output)
+               (return-from get-aggregate-remote-size
+                  (values `(,(generate-inverse-name (aggregate-mod-io-name mod)))
+                           (aggregate-mod-includes-home-p mod))))
+            (when (aggregate-mod-is-output-p mod)
                (assert (null rem))
-               (return-from get-aggregate-remote-size `(,(second mod))))))
+               (return-from get-aggregate-remote-size
+                  (values `(,(aggregate-mod-io-name mod))
+                           (aggregate-mod-includes-home-p mod))))))
       rem))
-      
+
 (defun output-aggregate-info (def vec)
-   (let ((local-size (definition-get-local-size def))
-         (remote-size (get-aggregate-remote-size def))
-         (used-info 0))
-      (incf used-info (output-aggregate-component-info vec local-size))
-      (incf used-info (output-aggregate-component-info vec remote-size))
-      (output-remain-empty vec (1+ used-info) *max-agg-info*)))
+   (let ((local-size (definition-get-local-size def)))
+      (refill-up-to (vec *max-agg-info*)
+         (output-aggregate-component-info vec local-size)
+         (multiple-value-bind (remote-size use-home-p) (get-aggregate-remote-size def)
+            (declare (ignore use-home-p))
+            (output-aggregate-component-info vec remote-size)))))
 
 (defun output-descriptors ()
    (do-definitions (:definition def :name name :types types :operation collect)
@@ -379,7 +382,7 @@
          (output-tuple-type-args types vec) ; argument type information
          (output-tuple-name name vec) ;; predicate name
          (output-aggregate-info def vec) ;; aggregate info
-         )))
+      )))
             
 (defparameter *total-written* 0)
 
@@ -408,8 +411,8 @@
       (write-int-stream stream real-id)))
       
 (defun do-output-code (stream)
-   (write-hexa stream (length (definitions)))
-   (write-nodes stream (defined-nodes))
+   (write-hexa stream (length *definitions*))
+   (write-nodes stream *nodes*)
    (let ((processes (output-processes))
          (descriptors (output-descriptors)))
       (loop for vec-desc in descriptors

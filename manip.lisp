@@ -157,7 +157,18 @@
 (defun make-aggregate (agg typ mod) `(:aggregate ,agg ,typ ,mod))
 (defun aggregate-agg (agg) (second agg))
 (defun aggregate-type (agg) (third agg))
+
 (defun aggregate-mod (agg) (fourth agg))
+(defun aggregate-mod-is-input-p (aggmod) (tagged-p aggmod :input))
+(defun aggregate-mod-is-output-p (aggmod) (tagged-p aggmod :output))
+(defun aggregate-mod-io-name (aggmod) (second aggmod))
+(defun aggregate-mod-includes-home-p (aggmod)
+   (and (> (length aggmod) 2)
+      (eq (third aggmod) :home)))
+(defun aggregate-mod-include-home (aggmod)
+   (assert (= (length aggmod) 2))
+   (push-end :home aggmod))
+
 (defun definition-aggregate (def)
    (with-definition def (:types typs) (find-if #'aggregate-p typs)))
 (defun arg-type (arg)
@@ -265,15 +276,15 @@
    (setf (third subgoal) new-args))
 (defsetf subgoal-args set-subgoal-args)
 
-(defun lookup-definition-types (defs pred)
-   (when-let ((def (lookup-definition defs pred)))
+(defun lookup-definition-types (pred)
+   (when-let ((def (lookup-definition pred)))
       (definition-types def)))
-      
-(defun lookup-definition (defs pred)
-   (find-if #L(string-equal pred (definition-name !1)) (filter #'definition-p defs)))
 
-(defun lookup-extern (defs name)
-   (find-if #L(string-equal name (extern-name !1)) (filter #'extern-p defs)))
+(defun lookup-definition (pred)
+   (find-if #L(string-equal pred (definition-name !1)) *definitions*))
+
+(defun lookup-extern (name)
+   (find-if #L(string-equal name (extern-name !1)) *externs*))
 
 (defun has-constraints-p (subgoals) (some #'constraint-p subgoals))
 (defun has-assignments-p (subgoals) (some #'assignment-p subgoals))
