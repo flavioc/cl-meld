@@ -2,7 +2,7 @@
 (in-package :cl-meld)
 
 (define-string-lexer meld-lexer
-   ("[-+]?[0-9]+(\.[0-9]+|[0-9]+)?" (return (values :number $@)))
+   ("[-+]?[0-9]+(\\.[0-9]+|[0-9]+)?" (return (values :number $@)))
 	("\\,"                           (return (values :comma $@)))
 	("\\["                           (return (values :lsparen $@)))
 	("\\]"                           (return (values :rsparen $@)))
@@ -16,6 +16,7 @@
 	("list"                          (return (values :type-list $@)))
 	("include"                       (return (values :include $@)))
 	("@world"                        (return (values :world $@)))
+	("@"                             (return (values :local $@)))
 	(":-"                            (return (values :arrow  $@)))
 	("\\("			                  (return (values :lparen $@)))
 	("\\)"			                  (return (values :rparen $@)))
@@ -39,7 +40,6 @@
 	("sum"                           (return (values :sum $@)))
 	("first"                         (return (values :first $@)))
 	("route"                         (return (values :route $@)))
-	("@"                             (return (values :local $@)))
 	("_"				                  (return (values :variable $@)))
  	("[a-z]([a-z]|[A-Z]|\_)*"		   (return (values :const $@)))
 	("'\\w+"		                     (return (values :const $@)))
