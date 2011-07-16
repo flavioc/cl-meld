@@ -340,11 +340,16 @@
       (assert (not (null level)))
       (coerce level '(unsigned-byte 8))))
       
-(defun output-aggregate-component-info (vec size)
+(defun output-aggregate-component-info (vec size &optional use-home-p is-remote)
    (let ((indices (mapcar #L(lookup-tuple-id !1) size)))
       (add-byte (length size) vec)
       (loop for ind in indices
-         do (add-byte ind vec))))
+         do (add-byte ind vec))
+      (when is-remote
+         (if use-home-p
+            (add-byte 1 vec)
+            (add-byte 0 vec)))
+      ))
       
 (defun get-aggregate-remote-size (def)
    "Gets remote size from a definition (only applicable to aggregates."
@@ -369,8 +374,7 @@
       (refill-up-to (vec *max-agg-info*)
          (output-aggregate-component-info vec local-size)
          (multiple-value-bind (remote-size use-home-p) (get-aggregate-remote-size def)
-            (declare (ignore use-home-p))
-            (output-aggregate-component-info vec remote-size)))))
+            (output-aggregate-component-info vec remote-size use-home-p t)))))
 
 (defun output-descriptors ()
    (do-definitions (:definition def :name name :types types :operation collect)

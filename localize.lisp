@@ -57,9 +57,8 @@
             (if (equal route name)
                (let* ((reverse-host (second args))
                       (host-var (first args))
-                      (constraint (first (find-constraints body
-                                 #L(and (equal-p !1) (constraint-by-var1 host-var !1)))))
-                      (real-host (op-op2 (constraint-expr constraint)))
+                      (constraint-expr (first (find-assignment-constraints body host-var)))
+                      (real-host (op-op2 constraint-expr))
                       (remain-args (drop-first-n args 2))
                       (new-clause (make-clause nil `(,(make-subgoal new-name `(,reverse-host ,real-host ,@remain-args)))))) 
                   (add-variable-head-clause new-clause)
@@ -129,6 +128,12 @@
 (defun get-inverse-route (route-subgoal)
    (make-subgoal (generate-inverse-name (subgoal-name route-subgoal))
                 (swap-first-two-args (subgoal-args route-subgoal))))
+                
+(defun order-variables (vars)
+   "Sorts variables by putting integer variables before every other."
+   (sort vars #'(lambda (var1 var2)
+                  (declare (ignore var2))
+                  (type-int-p (expr-type var1)))))
 
 (defun do-localize-one (clause from to route-subgoal remaining &optional (order 'forward))
    (let* ((reachable (get-reachable-nodes remaining to))
@@ -161,7 +166,7 @@
                (let* ((new-clause-body `(,@subgoals ,@assignments ,@constraints))
                       (variables-undef-head (variables-undefined-head head stripped-body from))
                       (variables-subgoals (variables-defined-on-body new-clause-body to))
-                      (needed-vars (tree-intersection variables-subgoals variables-undef-head))
+                      (needed-vars (order-variables (tree-intersection variables-subgoals variables-undef-head)))
                       (new-subgoal (generate-inverse-subgoal (generate-mangled-name)
                                                 from needed-vars)))
                   (setf (clause-body clause) (remove-unneeded-assignments `(,new-subgoal ,@stripped-body) head))

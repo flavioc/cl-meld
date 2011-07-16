@@ -214,6 +214,8 @@
    (or (int-p s) (float-p s) (call-p s)
       (cons-p s) (nil-p s) (addr-p s)))
             
+(defun make-op (op op1 op2)
+   `(,op ,op1 ,op2))
 (defun op-op (val) (tagged-tag val))
 (defun op-op1 (val) (second val))
 (defun op-op2 (val) (third val))
@@ -255,6 +257,7 @@
 
 ;;;; ASSIGNMENTS
 
+(defun make-assignment (var expr) (list :assign var expr))
 (defun assignment-p (ls) (tagged-p ls :assign))
 (defun assignment-var (ls) (second ls))
 (defun assignment-expr (ls) (third ls))
@@ -280,8 +283,8 @@
    (when-let ((def (lookup-definition pred)))
       (definition-types def)))
 
-(defun lookup-definition (pred)
-   (find-if #L(string-equal pred (definition-name !1)) *definitions*))
+(defun lookup-definition (pred &optional (defs *definitions*))
+   (find-if #L(string-equal pred (definition-name !1)) defs))
 
 (defun lookup-extern (name)
    (find-if #L(string-equal name (extern-name !1)) *externs*))

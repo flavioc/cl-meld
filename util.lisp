@@ -152,3 +152,21 @@
 (defun list-of-lists-p (ls)
    (and (listp ls)
         (every #'listp ls)))
+        
+(defmacro loop-pairwise ((a b) ls &body body)
+   (with-gensyms (tail)
+      `(loop for (,a . ,tail) on ,ls by #'cdr
+             do (unless (null ,tail)
+                  (let ((,b (car ,tail)))
+                     ,@body)))))
+
+(defun all-equal-p (ls &key (test #'eq))
+   (loop-pairwise (a b) ls
+      (unless (funcall test a b)
+         (return-from all-equal-p nil)))
+   t)
+   
+(defun always-true (&rest rest)
+   "Function that always returns true."
+   (declare (ignore rest))
+   t)

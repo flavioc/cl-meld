@@ -222,6 +222,46 @@
                      subs)
          (let ((sub (first subs)))
             (first (subgoal-args sub))))))
+            
+(defun is-plus-1-arg-p (arg)
+   (and (op-p arg)
+      (let ((op1 (op-op1 arg))
+            (op2 (op-op2 arg)))
+         (or 
+             (and (var-p op1)
+                  (int-p op2)
+                  (= (int-val op2) 1))
+            (and (int-p op1)
+                 (= (int-val op1) 1)
+                 (var-p op2))))))
+                 
+(defun get-iteration-var (arg)
+   (cond
+      ((is-plus-1-arg-p arg)
+         (cond
+            ((var-p (op-op1 arg)) (op-op1 arg))
+            ((var-p (op-op2 arg)) (op-op2 arg))
+            (t nil)))
+      ((var-p arg) arg)
+      (t nil)))
+
+(defun is-plus-1-arg-equal-p (arg var)
+   (and (op-p arg)
+        (let ((op1 (op-op1 arg))
+              (op2 (op-op2 arg)))
+            (or
+               (and (var-p op1)
+                    (var-eq-p op1 var)
+                    (int-p op2)
+                    (= (int-val op2) 1))
+               (and (int-p op1)
+                    (= (int-val op1) 1)
+                    (var-p op2))))))
+
+(defun uses-iter-var-p (arg var)
+   (or (is-plus-1-arg-equal-p arg var)
+       (and (var-p arg)
+            (var-eq-p arg var))))
       
 (defun next-strat-iteration-is-used-p (head needed-defs iter)
    (let ((subs (find-subgoals-by-definitions head needed-defs)))
@@ -230,12 +270,7 @@
                         (with-subgoal sub (:args args)
                            (and (>= (length args) 1)
                               (let ((arg (first args)))
-                                    (and (op-p arg)
-                                         (let ((op1 (op-op1 arg))
-                                               (op2 (op-op2 arg)))
-                                          (and (var-eq-p op1 iter)
-                                             (int-p op2)
-                                             (> (int-val op2) 0))))))))
+                                    (is-plus-1-arg-equal-p arg iter)))))
                   subs))))
          
             
@@ -261,43 +296,118 @@
          do (clause-add-option clause
                `(:delete ,@(loop for def in defs collect `(,(definition-name def) ,stage))))))
                
-(defun find-clause-clique (start-clauses clauses)
-   (let* ((initial-defs (get-head-definitions start-clauses))
-          (has-stage-first (every #'definition-has-stage-argument initial-defs))
-          (has-stage-args-first (every #'clause-has-initial-stage-argument start-clauses)))
-      (cond
-         ((not (and has-stage-first has-stage-args-first))
-            (format t "Could not find a valid stratified clique~%")
-            nil)
-         (t
-            (let ((remain-clauses (find-end-clique-clauses initial-defs clauses start-clauses)))
-               (when remain-clauses
-                  (let* ((needed-defs (find-needed-defs remain-clauses initial-defs))
-                         (needed-clauses (find-strat-dependent-clauses clauses initial-defs needed-defs)))
-                     (unless (every #'definition-aggregate-p needed-defs)
-                      (return-from find-clause-clique nil))
-                     (loop for def in initial-defs 
-                           do (set-generated-by-all def))
-                     (let ((size (compute-clauses-size needed-clauses)))
-                        (loop for def in needed-defs
-                              do (set-definition-size def size)))
-                     (when (generated-by-all-p needed-clauses)
-                        (loop for def in needed-defs
-                              do (set-generated-by-all def)))
-                     (loop for def in initial-defs
-                           do (push-strata def *current-strat-level*))
-                     (incf *current-strat-level*)
-                     (loop for def in needed-defs
-                           do (push-strata def *current-strat-level*))
-                     (mark-strat-clauses-to-delete remain-clauses (append initial-defs needed-defs))
-                     `(,@start-clauses ,@remain-clauses ,@needed-clauses))))))))
+(defun find-assignment-or-constraint (body var)
+   (let* ((assignments (get-assignments body))
+          (found (find-if #L(var-eq-p (assignment-var !1) var) assignments)))
+      (if found
+         (assignment-expr found)
+         (let ((op-expr (find-assignment-constraints body var)))
+            (when op-expr
+               (op-op2 (first op-expr)))))))
+   
+(defun dereference-variable (arg body)
+   (map-expr #'var-p
+             #'(lambda (var)
+                  (let ((expr (find-assignment-or-constraint body var)))
+                     (if expr
+                        (dereference-variable expr body)
+                        var)))
+            arg))
+   
+(defun dereference-variables (args body)
+   (mapcar #L(dereference-variable !1 body) args))
+   
+   
+(defun all-first-variables (subgoals)
+   (mapcar #L(first (subgoal-args !1)) subgoals))
+
+(defun get-stage-variables (subgoals body)
+   (dereference-variables (all-first-variables subgoals) body))
+
+(defun is-x-rule-p (defs)
+   #'(lambda (clause)
+      (with-clause clause (:body body :head head)
+         (let* ((subs-head (find-subgoals-by-definitions head defs))
+                (subs-body (find-subgoals-by-definitions body defs))
+                (all (append subs-head subs-body))
+                (vars-iter (get-stage-variables all body)))
+            (and (every #'var-p vars-iter)
+                 (all-equal-p vars-iter :test #'var-eq-p))))))
+                    
+(defun is-y-rule-p (defs)
+   #'(lambda (clause)
+      (with-clause clause (:body body :head head)
+         (let* ((subs-head (find-subgoals-by-definitions head defs))
+                (subs-body (find-subgoals-by-definitions body defs))
+                (vars-head (get-stage-variables subs-head body))
+                (vars-body (get-stage-variables subs-body body)))
+            (when (and vars-head vars-body)
+               (let ((iter-var (get-iteration-var (first vars-body))))
+                  (and (every #L(is-plus-1-arg-equal-p !1 iter-var) vars-head)
+                       (every #L(uses-iter-var-p !1 iter-var) vars-body))))))))
+               
+(defun is-start-rule-p (defs)
+   #'(lambda (clause)
+      (with-clause clause (:body body :head head)
+         (let* ((subs-head (find-subgoals-by-definitions head defs))
+                (subs-body (find-subgoals-by-definitions body defs))
+                (stages-head (get-stage-variables subs-head body)))
+            (and (null subs-body)
+                 (every #'int-p stages-head))))))
+         
+(defun find-x-rules (clauses defs)
+   (filter (is-x-rule-p defs) clauses))
+   
+(defun find-y-rules (clauses defs)
+   (filter (is-y-rule-p defs) clauses))
+   
+(defun find-start-rules (clauses defs)
+   (filter (is-start-rule-p defs) clauses))
+   
+(defun find-clause-clique (clauses)
+   (let* ((defs (get-head-definitions clauses))
+          (has-stage-argument (every #'definition-has-stage-argument defs)))
+      (unless has-stage-argument
+         (format t "some definitions fail to have a stage argument~%")
+         (return-from find-clause-clique nil))
+      (let* ((x-rules (find-x-rules clauses defs))
+             (y-rules (find-y-rules clauses defs))
+             (start-rules (find-start-rules clauses defs))
+             (total-clique (+ (length x-rules) (length y-rules) (length start-rules))))
+         (unless (= (length clauses) total-clique)
+            (format t "cannot partition clauses into x-rules and y-rules~%")
+            (return-from find-clause-clique nil))
+         (printdbg "Found a XY-clique with ~a clauses!" total-clique)
+         (loop for def in defs
+               do (push-strata def *current-strat-level*))
+         (incf *current-strat-level*)
+         clauses)))
+      ;(let ((remain-clauses (find-end-clique-clauses initial-defs clauses start-clauses)))
+      ;   (when remain-clauses
+      ;      (let* ((needed-defs (find-needed-defs remain-clauses initial-defs))
+      ;             (needed-clauses (find-strat-dependent-clauses clauses initial-defs needed-defs)))
+      ;         (unless (every #'definition-aggregate-p needed-defs)
+      ;            (return-from find-clause-clique nil))
+      ;         (loop for def in initial-defs 
+      ;               do (set-generated-by-all def))
+      ;         (let ((size (compute-clauses-size needed-clauses)))
+      ;            (loop for def in needed-defs
+      ;                  do (set-definition-size def size)))
+      ;            (when (generated-by-all-p needed-clauses)
+      ;               (loop for def in needed-defs
+      ;                     do (set-generated-by-all def)))
+      ;            (loop for def in initial-defs
+      ;                  do (push-strata def *current-strat-level*))
+      ;            (incf *current-strat-level*)
+      ;            (mark-strat-clauses-to-delete remain-clauses (append initial-defs needed-defs))
+      ;            `(,@start-clauses ,@remain-clauses ,@needed-clauses))))))
 
 (defun stratification-loop (clauses)
    (multiple-value-bind (will-fire not-fire) (split-mult-return #'can-fire-clause-p clauses)
       (let ((will-really-fire (select-fired-rules will-fire not-fire)))
          (if (null will-really-fire)
             (progn
-               (let ((clique (find-clause-clique will-fire clauses)))
+               (let ((clique (find-clause-clique clauses)))
                   (remove-all clauses clique)))
             (multiple-value-bind (agg-clauses not-agg) (select-if-aggregate will-really-fire)
                (when agg-clauses
@@ -314,7 +424,6 @@
 (defun do-strat-loop (clauses)
    (incf *current-strat-level*)
    (when (null clauses)
-      (format t "Everything stratified!~%")
       (mark-unstratified-predicates)
       (return-from do-strat-loop nil))
    (let ((remain (stratification-loop clauses)))

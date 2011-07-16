@@ -255,6 +255,7 @@
             (when (and (op-p expr) (equal-p expr) (var-p op1)
                         (not (variable-defined-p op1))
                         (not (has-elem-p vars (var-name op1))))
+         ;; changes constraints to assignments
          (setf (first orig) :assign)
          (setf (second orig) op1)
          (setf (cddr orig) (list op2))

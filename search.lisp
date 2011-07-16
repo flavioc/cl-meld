@@ -95,11 +95,19 @@
                   body (remove-all body next-unneeded))
          finally (return body)))
 
-(defun find-constraints (body fn)
-   (filter #L(and (constraint-p !1) (funcall fn (constraint-expr !1))) body))
-   
+(defmacro find-constraints (body &rest fns)
+   `(mapfilter #'constraint-expr #L(and (constraint-p !1)
+                                       ,@(loop for fn in fns
+                                              collect `(funcall ,fn (constraint-expr !1))))
+         ,body))
+
 (defun constraint-by-var1 (var-name expr) (var-eq-p var-name (op-op1 expr)))
 (defun constraint-by-var2 (var-name expr) (var-eq-p var-name (op-op2 expr)))
+
+(defun find-assignment-constraints (body var)
+   (find-constraints body
+                     #L(equal-p !1)
+                     #L(constraint-by-var1 var !1)))
 
 (defun subgoal-appears-code-p (code subgoal-name)
    (do-subgoals code (:name name)
