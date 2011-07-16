@@ -17,7 +17,7 @@
 
 (defun make-stratification-ctx () (list))
 (defun push-strata (def level)
-   (definition-add-option def `(:strat ,level))
+   (definition-set-strata def level)
    (push def *strat-ctx*))
    
 (defun subgoal-matches-any-def-p (sub &optional (ctx *strat-ctx*))
@@ -104,65 +104,15 @@
    (with-definition def (:types typs)
       (assert (>= (length typs) 1))
       (aggregate-p (first typs))))
-
-(defun compute-clause-size (clause)
-   (cond
-      ((clause-has-tagged-option-p clause :route)
-         (do-subgoals (clause-body clause) (:subgoal sub :name name)
-            (let ((def (lookup-subgoal-definition sub)))
-               (when (find def *strat-routes* :test #'equal)
-                  (let ((inverted (generate-inverse-name name)))
-                     (return-from compute-clause-size `(:remote ,inverted)))))))
-      (t
-         (let (ret)
-            (with-clause clause (:body body)
-               (do-subgoals body (:subgoal sub :operation collect)
-                  (let ((def (lookup-subgoal-definition sub)))
-                     (unless (is-init-p def)
-                        (push (definition-name def) ret)))))
-            (when ret
-               `(:local ,@ret))))))
                         
-(defun make-definition-size (locals remotes)
-   (with-ret ret
-      (setf remotes nil) ; XXX
-      (when locals
-         (setf ret `((:local ,@locals))))
-      (when remotes
-         (setf ret `((:remote ,@remotes) ,@ret)))))
-         
-(defun set-definition-size (def size) (definition-add-option def `(:size ,size)))
-(defun definition-get-local-size (def)
-   (let ((size (definition-get-tagged-option def :size)))
-      (get-tagged-elem size :local)))
-(defun definition-get-remote-size (def)
-   (let ((size (definition-get-tagged-option def :size)))
-      (get-tagged-elem size :remote)))
-         
-(defun compute-clauses-size (clauses &optional extra)
-   (let (locals remotes)
-      (when extra
-         (push (definition-name extra) locals))
-      (loop for clause in clauses
-            for size = (compute-clause-size clause)
-            do (unless (null size)
-                  (cond
-                     ((tagged-p size :local) (push-all (rest size) locals))
-                     ((tagged-p size :remote) (push-all (rest size) remotes)))))
-      (make-definition-size locals remotes)))
-      
 (defun process-unrecursive-aggs (agg-clauses)
    (loop for clauses in agg-clauses
          for def = (lookup-definition (get-head-subgoal-name (first clauses)))
          do (push-strata def *current-strat-level*)
          do (when (every #'local-clause-p clauses)
-               (definition-add-option def `(:agg-type :local-agg)))
-            (when (generated-by-all-p clauses)
-                  (set-generated-by-all def))
-            (let ((size (compute-clauses-size clauses def)))
-               (set-definition-size def size)
-               ;(format t "SIZE: ~a~%" size)
-               )))
+               (definition-set-local-agg def))
+         do (when (generated-by-all-p clauses)
+               (set-generated-by-all def))))
                   
 (defun process-unrecursive-non-agg-clause (clause)
    (let ((by-all (clause-generated-by-all-p clause)))
@@ -180,33 +130,15 @@
 (defun get-head-definitions (clauses)
    (with-ret defs
       (do-clauses clauses (:head head)
-         (do-subgoals head (:subgoal sub)
-            (push (lookup-subgoal-definition sub) defs)))))
+         (do-subgoals head (:subgoal sub :name name)
+            (let ((def (lookup-definition name defs)))
+               (unless def
+                  (push (lookup-subgoal-definition sub) defs)))))))
             
 (defun definition-has-stage-argument (def)
    (with-definition def (:types typs)
       (and (>= (length typs) 1)
            (type-int-p (first typs)))))
-           
-(defun clause-has-initial-stage-argument (clause)
-   (with-clause clause (:head head)
-      (every #'(lambda (sub)
-               (with-subgoal sub (:args args)
-                  (and (>= (length args) 1)
-                       (int-p (first args)))))
-         (get-subgoals head))))
-         
-(defun has-every-definition-p (subgoals defs)
-   (every #'(lambda (sub)
-               (some #L(subgoal-matches-def-p sub !1) defs))
-            subgoals))
-         
-(defun find-end-clique-clauses (defs all-clauses start-clauses)
-   (remove-all (filter #'(lambda (clause)
-                  (with-clause clause (:head head)
-                     (has-every-definition-p (get-subgoals head) defs)))
-               all-clauses)
-            start-clauses))
             
 (defun find-subgoals-by-definitions (body-head defs)
    (filter #'(lambda (sub)
@@ -262,33 +194,6 @@
    (or (is-plus-1-arg-equal-p arg var)
        (and (var-p arg)
             (var-eq-p arg var))))
-      
-(defun next-strat-iteration-is-used-p (head needed-defs iter)
-   (let ((subs (find-subgoals-by-definitions head needed-defs)))
-      (and (not (null subs))
-           (every #'(lambda (sub)
-                        (with-subgoal sub (:args args)
-                           (and (>= (length args) 1)
-                              (let ((arg (first args)))
-                                    (is-plus-1-arg-equal-p arg iter)))))
-                  subs))))
-         
-            
-(defun find-strat-dependent-clauses (clauses initial-defs needed-defs)
-   (with-ret new-clauses
-      (do-clauses clauses (:body body :head head :clause clause)
-         (when (can-fire-clause-p clause (append initial-defs *strat-ctx*))
-            (let ((iter (current-strat-iteration-used body initial-defs)))
-               (when (and iter
-                        (next-strat-iteration-is-used-p head needed-defs iter))
-               (push clause new-clauses)))))))
-            
-(defun find-needed-defs (remain-clauses initial-defs)
-   (with-ret new-defs
-      (do-clauses remain-clauses (:body body)
-         (do-subgoals body (:subgoal sub)
-            (unless (subgoal-matches-any-def-p sub (append initial-defs *strat-ctx*))
-               (push (lookup-subgoal-definition sub) new-defs))))))
 
 (defun mark-strat-clauses-to-delete (clauses defs)
    (loop for clause in clauses
@@ -316,7 +221,6 @@
    
 (defun dereference-variables (args body)
    (mapcar #L(dereference-variable !1 body) args))
-   
    
 (defun all-first-variables (subgoals)
    (mapcar #L(first (subgoal-args !1)) subgoals))
@@ -379,6 +283,7 @@
             (return-from find-clause-clique nil))
          (printdbg "Found a XY-clique with ~a clauses!" total-clique)
          (loop for def in defs
+               do (format t "mark ~a~%" def)
                do (push-strata def *current-strat-level*))
          (incf *current-strat-level*)
          clauses)))
@@ -445,6 +350,7 @@
 (defun stratify ()
    (with-stratification-context (routes clauses)
       (dolist (rout routes)
+         (set-generated-by-all rout)
          (push-strata rout *current-strat-level*))
       (let ((init-def (find-init-predicate *definitions*)))
          (set-generated-by-all init-def)

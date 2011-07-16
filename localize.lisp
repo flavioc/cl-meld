@@ -49,7 +49,7 @@
                                    (swap-first-two-args args)))
                   `(:route ,(var-name (second args))))))
       (push new-clause *clauses*)))
-   
+
 (defun add-inverse-route-facts (route new-name)
    (with-ret to-ret
       (do-axioms (:head head :body body)

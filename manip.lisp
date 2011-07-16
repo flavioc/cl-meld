@@ -133,6 +133,17 @@
    (let ((res (find-if #L(tagged-p !1 opt) (definition-options def))))
       (when res
          (second res))))
+(defun definition-add-tagged-option (def name &rest rest)
+   (definition-add-option def `(,name ,@rest)))
+         
+(defun definition-set-local-agg (def)
+   (definition-add-option def :local-agg))
+(defun definition-has-local-agg-p (def)
+   (definition-has-option-p def :local-agg))
+(defun definition-set-strata (def level)
+   (definition-add-tagged-option def :strat level))
+(defun definition-get-strata (def)
+   (definition-get-tagged-option def :strat))
 
 (defun is-init-p (def)
    (definition-has-option-p def :init-tuple))
@@ -171,6 +182,11 @@
 
 (defun definition-aggregate (def)
    (with-definition def (:types typs) (find-if #'aggregate-p typs)))
+      
+(defun definition-has-remote-agg-p (def)
+   (when-let ((agg (definition-aggregate def)))
+      (aggregate-mod agg)))
+
 (defun arg-type (arg)
    (if (aggregate-p arg)
        (aggregate-type arg)

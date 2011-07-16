@@ -340,41 +340,42 @@
       (assert (not (null level)))
       (coerce level '(unsigned-byte 8))))
       
-(defun output-aggregate-component-info (vec size &optional use-home-p is-remote)
-   (let ((indices (mapcar #L(lookup-tuple-id !1) size)))
-      (add-byte (length size) vec)
-      (loop for ind in indices
-         do (add-byte ind vec))
-      (when is-remote
-         (if use-home-p
-            (add-byte 1 vec)
-            (add-byte 0 vec)))
-      ))
+(defun get-aggregate-remote (def)
+   "Gets remote aggregate info from a definition (only applicable to aggregates)."
+   (when-let ((agg (definition-aggregate def)))
+      (let ((mod (aggregate-mod agg)))
+         (cond
+            ((aggregate-mod-is-input-p mod)
+               (values (generate-inverse-name (aggregate-mod-io-name mod))
+                       (aggregate-mod-includes-home-p mod)))
+            ((aggregate-mod-is-output-p mod)
+               (values (aggregate-mod-io-name mod)
+                       (aggregate-mod-includes-home-p mod)))))))
       
-(defun get-aggregate-remote-size (def)
-   "Gets remote size from a definition (only applicable to aggregates."
-   (let ((rem (definition-get-remote-size def))
-         (agg (definition-aggregate def)))
-      (when agg
-         (let ((mod (aggregate-mod agg)))
-            (when (aggregate-mod-is-input-p mod)
-               (assert (null rem))
-               (return-from get-aggregate-remote-size
-                  (values `(,(generate-inverse-name (aggregate-mod-io-name mod)))
-                           (aggregate-mod-includes-home-p mod))))
-            (when (aggregate-mod-is-output-p mod)
-               (assert (null rem))
-               (return-from get-aggregate-remote-size
-                  (values `(,(aggregate-mod-io-name mod))
-                           (aggregate-mod-includes-home-p mod))))))
-      rem))
+(defconstant +agg-local-aggregate-byte+         #b00000001)
+(defconstant +agg-remote-aggregate-byte+        #b00000010)
+(defconstant +agg-remote-aggregate-home-byte+   #b00000100)
+(defconstant +agg-unsafe-byte+                  #b00000000)
 
 (defun output-aggregate-info (def vec)
-   (let ((local-size (definition-get-local-size def)))
-      (refill-up-to (vec *max-agg-info*)
-         (output-aggregate-component-info vec local-size)
-         (multiple-value-bind (remote-size use-home-p) (get-aggregate-remote-size def)
-            (output-aggregate-component-info vec remote-size use-home-p t)))))
+   (refill-up-to (vec *max-agg-info*)
+      (cond
+         ((not (definition-aggregate def))) ;; Not an aggregate
+         ((definition-has-local-agg-p def)
+            (add-byte +agg-local-aggregate-byte+ vec)
+            (let ((level (definition-get-strata def)))
+               (assert level)
+               ;(format t "local agg ~a ~a~%" (definition-name def) (1+ level))
+               (add-byte (1+ level) vec)))
+         ((definition-has-remote-agg-p def)
+            (multiple-value-bind (remote-pred use-home-p) (get-aggregate-remote def)
+               (when remote-pred
+                  ;(format t "remote agg ~a~%" def)
+                  (add-byte (if use-home-p +agg-remote-aggregate-home-byte+ +agg-remote-aggregate-byte+) vec)
+                  (add-byte (lookup-tuple-id remote-pred) vec))))
+         (t
+            (printdbg "THIS PROGRAM HAS UNSAFE AGGREGATES!")
+            (add-byte +agg-unsafe-byte+ vec)))))
 
 (defun output-descriptors ()
    (do-definitions (:definition def :name name :types types :operation collect)
