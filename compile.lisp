@@ -153,11 +153,41 @@
                         (cond
                            (already-defined (make-low-constraint (expr-type arg) (make-reg-dot in-c i) already-defined))
                            (t (add-used-var (var-name arg) (make-reg-dot reg i)) nil)))))))
-                        
+
+(defun compile-remain-delete-args (n ls)
+   (if (null ls)
+      nil
+      (with-compiled-expr (place instrs) (first ls)
+         (multiple-value-bind (code places) (compile-remain-delete-args (1+ n) (rest ls))
+             (values `(,@instrs ,@code)
+                     `(,(cons n place) ,@places))))))
+
+(defun compile-delete (delete-option subgoal)
+   (let* ((args (delete-option-args delete-option))
+          (mapped (mapcar #L(nth (1- !1) (subgoal-args subgoal)) args))
+          (iter (first mapped))
+          (remain (rest mapped))
+          (minus-1 (make-minus iter '- (make-forced-int 1))))
+      (with-compiled-expr (place instrs) minus-1
+         (with-reg (reg)
+            (let ((greater-instr (make-vm-op reg place :int-greater-equal (make-vm-int 0))))
+               (multiple-value-bind (remain-instrs places) (compile-remain-delete-args 2 remain)
+                  (format t "remain-instrs ~a places ~a~%" remain-instrs places)
+                  (let* ((delete-code (make-vm-delete (subgoal-name subgoal) `(,(cons 1 place) ,@places)))
+                         (if-instr (make-if reg `(,delete-code))))
+                     `(,@instrs ,@remain-instrs ,greater-instr ,if-instr))))))))
+            
+(defun compile-inner-delete (clause)
+   (when (clause-has-delete-p clause)
+      (let ((all (clause-get-all-deletes clause)))
+         (loop for delete-option in all
+               append (compile-delete delete-option
+                        (find-if (subgoal-by-name (delete-option-name delete-option)) (get-subgoals (clause-body clause))))))))
+            
 (defun compile-head-move (arg i tuple-reg)
    (let ((reg-dot (make-reg-dot tuple-reg i)))
       (compile-expr-to arg reg-dot)))
-      
+
 (defun do-compile-head-subgoals (head clause)
    (do-subgoals head (:name name :args args :operation append)
       (with-reg (tuple-reg)
@@ -168,22 +198,12 @@
             ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code clause tuple-reg)
                `(,@extra-code ,(make-send tuple-reg send-to))))))
             res))))
-
-(defun compile-deletes (deletes)
-   (loop for delete in deletes
-         for id = (first delete)
-         for expr = (second delete)
-         append (with-compiled-expr (place instrs) expr
-                  `(,@instrs ,(make-vm-delete id place)))))
-
-(defun do-compile-head (head clause)
-   ;; if clause has tuples to delete before generating the head
-   ;; we do this here
-   (let ((subgoal-code (do-compile-head-subgoals head clause)))
-      (if (clause-has-delete-p clause)
-         (let ((delete-code (compile-deletes (clause-get-delete clause))))
-            `(,@subgoal-code ,@delete-code))
-         subgoal-code)))
+            
+(defun do-compile-head (subgoal head clause)
+   (declare (ignore subgoal))
+   (let ((head-code (do-compile-head-subgoals head clause))
+         (delete-code (compile-inner-delete clause)))
+      (append head-code delete-code)))
       
 (defun compile-assignments-and-head (assignments head-fun)
    (if (null assignments)
@@ -196,22 +216,22 @@
 
 (defun remove-defined-assignments (assignments) (mapcar #L(remove-used-var (var-name (assignment-var !1))) assignments))
 
-(defun compile-head (body head clause)
+(defun compile-head (body head clause subgoal)
    (let ((assigns (filter #'assignment-p body)))
-      (always-ret (compile-assignments-and-head assigns #L(do-compile-head head clause))
+      (always-ret (compile-assignments-and-head assigns #L(do-compile-head subgoal head clause))
          (remove-defined-assignments assigns))))
                      
-(defun compile-iterate (body orig-body head clause)
+(defun compile-iterate (body orig-body head clause subgoal)
    (multiple-value-bind (constraints assignments) (get-compile-constraints-and-assignments body)
       (let* ((next-sub (find-if #'subgoal-p body))
              (rem-body (remove-unneeded-assignments (remove-tree next-sub (remove-all body constraints)) head)))
          (compile-constraints-and-assignments constraints assignments
             (if (not next-sub)
-               (compile-head rem-body head clause)
+               (compile-head rem-body head clause subgoal)
                (let ((next-sub-name (subgoal-name next-sub)))
                   (with-reg (reg next-sub)
                      (let* ((match-constraints (mapcar #'rest (add-subgoal next-sub reg :match)))
-                            (iterate-code (compile-iterate rem-body orig-body head clause))
+                            (iterate-code (compile-iterate rem-body orig-body head clause subgoal))
                             (other-code `(,(make-move :tuple reg) ,@iterate-code)))
                         `(,(make-iterate next-sub-name match-constraints other-code))))))))))
       
@@ -258,11 +278,11 @@
 (defun compile-initial-subgoal (body orig-body head clause subgoal)
    (let ((without-subgoal (remove-tree subgoal body)))
       (if (null (subgoal-args subgoal))
-         (compile-iterate without-subgoal orig-body head clause)
+         (compile-iterate without-subgoal orig-body head clause subgoal)
          (with-reg (sub-reg subgoal)
             (let ((start-code (make-move :tuple sub-reg))
                   (low-constraints (add-subgoal subgoal sub-reg))
-                  (inner-code (compile-iterate without-subgoal orig-body head clause)))
+                  (inner-code (compile-iterate without-subgoal orig-body head clause subgoal)))
                `(,start-code ,@(compile-low-constraints low-constraints inner-code)))))))
 
 (defun get-my-subgoals (body name)
@@ -272,15 +292,28 @@
    (with-compile-context
       (multiple-value-bind (first-constraints first-assignments) (get-compile-constraints-and-assignments body)
          (let* ((remaining (remove-unneeded-assignments (remove-all body first-constraints) head))
-               (inner-code (compile-initial-subgoal remaining body head clause subgoal)))
+                (inner-code (compile-initial-subgoal remaining body head clause subgoal)))
             (compile-constraints-and-assignments first-constraints first-assignments inner-code)))))
 
-(defun compile-normal-process (name clauses)
-   (unless clauses (return-from compile-normal-process nil))
-   (do-clauses clauses (:body body :head head :clause clause :operation append)
+(defun compile-subgoal-clause (name clause)
+   (with-clause clause (:body body :head head)
       (loop-list (subgoal (get-my-subgoals body name) :operation append)
          (compile-with-starting-subgoal body head clause subgoal))))
 
+;(defun compile-delete (clause)
+;   (when (clause-has-delete-p def)
+;      (let ((all-deletes (clause-get-deletes def
+;   (loop for delete in deletes
+;         for id = (first delete)
+;         for expr = (second delete)
+;         append (with-compiled-expr (place instrs) expr
+;                  `(,@instrs ,(make-vm-delete id place)))))
+
+(defun compile-normal-process (name clauses)
+   (unless clauses (return-from compile-normal-process nil))
+   (do-clauses clauses (:clause clause :operation append)
+      (compile-subgoal-clause name clause)))
+      
 (defun compile-init-process ()
    (unless *axioms* (return-from compile-init-process nil))
    (do-axioms (:body body :head head :clause clause :operation :append)

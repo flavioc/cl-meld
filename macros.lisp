@@ -115,11 +115,12 @@
 
 ;; Meld related code
 
-(defmacro with-definition (def (&key (name nil) (types nil) (options nil) (definition nil)) &body body)
+(defmacro with-definition (def (&key (name nil) (types nil) (options nil) (definition nil) (num-args nil)) &body body)
    `(let (,@(build-bind name `(definition-name ,def))
           ,@(build-bind types `(definition-types ,def))
           ,@(build-bind options `(definition-options ,def))
-          ,@(build-bind definition def))
+          ,@(build-bind definition def)
+          ,@(build-bind num-args `(length (definition-types ,def))))
       ,@body))
       
 (defmacro do-definitions ((&key (definition nil) (name nil) (types nil) (options nil) (operation 'do) (id nil)) &body body)

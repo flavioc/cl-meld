@@ -28,8 +28,8 @@
       (t (error 'output-invalid-error :text (tostring "Invalid expression value: ~a" val)))))
 
 (defmacro add-byte (b vec) `(vector-push-extend ,b ,vec))
-(defun add-bytes (vec &rest bs)
-   (dolist (b bs) (add-byte b vec)))
+(defun add-bytes (vec ls)
+ (dolist (b ls) (add-byte b vec)))
 
 (defmacro do-vm-values (vec vals &rest instrs)
    (labels ((map-value (i) (case i (1 'first-value) (2 'second-value) (3 'third-value)))
@@ -169,7 +169,7 @@
                (dolist (arg args)
                   (let ((res (output-value arg)))
                      (add-byte (first res) vec)
-                     (dolist (b (second res)) (add-byte b vec))))))
+                     (add-bytes vec (second res))))))
       (:if (let ((reg-b (reg-to-byte (if-reg instr))))
              (write-jump vec 2
                (add-byte #b01100000 vec)
@@ -253,10 +253,18 @@
             (logand *value-mask* first-value)
             (logand *value-mask* second-value)
             (logand *reg-mask* (reg-to-byte (vm-colocated-dest instr)))))
-      (:delete (do-vm-values vec ((vm-delete-filter instr))
-                  #b00001101
-                  (logand *tuple-id-mask* (lookup-tuple-id (vm-delete-name instr)))
-                  (logand *value-mask* first-value)))
+      (:delete (let* ((filters (vm-delete-filter instr)))
+                  (add-byte #b00001101 vec)
+                  (add-byte (logand *tuple-id-mask* (lookup-tuple-id (vm-delete-name instr))) vec)
+                  (add-byte (length filters) vec)
+                  (dolist (filter filters)
+                     (let* ((ind (car filter))
+                            (val (cdr filter))
+                            (res (output-value val)))
+                        (format t "write index ~a ~a~%" ind (vm-delete-name instr))
+                        (add-byte (1- ind) vec)
+                        (add-byte (first res) vec)
+                        (add-bytes vec (second res))))))
       (otherwise (error 'output-invalid-error :text (tostring "Unknown instruction to output ~a" instr)))))
                 
 (defun output-instrs (ls vec)

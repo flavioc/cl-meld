@@ -151,7 +151,8 @@
       ((list-of-lists-p expr)
        (loop for item in expr
              collect (do-map-expr item)))
-      (t (assert nil))))
+      (t (error 'expr-invalid-error
+               :text (tostring "Invalid expression: ~a" expr)))))
 
 (defun transform-drop-subgoal-first-arg (expr)
    (transform-expr #'subgoal-p #'(lambda (x)

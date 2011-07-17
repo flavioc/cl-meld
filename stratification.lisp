@@ -145,15 +145,9 @@
                (some #L(subgoal-matches-def-p sub !1) defs))
          (get-subgoals body-head)))
          
-(defun current-strat-iteration-used (body initial-defs)
-   (let ((subs (find-subgoals-by-definitions body initial-defs)))
-      (when (every #'(lambda (sub)
-                        (with-subgoal sub (:args args)
-                           (and (>= (length args) 1)
-                              (var-p (first args)))))
-                     subs)
-         (let ((sub (first subs)))
-            (first (subgoal-args sub))))))
+(defun find-subgoals-by-definition (body-head def)
+   (with-definition def (:name name)
+      (filter (subgoal-by-name name) (get-subgoals body-head))))
             
 (defun is-plus-1-arg-p (arg)
    (and (op-p arg)
@@ -194,12 +188,6 @@
    (or (is-plus-1-arg-equal-p arg var)
        (and (var-p arg)
             (var-eq-p arg var))))
-
-(defun mark-strat-clauses-to-delete (clauses defs)
-   (loop for clause in clauses
-         for stage = (make-minus (first (subgoal-args (first (clause-head clause)))) '- (make-forced-int 1))
-         do (clause-add-option clause
-               `(:delete ,@(loop for def in defs collect `(,(definition-name def) ,stage))))))
                
 (defun find-assignment-or-constraint (body var)
    (let* ((assignments (get-assignments body))
@@ -218,7 +206,7 @@
                         (dereference-variable expr body)
                         var)))
             arg))
-   
+
 (defun dereference-variables (args body)
    (mapcar #L(dereference-variable !1 body) args))
    
@@ -249,7 +237,7 @@
                (let ((iter-var (get-iteration-var (first vars-body))))
                   (and (every #L(is-plus-1-arg-equal-p !1 iter-var) vars-head)
                        (every #L(uses-iter-var-p !1 iter-var) vars-body))))))))
-               
+   
 (defun is-start-rule-p (defs)
    #'(lambda (clause)
       (with-clause clause (:body body :head head)
@@ -267,6 +255,51 @@
    
 (defun find-start-rules (clauses defs)
    (filter (is-start-rule-p defs) clauses))
+   
+(defun find-stable-arguments (def clause)
+   "From the clause 'clause' finds the arguments that stay the same when a new 'def' fact is instantiated.
+   This returns a list of arguments as integers."
+   (with-definition def (:name name :num-args n-args)
+      (with-clause clause (:body body :head head)
+         (let* ((subs-head (find-subgoals-by-definition head def))
+                (subs-body (find-subgoals-by-definition body def))
+                (all (append subs-head subs-body)))
+            (if (= (length all) 1)
+                (list 1)
+               (let* ((args-except-first (mapcar #L(rest (subgoal-args !1)) all)) ;; remove stage argument
+                      (args (mapcar #L(dereference-variables !1 body) args-except-first))
+                      (ls (list 1))) ;; initial list of equal variables
+                  (loop for i from 1 upto (1- n-args)
+                        do (let ((this-args (mapcar #L(nth (1- i) !1) args)))
+                              (when (all-equal-p this-args :test #'expr-eq-p)
+                                 (format t "~a ARE EQUAL ~%" (1+ i))
+                                 (push-end (1+ i) ls))))
+                  (format t "~a all ~a~%" name args)
+                  ls))))))
+                  
+(defun sort-clauses-by-occurrences (clauses name)
+   (sort clauses #'> :key #L(clause-number-of-occurrences !1 name)))
+   
+(defun add-delete-options-to-clause (def clause args)
+   (assert (ordered-p args))
+   (with-definition def (:name name)
+      (clause-add-delete clause name args)
+      (format t "deleting ~a ~a using ~a~%" name args clause)))
+
+(defun add-delete-options (def clauses)
+   (with-definition def (:name name)
+      ;(format t "def ~a -> ~a~%" name clauses)
+      (let* ((head-clauses (filter #L(and (clause-head-matches-subgoal-p !1 name)
+                                          (not (clause-is-remote-p !1))) clauses))
+             (body-clauses (filter #L(clause-body-matches-subgoal-p !1 name) clauses))
+             (all-stables (mapcar #L(find-stable-arguments def !1) head-clauses))
+             (inter-stables (intersection-all all-stables)))
+         (format t "HERE~%")
+         (format t "def ~a ~a~%" name inter-stables)
+         (assert body-clauses)
+         (add-delete-options-to-clause def
+               (first (sort-clauses-by-occurrences body-clauses name))
+               (if inter-stables inter-stables '(1))))))
    
 (defun find-clause-clique (clauses)
    (let* ((defs (get-head-definitions clauses))
@@ -286,26 +319,13 @@
                do (format t "mark ~a~%" def)
                do (push-strata def *current-strat-level*))
          (incf *current-strat-level*)
+         ;; Add delete stuff
+         (loop for def in defs
+               do (with-definition def (:name name)
+                     (let ((affected-clauses (filter #L(and (clause-matches-subgoal-p !1 name))
+                                                            (append x-rules y-rules))))
+                        (add-delete-options def affected-clauses))))
          clauses)))
-      ;(let ((remain-clauses (find-end-clique-clauses initial-defs clauses start-clauses)))
-      ;   (when remain-clauses
-      ;      (let* ((needed-defs (find-needed-defs remain-clauses initial-defs))
-      ;             (needed-clauses (find-strat-dependent-clauses clauses initial-defs needed-defs)))
-      ;         (unless (every #'definition-aggregate-p needed-defs)
-      ;            (return-from find-clause-clique nil))
-      ;         (loop for def in initial-defs 
-      ;               do (set-generated-by-all def))
-      ;         (let ((size (compute-clauses-size needed-clauses)))
-      ;            (loop for def in needed-defs
-      ;                  do (set-definition-size def size)))
-      ;            (when (generated-by-all-p needed-clauses)
-      ;               (loop for def in needed-defs
-      ;                     do (set-generated-by-all def)))
-      ;            (loop for def in initial-defs
-      ;                  do (push-strata def *current-strat-level*))
-      ;            (incf *current-strat-level*)
-      ;            (mark-strat-clauses-to-delete remain-clauses (append initial-defs needed-defs))
-      ;            `(,@start-clauses ,@remain-clauses ,@needed-clauses))))))
 
 (defun stratification-loop (clauses)
    (multiple-value-bind (will-fire not-fire) (split-mult-return #'can-fire-clause-p clauses)

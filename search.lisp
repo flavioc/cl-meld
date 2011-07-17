@@ -104,6 +104,8 @@
 (defun constraint-by-var1 (var-name expr) (var-eq-p var-name (op-op1 expr)))
 (defun constraint-by-var2 (var-name expr) (var-eq-p var-name (op-op2 expr)))
 
+(defun subgoal-by-name (name) #L(string-equal name (subgoal-name !1)))
+
 (defun find-assignment-constraints (body var)
    (find-constraints body
                      #L(equal-p !1)
@@ -114,12 +116,27 @@
       (when (string-equal name subgoal-name)
          (return-from subgoal-appears-code-p t)))
    nil)
-   
 (defun clause-body-matches-subgoal-p (clause subgoal-name)
    (subgoal-appears-code-p (clause-body clause) subgoal-name))
 (defun clause-head-matches-subgoal-p (clause subgoal-name)
    (subgoal-appears-code-p (clause-head clause) subgoal-name))
+(defun clause-matches-subgoal-p (clause subgoal-name)
+   (or (clause-body-matches-subgoal-p clause subgoal-name)
+       (clause-head-matches-subgoal-p clause subgoal-name)))
    
+(defun subgoal-number-of-occurrences (code subgoal-name)
+   (letret (total 0)
+      (do-subgoals code (:name name)
+         (when (string-equal name subgoal-name)
+            (incf total)))))
+(defun clause-body-number-of-occurrences (clause subgoal-name)
+   (subgoal-number-of-occurrences (clause-body clause) subgoal-name))
+(defun clause-head-number-of-occurrences (clause subgoal-name)
+   (subgoal-number-of-occurrences (clause-head clause) subgoal-name))
+(defun clause-number-of-occurrences (clause subgoal-name)
+   (+ (clause-body-number-of-occurrences clause subgoal-name)
+      (clause-head-number-of-occurrences clause subgoal-name)))
+
 (defun is-fact-p (pred-name)
    "Given a predicate name tells you if it is a fact in the program."
    (do-rules (:clause clause)

@@ -49,11 +49,24 @@
    (let ((res (find-if #L(tagged-p !1 opt) (clause-options clause))))
       (when res
          (rest res))))
+(defun clause-get-all-tagged-options (clause opt)
+   (mapfilter #'rest #L(tagged-p !1 opt) (clause-options clause)))
+(defun clause-add-tagged-option (clause opt &rest rest)
+   (clause-add-option clause `(,opt ,@rest)))
 (defun clause-get-remote-dest (clause)
    (first (clause-get-tagged-option clause :route)))
 (defun clause-is-remote-p (clause) (clause-has-tagged-option-p clause :route))
 (defun clause-has-delete-p (clause) (clause-has-tagged-option-p clause :delete))
-(defun clause-get-delete (clause) (clause-get-tagged-option clause :delete))
+(defun clause-get-all-deletes (clause)
+   (clause-get-all-tagged-options clause :delete))
+(defun clause-get-delete (clause name)
+   (find-if #L(string-equal (first !1) name) (clause-get-all-deletes clause)))
+(defun clause-add-delete (clause name args)
+   (clause-add-tagged-option clause :delete name args))
+   
+(defun delete-option-args (delete-opt) (second delete-opt))
+(defun delete-option-name (delete-opt) (first delete-opt))
 
 (defun is-axiom-p (clause)
    (null (find-if #'subgoal-p (clause-body clause))))
+   

@@ -96,6 +96,10 @@
 (defmacro tree-intersection (t1 t2) `(intersection ,t1 ,t2 :test #'equal))
 (defmacro tree-subsetp (t1 t2) `(subsetp ,t1 ,t2 :test #'equal))
 
+(defun intersection-all (lists)
+   "Returns the intersection of all sub-lists in 'lists'."
+   (reduce #'intersection (rest lists) :initial-value (first lists))) 
+
 (defun split (fn l)
    (let ((l1 (filter fn l)))
       (if l1
@@ -127,7 +131,7 @@
       (let ((found (find-if #L(eq (first !1) key) ls)))
          (when found
             (rest found)))))
-            
+
 (defun shuffle-list (ls)
    (let ((hash-tbl (make-hash-table :test #'eq)))
       (sort ls #'< :key #'(lambda (x)
@@ -170,3 +174,6 @@
    "Function that always returns true."
    (declare (ignore rest))
    t)
+   
+(defun ordered-p (ls &optional (fn #'<))
+   (all-equal-p ls :test fn))
