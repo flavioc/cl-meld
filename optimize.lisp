@@ -69,5 +69,7 @@
                   (setf (process-instrs proc) (cons new-instr to-keep))))))))
                
 (defun optimize-code ()
+   (unless *use-optimizations*
+      (return-from optimize-code nil))
    (optimize-init))
    

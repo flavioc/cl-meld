@@ -108,6 +108,11 @@
 		 			                      "macros"
 		 			                      "vm"
 		 			                      "compile"))
+		 			(:file "compare"
+		 			         :depends-on ("manip"
+		 			                      "util"
+		 			                      "macros"
+		 			                      "ast"))
 		 			(:file "topology"
 		 			         :depends-on ("manip"
 		 			                      "util"

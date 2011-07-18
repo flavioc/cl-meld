@@ -272,9 +272,9 @@
                   (loop for i from 1 upto (1- n-args)
                         do (let ((this-args (mapcar #L(nth (1- i) !1) args)))
                               (when (all-equal-p this-args :test #'expr-eq-p)
-                                 (format t "~a ARE EQUAL ~%" (1+ i))
+                                 ;(format t "~a ARE EQUAL ~%" (1+ i))
                                  (push-end (1+ i) ls))))
-                  (format t "~a all ~a~%" name args)
+                  ;(format t "~a all ~a~%" name args)
                   ls))))))
                   
 (defun sort-clauses-by-occurrences (clauses name)
@@ -284,7 +284,8 @@
    (assert (ordered-p args))
    (with-definition def (:name name)
       (clause-add-delete clause name args)
-      (format t "deleting ~a ~a using ~a~%" name args clause)))
+      ;(format t "deleting ~a ~a using ~a~%" name args clause)
+      ))
 
 (defun add-delete-options (def clauses)
    (with-definition def (:name name)
@@ -294,8 +295,7 @@
              (body-clauses (filter #L(clause-body-matches-subgoal-p !1 name) clauses))
              (all-stables (mapcar #L(find-stable-arguments def !1) head-clauses))
              (inter-stables (intersection-all all-stables)))
-         (format t "HERE~%")
-         (format t "def ~a ~a~%" name inter-stables)
+         ;(format t "def ~a ~a~%" name inter-stables)
          (assert body-clauses)
          (add-delete-options-to-clause def
                (first (sort-clauses-by-occurrences body-clauses name))
@@ -305,18 +305,17 @@
    (let* ((defs (get-head-definitions clauses))
           (has-stage-argument (every #'definition-has-stage-argument defs)))
       (unless has-stage-argument
-         (format t "some definitions fail to have a stage argument~%")
+         (format t "Some definitions fail to have a stage argument!~%")
          (return-from find-clause-clique nil))
       (let* ((x-rules (find-x-rules clauses defs))
              (y-rules (find-y-rules clauses defs))
              (start-rules (find-start-rules clauses defs))
              (total-clique (+ (length x-rules) (length y-rules) (length start-rules))))
          (unless (= (length clauses) total-clique)
-            (format t "cannot partition clauses into x-rules and y-rules~%")
+            (format t "Cannot partition clauses into x-rules and y-rules!~%")
             (return-from find-clause-clique nil))
          (printdbg "Found a XY-clique with ~a clauses!" total-clique)
          (loop for def in defs
-               do (format t "mark ~a~%" def)
                do (push-strata def *current-strat-level*))
          (incf *current-strat-level*)
          ;; Add delete stuff

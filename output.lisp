@@ -261,7 +261,6 @@
                      (let* ((ind (car filter))
                             (val (cdr filter))
                             (res (output-value val)))
-                        (format t "write index ~a ~a~%" ind (vm-delete-name instr))
                         (add-byte (1- ind) vec)
                         (add-byte (first res) vec)
                         (add-bytes vec (second res))))))
