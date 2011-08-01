@@ -246,7 +246,7 @@
                 (stages-head (get-stage-variables subs-head body)))
             (and (null subs-body)
                  (every #'int-p stages-head))))))
-         
+
 (defun find-x-rules (clauses defs)
    (filter (is-x-rule-p defs) clauses))
    
@@ -259,7 +259,7 @@
 (defun find-stable-arguments (def clause)
    "From the clause 'clause' finds the arguments that stay the same when a new 'def' fact is instantiated.
    This returns a list of arguments as integers."
-   (with-definition def (:name name :num-args n-args)
+   (with-definition def (:num-args n-args)
       (with-clause clause (:body body :head head)
          (let* ((subs-head (find-subgoals-by-definition head def))
                 (subs-body (find-subgoals-by-definition body def))

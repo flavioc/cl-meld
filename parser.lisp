@@ -7,6 +7,7 @@
 	("\\["                           (return (values :lsparen $@)))
 	("\\]"                           (return (values :rsparen $@)))
    ("\\."                           (return (values :dot $@)))
+   ("immediate"                     (return (values :immediate $@)))
  	("type"			                  (return (values :type $@)))
  	("extern"                        (return (values :extern $@)))
  	("const"                         (return (values :const-decl $@)))
@@ -102,7 +103,7 @@
 								:extern :const-decl :min :max :first :sum
 								:lsparen :rsparen :nil :bar :type-list :local
 								:route :include :file :world :action
-								:output :input))
+								:output :input :immediate))
 	(program
 	  (includes definitions externs consts statements #L(make-ast  !2 ; definitions
 	                                                               !3 ; externs
@@ -167,6 +168,7 @@
     
    (aggregate-mods
      ()
+     (:lsparen :immediate :rsparen (return-const :immediate))
      (:lsparen :input const :rsparen #'(lambda (l i name r) (declare (ignore l i r)) (list :input name)))
      (:lsparen :output const :rsparen #'(lambda (l i name r) (declare (ignore l i r)) (list :output name)))) 
     

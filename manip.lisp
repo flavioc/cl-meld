@@ -178,6 +178,7 @@
 (defun aggregate-mod (agg) (fourth agg))
 (defun aggregate-mod-is-input-p (aggmod) (tagged-p aggmod :input))
 (defun aggregate-mod-is-output-p (aggmod) (tagged-p aggmod :output))
+(defun aggregate-mod-is-immediate-p (aggmod) (eq aggmod :immediate))
 (defun aggregate-mod-io-name (aggmod) (second aggmod))
 (defun aggregate-mod-includes-home-p (aggmod)
    (and (> (length aggmod) 2)
@@ -188,10 +189,6 @@
 
 (defun definition-aggregate (def)
    (with-definition def (:types typs) (find-if #'aggregate-p typs)))
-      
-(defun definition-has-remote-agg-p (def)
-   (when-let ((agg (definition-aggregate def)))
-      (aggregate-mod agg)))
 
 (defun arg-type (arg)
    (if (aggregate-p arg)

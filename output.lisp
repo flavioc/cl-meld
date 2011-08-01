@@ -362,27 +362,35 @@
 (defconstant +agg-local-aggregate-byte+         #b00000001)
 (defconstant +agg-remote-aggregate-byte+        #b00000010)
 (defconstant +agg-remote-aggregate-home-byte+   #b00000100)
+(defconstant +agg-immediate-aggregate-byte+     #b00001000)
 (defconstant +agg-unsafe-byte+                  #b00000000)
 
 (defun output-aggregate-info (def vec)
    (refill-up-to (vec *max-agg-info*)
-      (cond
-         ((not (definition-aggregate def))) ;; Not an aggregate
-         ((definition-has-local-agg-p def)
-            (add-byte +agg-local-aggregate-byte+ vec)
-            (let ((level (definition-get-strata def)))
-               (assert level)
-               ;(format t "local agg ~a ~a~%" (definition-name def) (1+ level))
-               (add-byte (1+ level) vec)))
-         ((definition-has-remote-agg-p def)
-            (multiple-value-bind (remote-pred use-home-p) (get-aggregate-remote def)
-               (when remote-pred
-                  ;(format t "remote agg ~a~%" def)
-                  (add-byte (if use-home-p +agg-remote-aggregate-home-byte+ +agg-remote-aggregate-byte+) vec)
-                  (add-byte (lookup-tuple-id remote-pred) vec))))
-         (t
-            (printdbg "THIS PROGRAM HAS UNSAFE AGGREGATES!")
-            (add-byte +agg-unsafe-byte+ vec)))))
+      (let ((agg (definition-aggregate def)))
+               (when agg
+                  (cond
+                     ((definition-has-local-agg-p def)
+                        (add-byte +agg-local-aggregate-byte+ vec)
+                        (let ((level (definition-get-strata def)))
+                           (assert level)
+                           ;(format t "local agg ~a ~a~%" (definition-name def) (1 level))
+                           (add-byte (1+ level) vec)))
+                     (t
+                        (let ((aggmod (aggregate-mod agg)))
+                           (cond
+                              ((or (aggregate-mod-is-input-p aggmod)
+                                    (aggregate-mod-is-output-p aggmod))
+                                 (multiple-value-bind (remote-pred use-home-p) (get-aggregate-remote def)
+                                    (when remote-pred
+                                       ;(format t "remote agg ~a~%" def)
+                                       (add-byte (if use-home-p +agg-remote-aggregate-home-byte+ +agg-remote-aggregate-byte+) vec)
+                                       (add-byte (lookup-tuple-id remote-pred) vec))))
+                              ((aggregate-mod-is-immediate-p aggmod)
+                                 (printdbg "THIS PROGRAM HAS IMMEDIATE AGGREGATES!")
+                                 (add-byte +agg-immediate-aggregate-byte+ vec))
+                              (t (printdbg "THIS PROGRAM HAS UNSAFE AGGREGATES!")
+                                 (add-byte +agg-unsafe-byte+ vec))))))))))
 
 (defun output-descriptors ()
    (do-node-definitions (:definition def :name name :types types :operation collect)

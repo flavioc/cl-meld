@@ -20,23 +20,29 @@
             (eq-or typ :type-int :type-float :type-list-int :type-list-float))
          ((:min :max)
             (eq-or typ :type-int :type-float)))))
+            
+(defun update-aggregate-head (head body modifier edge-name agg-name get-fun)
+   ;; If this rule produces an aggregate fact, push the route node into the last
+   ;; argument or else put the home node (for local rules)
+   (let ((head-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals head))))
+      (when head-subs
+         (let* ((host (head-host-node head))
+                (routes (filter #L(equal (subgoal-name !1) edge-name) (get-subgoals body))))
+            (if routes
+               (setf host (funcall get-fun (subgoal-args (first routes))))
+               (unless (aggregate-mod-includes-home-p modifier)
+                  (aggregate-mod-include-home modifier)))
+            (loop for sub in head-subs
+                  do (push-end host (subgoal-args sub)))))))
+         
 
 (defun update-aggregate-input (modifier edge-name agg-name get-fun)
    "For an aggregate that has an INPUT/OUTPUT modifier, executes source code transformations
    that puts the input/output node as the last argument of the aggregate"
+   (do-axioms (:head head)
+      (update-aggregate-head head nil modifier edge-name agg-name get-fun))
    (do-rules (:head head :body body)
-      ;; If this rule produces an aggregate fact, push the route node into the last
-      ;; argument or else put the home node (for local rules)
-      (let ((head-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals head))))
-         (when head-subs
-            (let* ((host (head-host-node head))
-                   (routes (filter #L(equal (subgoal-name !1) edge-name) (get-subgoals body))))
-               (if routes
-                  (setf host (funcall get-fun (subgoal-args (first routes))))
-                  (unless (aggregate-mod-includes-home-p modifier)
-                     (aggregate-mod-include-home modifier)))
-               (loop for sub in head-subs
-                     do (push-end host (subgoal-args sub))))))
+      (update-aggregate-head head body modifier edge-name agg-name get-fun)
       ;; Add an unnamed variable for clauses that use the aggregated result.
       (let ((body-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals body))))
          (loop for sub in body-subs
@@ -49,6 +55,7 @@
    (let ((aggmod (aggregate-mod agg)))
       (cond
          ((null aggmod) t)
+         ((aggregate-mod-is-immediate-p aggmod) t)
          ((aggregate-mod-is-input-p aggmod)
             (let* ((name (aggregate-mod-io-name aggmod))
                    (def (lookup-definition name))
