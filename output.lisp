@@ -79,7 +79,7 @@
 (defun reg-to-byte (reg) (reg-num reg))
 
 (defun lookup-tuple-id (tuple)
-   (do-definitions (:id id :name name)
+   (do-node-definitions (:id id :name name)
       (if (equal name tuple) (return-from lookup-tuple-id id))))
       
 (defun lookup-extern-id (ast extern)
@@ -385,7 +385,7 @@
             (add-byte +agg-unsafe-byte+ vec)))))
 
 (defun output-descriptors ()
-   (do-definitions (:definition def :name name :types types :operation collect)
+   (do-node-definitions (:definition def :name name :types types :operation collect)
       (letret (vec (create-bin-array))
          (add-byte (output-properties def) vec) ; property byte
          (add-byte (output-aggregate types) vec) ; aggregate byte
@@ -423,7 +423,7 @@
       (write-int-stream stream real-id)))
       
 (defun do-output-code (stream)
-   (write-hexa stream (length *definitions*))
+   (write-hexa stream (length *node-definitions*))
    (write-nodes stream *nodes*)
    (let ((processes (output-processes))
          (descriptors (output-descriptors)))

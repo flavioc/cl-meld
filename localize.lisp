@@ -37,7 +37,7 @@
 
 (defun create-inverse-non-fact-route-definition (route new-name)
    (let* ((old-definition (lookup-definition-types route))
-          (new-definition (make-definition new-name old-definition :route `(:reverse-route ,route))))
+          (new-definition (make-definition new-name old-definition (list :route `(:reverse-route ,route)))))
       (push new-definition *definitions*)
       new-definition))
       
@@ -235,7 +235,7 @@
       (remove-home-argument-clause clause))
    (do-axioms (:clause clause)
       (remove-home-argument-clause clause))
-   (do-definitions (:definition def :types typs)
+   (do-node-definitions (:definition def :types typs)
       (setf (definition-types def) (rest typs))))
 
 (defmacro with-localize-context ((routes) &body body)

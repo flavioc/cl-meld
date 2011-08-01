@@ -13,22 +13,50 @@
       :initarg :clauses
       :initform (error "missing clauses.")
       :accessor clauses)
+    (worker-clauses
+      :initarg :worker-clauses
+      :initform (error "missing worker clauses.")
+      :accessor worker-clauses)
     (axioms
       :initarg :axioms
-      :initform (error "missing axioms")
+      :initform (error "missing axioms.")
       :accessor axioms)
+    (worker-axioms
+      :initarg :worker-axioms
+      :initform (error "missing worker axioms.")
+      :accessor worker-axioms)
     (nodes
       :initarg :nodes
-      :initform (error "missing nodes")
+      :initform (error "missing nodes.")
       :accessor nodes)))
+
+(defun is-worker-clause-p (defs)
+   #'(lambda (clause)
+      (let ((first (find-if #'subgoal-p (clause-head clause))))
+         (is-worker-definition-p (lookup-definition (subgoal-name first) defs)))))
       
 (defun make-ast (defs externs clauses axioms nodes)
+   (multiple-value-bind (worker-clauses node-clauses) (split-mult-return (is-worker-clause-p defs) clauses)
+      (multiple-value-bind (worker-axioms node-axioms) (split-mult-return (is-worker-clause-p defs) axioms)
+         (make-instance 'ast
+            :definitions defs
+            :externs externs
+            :clauses node-clauses
+            :worker-clauses worker-clauses
+            :axioms node-axioms
+            :worker-axioms worker-axioms
+            :nodes nodes))))
+ 
+(defun merge-asts (ast1 ast2)
+   "Merges two ASTs together. Note that ast1 is modified."
    (make-instance 'ast
-      :definitions defs
-      :externs externs
-      :clauses clauses
-      :axioms axioms
-      :nodes nodes))
+         :definitions (nconc (definitions ast1) (definitions ast2))
+         :externs (nconc (externs ast1) (externs ast2))
+         :clauses (nconc (clauses ast1) (clauses ast2))
+         :worker-clauses (nconc (worker-clauses ast1) (worker-clauses ast2))
+         :axioms (nconc (axioms ast1) (axioms ast2))
+         :worker-axioms (nconc (worker-axioms ast1) (worker-axioms ast2))
+         :nodes (nconc (nodes ast1) (nodes ast2))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Clauses
@@ -69,4 +97,3 @@
 
 (defun is-axiom-p (clause)
    (null (find-if #'subgoal-p (clause-body clause))))
-   

@@ -41,13 +41,13 @@
 		 			(:file "types"
 		 			         :depends-on ("package"
 		 			                      "util"
-		 			                      "manip"
 		 			                      "macros"))
 		 			(:file "macros"
 		 			         :depends-on ("package"))
 		 			(:file "ast"
 		 			         :depends-on ("context"
-		 			                      "util"))
+		 			                      "util"
+		 			                      "types"))
 		 			(:file "context"
 		 			         :depends-on ("package"))
 		 			(:file "typecheck"

@@ -116,7 +116,7 @@
        (list :subgoal name args)))
 (defun make-var (var &optional typ) `(:var ,(if (stringp var) (str->sym var) var) ,@(if typ `(,typ) nil)))
 
-(defun make-definition (name typs &rest options) `(:definition ,name ,typs ,options))
+(defun make-definition (name typs options) `(:definition ,name ,typs ,options))
 (defun definition-p (def) (tagged-p def :definition))
 (defun definition-name (def) (second def))
 (defun definition-types (def) (third def))
@@ -135,7 +135,13 @@
          (second res))))
 (defun definition-add-tagged-option (def name &rest rest)
    (definition-add-option def `(,name ,@rest)))
-         
+
+(defun is-worker-definition-p (def)
+   (definition-has-option-p def :worker))
+
+(defun is-addr-definition-p (def)
+   (not (is-worker-definition-p def)))
+
 (defun definition-set-local-agg (def)
    (definition-add-option def :local-agg))
 (defun definition-has-local-agg-p (def)

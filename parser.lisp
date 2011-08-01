@@ -13,6 +13,7 @@
 	("int"			                  (return (values :type-int $@)))
 	("float"                         (return (values :type-float $@)))
 	("node"                          (return (values :type-addr $@)))
+	("worker"                        (return (values :type-worker $@)))
 	("list"                          (return (values :type-list $@)))
 	("include"                       (return (values :include $@)))
 	("@world"                        (return (values :world $@)))
@@ -40,6 +41,7 @@
 	("sum"                           (return (values :sum $@)))
 	("first"                         (return (values :first $@)))
 	("route"                         (return (values :route $@)))
+	("action"                        (return (values :action $@)))
 	("_"				                  (return (values :variable $@)))
  	("[a-z]([a-z]|[A-Z]|\_)*"		   (return (values :const $@)))
 	("'\\w+"		                     (return (values :const $@)))
@@ -80,6 +82,14 @@
 (defvar *included-files* nil)
 (defun add-included-file (file) (push (subseq file 1) *included-files*))
 
+(defun may-be-worker-types-p (types)
+   (and types
+        (type-worker-p (first types))))
+(defun parser-make-definition (name types &optional option)
+   (let* ((initial-options (if option (list option)))
+          (all-options (append initial-options (if (may-be-worker-types-p types) '(:worker)))))
+      (make-definition name types all-options)))
+
 (define-parser meld-parser
  	(:start-symbol program)
  	
@@ -87,11 +97,11 @@
  	
 	(:terminals (:const :type :variable :number :lparen :rparen
 								:bar :arrow :dot :comma :type-int :type-addr
-								:type-float :plus :minus :mul :mod :div
+								:type-worker :type-float :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl :min :max :first :sum
 								:lsparen :rsparen :nil :bar :type-list :local
-								:route :include :file :world
+								:route :include :file :world :action
 								:output :input))
 	(program
 	  (includes definitions externs consts statements #L(make-ast  !2 ; definitions
@@ -112,8 +122,8 @@
 	 (definition definitions #'cons))
 
    (definition
-      (:type predicate-option const type-args-part #L(make-definition !3 !4 !2))
-      (:type const type-args-part #L(make-definition !2 !3)))
+      (:type predicate-option const type-args-part #L(parser-make-definition !3 !4 !2))
+      (:type const type-args-part #L(parser-make-definition !2 !3)))
  
    (consts
       ()
@@ -135,7 +145,8 @@
    	                                                         (make-extern name ret-type args))))
 						
 	(predicate-option
-	   (:route (return-const :route)))
+	   (:route (return-const :route))
+	   (:action (return-const :action)))
 	   
 	(type-args-part
 	   (:lparen type-args :rparen :dot #'(lambda (l typs r d) (declare (ignore l r d)) typs)))
@@ -171,7 +182,8 @@
 	(base-type
  	 (:type-int (return-const :type-int))
  	 (:type-float (return-const :type-float))
- 	 (:type-addr (return-const :type-addr)))
+ 	 (:type-addr (return-const :type-addr))
+ 	 (:type-worker (return-const :type-worker)))
 	   
 
 	(statements
@@ -302,14 +314,6 @@
    (unless (file-exists-p file)
       (error 'file-not-found-error :text file))
    (parse-string (read-file file)))
-   
-(defun merge-asts (ast1 ast2)
-   "Merges two ASTs together. Note that ast1 is modified."
-   (make-ast (nconc (definitions ast1) (definitions ast2))
-             (nconc (externs ast1) (externs ast2))
-             (nconc (clauses ast1) (clauses ast2))
-             (nconc (axioms ast1) (axioms ast2))
-             (nconc (nodes ast1) (nodes ast2))))
              
 (define-condition file-not-found-error (error)
    ((text :initarg :text :reader text)))
