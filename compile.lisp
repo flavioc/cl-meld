@@ -300,15 +300,6 @@
       (loop-list (subgoal (get-my-subgoals body name) :operation append)
          (compile-with-starting-subgoal body head clause subgoal))))
 
-;(defun compile-delete (clause)
-;   (when (clause-has-delete-p def)
-;      (let ((all-deletes (clause-get-deletes def
-;   (loop for delete in deletes
-;         for id = (first delete)
-;         for expr = (second delete)
-;         append (with-compiled-expr (place instrs) expr
-;                  `(,@instrs ,(make-vm-delete id place)))))
-
 (defun compile-normal-process (name clauses)
    (unless clauses (return-from compile-normal-process nil))
    (do-clauses clauses (:clause clause :operation append)
