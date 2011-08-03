@@ -79,7 +79,7 @@
 (defun reg-to-byte (reg) (reg-num reg))
 
 (defun lookup-tuple-id (tuple)
-   (do-node-definitions (:id id :name name)
+   (do-definitions (:id id :name name)
       (if (equal name tuple) (return-from lookup-tuple-id id))))
       
 (defun lookup-extern-id (ast extern)
@@ -285,9 +285,10 @@
          (:type-list-int #b0011)
          (:type-list-float #b0100)
          (:type-list-addr #b0101)
+         (:type-worker #b0110)
          (otherwise (error 'output-invalid-error :text "invalid arg type")))
       vec))
-   
+
 (defun output-aggregate-type (agg typ)
    (case agg
       (:first #b0001)
@@ -301,7 +302,7 @@
                (:type-int #b0100)
                (:type-float #b0111)
                (:type-list-float #b1011)))))
-               
+
 (defun output-aggregate (types)
    (let ((agg (find-if #'aggregate-p types)))
       (if agg
@@ -311,7 +312,7 @@
             (logior (logand #b11110000 (ash (output-aggregate-type agg typ) 4))
                     (logand #b00001111 pos)))
          #b00000000)))
-         
+
 (defun output-properties (def)
    (letret (prop #b00000000)
       (when (definition-aggregate def)
@@ -393,7 +394,7 @@
                                  (add-byte +agg-unsafe-byte+ vec))))))))))
 
 (defun output-descriptors ()
-   (do-node-definitions (:definition def :name name :types types :operation collect)
+   (do-definitions (:definition def :name name :types types :operation collect)
       (letret (vec (create-bin-array))
          (add-byte (output-properties def) vec) ; property byte
          (add-byte (output-aggregate types) vec) ; aggregate byte
@@ -431,7 +432,7 @@
       (write-int-stream stream real-id)))
       
 (defun do-output-code (stream)
-   (write-hexa stream (length *node-definitions*))
+   (write-hexa stream (length *definitions*))
    (write-nodes stream *nodes*)
    (let ((processes (output-processes))
          (descriptors (output-descriptors)))
