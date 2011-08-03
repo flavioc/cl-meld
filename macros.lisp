@@ -139,7 +139,7 @@
       `(par-mapcar #'(lambda (,el)
                         (with-definition ,el (:name ,name :types ,types :options ,options :definition ,definition)
                            ,@body))
-                  *node-definitions*)))
+                  *definitions*)))
                    
 (defmacro do-node-definitions ((&key definition name types options id (operation 'do))
                                 &body body)
