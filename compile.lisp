@@ -312,7 +312,9 @@
 
 (defun compile-ast ()
    (par-collect-definitions (:definition def :name name)
-      (if (is-init-p def)
-         (make-process name `(,@(compile-init-process) ,(make-return)))
-         (make-process name `(,@(compile-normal-process name (find-clauses-with-subgoal-in-body name))
-                              ,(make-return))))))
+      (if (is-worker-definition-p def)
+         (make-process name `(,(make-return)))
+         (if (is-init-p def)
+            (make-process name `(,@(compile-init-process) ,(make-return)))
+            (make-process name `(,@(compile-normal-process name (find-clauses-with-subgoal-in-body name))
+                                 ,(make-return)))))))
