@@ -72,14 +72,16 @@
    `#'(lambda (&rest x) (declare (ignore x)) ,const))
    
 (defvar *found-nodes* nil)
+
 (defun add-found-node (i)
    (multiple-value-bind (yes found-p) (gethash i *found-nodes*)
       (declare (ignore yes))
       (unless found-p
          (setf (gethash i *found-nodes*) t))))
+         
 (defun defined-nodes-list ()
    (loop for k being the hash-keys in *found-nodes* collect k))
-   
+
 (defvar *included-files* nil)
 (defun add-included-file (file) (push (subseq file 1) *included-files*))
 
@@ -258,8 +260,11 @@
 	 (:const #'identity)))
 	 
 (defmacro with-parse-context (&body body)
-   `(let ((*parsed-consts* nil)
-          (*found-nodes* (make-hash-table))) ;; needed to detect repeated nodes
+   `(let ((*parsed-consts* nil))
+      ,@body))
+      
+(defmacro with-inner-parse-context (&body body)
+   `(let ((*found-nodes* (make-hash-table)))
       ,@body))
       
 (defun read-source-line (stream)
@@ -323,7 +328,8 @@
 (defun parse-meld-file-rec (file)
    "Parses a Meld file, including included files."
    (let* ((*included-files* nil)
-          (ast (parse-file-as-stream file)))
+          (ast (with-inner-parse-context
+                  (parse-file-as-stream file))))
       (in-directory (pathname (directory-namestring (pathname file)))
          (let ((other-asts (mapcar #L(parse-meld-file-rec !1) *included-files*)))
             (reduce #'merge-asts other-asts

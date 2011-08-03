@@ -56,7 +56,7 @@
          :worker-clauses (nconc (worker-clauses ast1) (worker-clauses ast2))
          :axioms (nconc (axioms ast1) (axioms ast2))
          :worker-axioms (nconc (worker-axioms ast1) (worker-axioms ast2))
-         :nodes (nconc (nodes ast1) (nodes ast2))))
+         :nodes (union (nodes ast1) (nodes ast2))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Clauses
