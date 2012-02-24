@@ -34,6 +34,8 @@
 
 (defun make-return () '(:return))
 
+(defun make-return-linear () '(:return-linear))
+
 (defun make-return-select () '(:return-select))
 
 (defun instr-type (instr) (first instr))
@@ -146,6 +148,9 @@
 (defun vm-colocated-second (c) (third c))
 (defun vm-colocated-dest (c) (fourth c))
 (defun vm-colocated-p (c) (tagged-p c :colocated))
+
+(defun make-vm-remove (reg) (list :remove reg))
+(defun vm-remove-reg (rm) (second rm))
 
 (defun make-vm-delete (pred filter) `(:delete ,pred ,filter))
 (defun vm-delete-name (d) (second d))

@@ -170,8 +170,10 @@
 
 (defun do-topology-ordering ()
    (when (has-select-nodes-p)
-      (return-from do-topology-ordering
-            (programmer-ordering *nodes*)))
+      (let ((mapping (programmer-ordering *nodes*)))
+         ;; Remove select_nodes definition
+         ;; (setf *definitions* (remove-if #L(equal (definition-name !1) "select_nodes") *definitions*))
+      (return-from do-topology-ordering mapping)))
    (case *ordering-type*
       (:naive (naive-ordering *nodes*))
       (:random (random-ordering *nodes*))
@@ -179,11 +181,10 @@
                       (node-set (create-hash-set *nodes*)))
                   (bfs-ordering edge-set node-set)))
       (otherwise (assert nil))))
-                  
+
 (defun optimize-topology ()
    (let ((mapping (do-topology-ordering)))
-      ; (print-mapping mapping)
+      ;(print-mapping mapping)
       (setf *nodes* mapping)
       (do-axioms (:clause clause)
          (flip-nodes mapping clause))))
-         

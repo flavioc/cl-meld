@@ -199,11 +199,18 @@
                `(,@extra-code ,(make-send tuple-reg send-to))))))
             res))))
             
-(defun do-compile-head (subgoal head clause)
+(defun compile-linear-deletes-and-returns (def delete-regs)
+   (let ((deletes (mapcar #'make-vm-remove delete-regs)))
+      (if (is-linear-p def)
+         `(,@deletes ,(make-return-linear))
+         deletes)))
+            
+(defun do-compile-head (subgoal head clause delete-regs)
    (declare (ignore subgoal))
    (let ((head-code (do-compile-head-subgoals head clause))
+         (linear-code (compile-linear-deletes-and-returns (lookup-definition (subgoal-name subgoal)) delete-regs))
          (delete-code (compile-inner-delete clause)))
-      (append head-code delete-code)))
+      `(,@head-code ,@delete-code ,@linear-code)))
       
 (defun compile-assignments-and-head (assignments head-fun)
    (if (null assignments)
@@ -216,22 +223,24 @@
 
 (defun remove-defined-assignments (assignments) (mapcar #L(remove-used-var (var-name (assignment-var !1))) assignments))
 
-(defun compile-head (body head clause subgoal)
+(defun compile-head (body head clause subgoal delete-regs)
    (let ((assigns (filter #'assignment-p body)))
-      (always-ret (compile-assignments-and-head assigns #L(do-compile-head subgoal head clause))
+      (always-ret (compile-assignments-and-head assigns #L(do-compile-head subgoal head clause delete-regs))
          (remove-defined-assignments assigns))))
                      
-(defun compile-iterate (body orig-body head clause subgoal)
+(defun compile-iterate (body orig-body head clause subgoal &optional delete-regs)
    (multiple-value-bind (constraints assignments) (get-compile-constraints-and-assignments body)
       (let* ((next-sub (find-if #'subgoal-p body))
              (rem-body (remove-unneeded-assignments (remove-tree next-sub (remove-all body constraints)) head)))
          (compile-constraints-and-assignments constraints assignments
             (if (not next-sub)
-               (compile-head rem-body head clause subgoal)
+               (compile-head rem-body head clause subgoal delete-regs)
                (let ((next-sub-name (subgoal-name next-sub)))
                   (with-reg (reg next-sub)
                      (let* ((match-constraints (mapcar #'rest (add-subgoal next-sub reg :match)))
-                            (iterate-code (compile-iterate rem-body orig-body head clause subgoal))
+                            (def (lookup-definition next-sub-name))
+                            (new-delete-regs (if (is-linear-p def) (cons reg delete-regs) delete-regs))
+                            (iterate-code (compile-iterate rem-body orig-body head clause subgoal new-delete-regs))
                             (other-code `(,(make-move :tuple reg) ,@iterate-code)))
                         `(,(make-iterate next-sub-name match-constraints other-code))))))))))
       

@@ -111,7 +111,9 @@
       (values filtered removed)))
          
 (defmacro push-end (el ls)
-   `(nconc ,ls (list ,el)))
+   `(if (null ,ls)
+      (setf ,ls (list ,el))
+      (nconc ,ls (list ,el))))
 
 (defmacro format-keyword (control &rest arguments)
    `(format-symbol "KEYWORD" ,control ,@arguments))

@@ -145,6 +145,11 @@
 (defun output-instr (instr vec)
    (case (instr-type instr)
       (:return (add-byte #x0 vec))
+      (:return-linear (add-byte #b11010000 vec))
+      (:remove
+            (let ((reg (vm-remove-reg instr)))
+               (add-byte #b10000000 vec)
+               (add-byte (logand *reg-mask* (reg-to-byte reg)) vec)))
       (:op (let ((op (get-op-byte (vm-op-op instr))))
                (do-vm-values vec ((vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr))
                            #b11000000
@@ -286,7 +291,7 @@
          (:type-list-float #b0100)
          (:type-list-addr #b0101)
          (:type-worker #b0110)
-         (otherwise (error 'output-invalid-error :text "invalid arg type")))
+         (otherwise (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ))))
       vec))
 
 (defun output-aggregate-type (agg typ)
@@ -319,7 +324,8 @@
          (setf prop (logior prop #b00000001)))
       (cond
          ((is-reverse-route-p def) (setf prop (logior prop #b00000100)))
-         ((is-route-p def) (setf prop (logior prop #b00000010))))))
+         ((is-route-p def) (setf prop (logior prop #b00000010)))
+         ((is-linear-p def) (setf prop (logior prop #b00001000))))))
 
 (defparameter *max-tuple-name* 32)
 (defparameter *max-tuple-args* 32)
@@ -353,10 +359,10 @@
    (when-let ((agg (definition-aggregate def)))
       (let ((mod (aggregate-mod agg)))
          (cond
-            ((aggregate-mod-is-input-p mod)
+            ((and *use-stratification* (aggregate-mod-is-input-p mod))
                (values (generate-inverse-name (aggregate-mod-io-name mod))
                        (aggregate-mod-includes-home-p mod)))
-            ((aggregate-mod-is-output-p mod)
+            ((and *use-stratification* (aggregate-mod-is-output-p mod))
                (values (aggregate-mod-io-name mod)
                        (aggregate-mod-includes-home-p mod)))))))
       

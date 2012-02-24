@@ -5,3 +5,4 @@
 
 ;(defparameter *ordering-type* :random)
 (defparameter *ordering-type* :breadth)
+;(defparameter *ordering-type* :naive)

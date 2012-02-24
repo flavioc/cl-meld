@@ -155,6 +155,8 @@
    (definition-has-option-p def :init-tuple))
 (defun is-route-p (def)
    (definition-has-option-p def :route))
+(defun is-linear-p (def)
+   (definition-has-option-p def :linear))
 (defun is-reverse-route-p (def)
    (definition-has-tagged-option-p def :reverse-route))
 (defun find-init-predicate (defs) (find-if #'is-init-p defs))

@@ -19,6 +19,7 @@
 	("include"                       (return (values :include $@)))
 	("@world"                        (return (values :world $@)))
 	("@"                             (return (values :local $@)))
+	("linear"                        (return (values :linear $@)))
 	(":-"                            (return (values :arrow  $@)))
 	("\\("			                  (return (values :lparen $@)))
 	("\\)"			                  (return (values :rparen $@)))
@@ -53,7 +54,7 @@
    (if (equal var "_")
 	   (generate-random-var)
 	   (make-var var)))
-	
+
 (defun parse-number (str)
    (if (find #\. str)
       (make-float (read-from-string str))
@@ -105,7 +106,8 @@
 								:extern :const-decl :min :max :first :sum
 								:lsparen :rsparen :nil :bar :type-list :local
 								:route :include :file :world :action
-								:output :input :immediate))
+								:output :input :immediate :linear))
+
 	(program
 	  (includes definitions externs consts statements #L(make-ast  !2 ; definitions
 	                                                               !3 ; externs
@@ -116,7 +118,7 @@
 	(includes
 	   ()
 	   (include includes #'(lambda (a b) (declare (ignore a b)))))
-	   
+
 	(include
 	   (:include :file #'(lambda (i f) (declare (ignore i)) (add-included-file f))))
 
@@ -127,21 +129,21 @@
    (definition
       (:type predicate-option const type-args-part #L(parser-make-definition !3 !4 !2))
       (:type const type-args-part #L(parser-make-definition !2 !3)))
- 
+
    (consts
       ()
       (const-definition consts (return-const nil)))
-      
+
 	(const-definition
 	   (:const-decl const :equal expr :dot #'(lambda (a name e expr dot)
    	                                             (declare (ignore a e dot))
    	                                             (push (make-const-definition name expr) *parsed-consts*)
    	                                             nil)))
-   	         
+
    (externs
       ()
       (extern-definition externs #'cons))
-                                          
+
    (extern-definition
       (:extern atype const :lparen type-args :rparen :dot #'(lambda (e ret-type name l args r d)
    	                                                         (declare (ignore e l r d))
@@ -149,7 +151,8 @@
 						
 	(predicate-option
 	   (:route (return-const :route))
-	   (:action (return-const :action)))
+	   (:action (return-const :action))
+	   (:linear (return-const :linear)))
 	   
 	(type-args-part
 	   (:lparen type-args :rparen :dot #'(lambda (l typs r d) (declare (ignore l r d)) typs)))

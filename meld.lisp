@@ -50,7 +50,7 @@
 ;; this is to be removed... soon
       
 (defun create-debug-file (prog)
-   (concatenate 'string "/Users/flaviocruz/Projects/meld/progs/" prog ".meld"))
+   (concatenate 'string "/Users/flaviocruz/Projects/meld/" prog ".meld"))
 
 (defun comp (prog &optional (out "base"))
    (meld-compile (create-debug-file prog)

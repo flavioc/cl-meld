@@ -314,6 +314,8 @@
          (unless (= (length clauses) total-clique)
             (format t "Cannot partition clauses into x-rules and y-rules!~%")
             (return-from find-clause-clique nil))
+         (when (or (null x-rules) (null y-rules))
+            (return-from find-clause-clique nil))
          (printdbg "Found a XY-clique with ~a clauses!" total-clique)
          (loop for def in defs
                do (push-strata def *current-strat-level*))

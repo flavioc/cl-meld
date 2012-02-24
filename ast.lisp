@@ -34,7 +34,7 @@
    #'(lambda (clause)
       (let ((first (find-if #'subgoal-p (clause-head clause))))
          (is-worker-definition-p (lookup-definition (subgoal-name first) defs)))))
-      
+
 (defun make-ast (defs externs clauses axioms nodes)
    (multiple-value-bind (worker-clauses node-clauses) (split-mult-return (is-worker-clause-p defs) clauses)
       (multiple-value-bind (worker-axioms node-axioms) (split-mult-return (is-worker-clause-p defs) axioms)
