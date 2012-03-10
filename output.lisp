@@ -146,6 +146,7 @@
    (case (instr-type instr)
       (:return (add-byte #x0 vec))
       (:return-linear (add-byte #b11010000 vec))
+      (:return-derived (add-byte #b11110000 vec))
       (:remove
             (let ((reg (vm-remove-reg instr)))
                (add-byte #b10000000 vec)

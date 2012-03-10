@@ -73,6 +73,7 @@
       (cons a (enumerate (1+ a) b))))
 
 (defun remove-tree (tree ls) (remove tree ls :test #'equal))
+(defun remove-tree-first (tree ls) (remove tree ls :test #'equal :count 1))
 
 (defmacro delete-all (from ls)
    (with-gensyms (el)

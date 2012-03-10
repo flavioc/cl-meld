@@ -33,10 +33,9 @@
 (defun move-nil-p (mv) (tagged-p mv :move-nil))
 
 (defun make-return () '(:return))
-
 (defun make-return-linear () '(:return-linear))
-
 (defun make-return-select () '(:return-select))
+(defun make-return-derived () '(:return-derived))
 
 (defun instr-type (instr) (first instr))
 
