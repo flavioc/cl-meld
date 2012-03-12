@@ -26,7 +26,7 @@
    ;; argument or else put the home node (for local rules)
    (let ((head-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals head))))
       (when head-subs
-         (let* ((host (head-host-node head))
+         (let* ((host (first-host-node head))
                 (routes (filter #L(equal (subgoal-name !1) edge-name) (get-subgoals body))))
             (if routes
                (setf host (funcall get-fun (subgoal-args (first routes))))
@@ -316,7 +316,7 @@
 (defun type-check-clause (head body clause axiom-p)
    (with-typecheck-context
       (when axiom-p
-         (variable-is-defined (head-host-node head)))
+         (variable-is-defined (first-host-node head)))
       (do-subgoals body (:name name :args args :options options)
          (do-type-check-subgoal name args options t))
       (create-assignments body)

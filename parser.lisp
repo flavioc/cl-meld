@@ -199,6 +199,7 @@
 	 (statement statements #'cons))
 
 	(statement
+	   (:arrow body-terms :dot #'(lambda (x body y) (declare (ignore x y)) (make-clause body nil)))
 	   (head-terms :dot #'(lambda (head d) (declare (ignore d)) (make-clause nil head)))
 		(head-terms :arrow body-terms :dot #'(lambda (conc y perm w) (declare (ignore y w)) (make-clause perm conc))))
 

@@ -71,21 +71,24 @@
 (defsetf addr-num set-addr-num)
 
 (defun option-has-tag-p (opts opt) (some #L(tagged-p !1 opt) opts))
-
-;; to take the home node from the head   
-(defun head-host-node (head-list)
-   (first (subgoal-args (first head-list))))
-(defun clause-head-host-node (clause)
-   (head-host-node (clause-head clause)))
    
-;; to take the home node from the body
-(defun body-host-node (body-list)
+;; to take the home node from the first subgoal
+(defun first-host-node (list)
    "Returns the home body of a body list.
    Note that other things other than subgoals may be present"
-   (do-subgoals body-list (:args args)
-      (return-from body-host-node (first args))))
+   (do-subgoals list (:args args)
+      (return-from first-host-node (first args))))
+      
+(defun clause-head-host-node (clause)
+   "Returns the host node of a clause.
+   Looks first on the head and then on the body."
+   (let ((head-node (first-host-node (clause-head clause))))
+      (if head-node
+         head-node
+         (first-host-node (clause-body clause)))))
+
 (defun clause-body-host-node (clause)
-   (body-host-node (clause-body clause)))
+   (first-host-node (clause-body clause)))
    
 (defun clause-host-node (clause)
    "Returns the host node of a clause.
