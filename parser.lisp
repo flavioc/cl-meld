@@ -19,6 +19,7 @@
 	("include"                       (return (values :include $@)))
 	("@world"                        (return (values :world $@)))
 	("@"                             (return (values :local $@)))
+	("\\$"                           (return (values :dollar $@)))
 	("linear"                        (return (values :linear $@)))
 	(":-"                            (return (values :arrow  $@)))
 	("\\("			                  (return (values :lparen $@)))
@@ -106,7 +107,8 @@
 								:extern :const-decl :min :max :first :sum
 								:lsparen :rsparen :nil :bar :type-list :local
 								:route :include :file :world :action
-								:output :input :immediate :linear))
+								:output :input :immediate :linear
+								:dollar))
 
 	(program
 	  (includes definitions externs consts statements #L(make-ast  !2 ; definitions
@@ -192,7 +194,6 @@
  	 (:type-addr (return-const :type-addr))
  	 (:type-worker (return-const :type-worker)))
 	   
-
 	(statements
 	 ()
 	 (statement statements #'cons))
@@ -202,20 +203,29 @@
 		(head-terms :arrow body-terms :dot #'(lambda (conc y perm w) (declare (ignore y w)) (make-clause perm conc))))
 
    (head-terms
-      (term #'list)
-      (term :comma head-terms #'(lambda (x y z) (declare (ignore y)) (cons x z))))
+      (head-term #'list)
+      (head-term :comma head-terms #'(lambda (x y z) (declare (ignore y)) (cons x z))))
 
    (body-terms
       (body-term #'list)
       (body-term :comma body-terms #'(lambda (x y z) (declare (ignore y)) (cons x z))))
 
+   (head-term
+      (subgoal #'identity))
+      
    (body-term
-      (term #'identity)
+      (subgoal #'identity)
       (constraint #'identity))
 
-	(term
-	 	(const :lparen args :rparen #'(lambda (name y args w) (declare (ignore y w)) (make-subgoal name args))))
-
+	(subgoal
+	 	(const :lparen args :rparen subgoal-options  #'(lambda (name x args y opts)
+	 	                                 (declare (ignore x y))
+	 	                                 (make-subgoal name args opts))))
+	 	 
+	(subgoal-options
+	   ()
+	   (:dollar (return-const '(:reuse))))
+	                                   
    (constraint
       (cmp #'(lambda (c) (make-constraint c))))
 

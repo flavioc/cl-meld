@@ -198,17 +198,20 @@
             ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code clause tuple-reg)
                `(,@extra-code ,(make-send tuple-reg send-to))))))
             res))))
-            
-(defun compile-linear-deletes-and-returns (def delete-regs inside)
+       
+(defun subgoal-to-be-deleted-p (subgoal def)
+   (and (is-linear-p def) (not (subgoal-has-option-p subgoal :reuse))))
+        
+(defun compile-linear-deletes-and-returns (subgoal def delete-regs inside)
    (let ((deletes (mapcar #'make-vm-remove delete-regs)))
-      (if (is-linear-p def)
+      (if (subgoal-to-be-deleted-p subgoal def)
          `(,@deletes ,(make-return-linear))
          `(,@deletes ,@(if inside (list (make-return-derived)) nil)))))
             
 (defun do-compile-head (subgoal head clause delete-regs inside)
    (declare (ignore subgoal))
    (let ((head-code (do-compile-head-subgoals head clause))
-         (linear-code (compile-linear-deletes-and-returns (lookup-definition (subgoal-name subgoal)) delete-regs inside))
+         (linear-code (compile-linear-deletes-and-returns subgoal (lookup-definition (subgoal-name subgoal)) delete-regs inside))
          (delete-code (compile-inner-delete clause)))
       `(,@head-code ,@delete-code ,@linear-code)))
       
@@ -239,7 +242,8 @@
                   (with-reg (reg next-sub)
                      (let* ((match-constraints (mapcar #'rest (add-subgoal next-sub reg :match)))
                             (def (lookup-definition next-sub-name))
-                            (new-delete-regs (if (is-linear-p def) (cons reg delete-regs) delete-regs))
+                            (new-delete-regs (if (subgoal-to-be-deleted-p next-sub def)
+                                                (cons reg delete-regs) delete-regs))
                             (iterate-code (compile-iterate rem-body orig-body head clause subgoal new-delete-regs t))
                             (other-code `(,(make-move :tuple reg) ,@iterate-code)))
                         `(,(make-iterate next-sub-name match-constraints other-code))))))))))

@@ -108,12 +108,6 @@
    (setf (third c) new))
 (defsetf colocated-second set-colocated-second)
       
-(defun make-subgoal (name args)
-   (if (equal name "colocated")
-       (cond
-          ((= (length args) 2) (make-constraint (make-colocated (first args) (second args))))
-          (t (error 'expr-invalid-error "Colocated expression must have two arguments")))
-       (list :subgoal name args)))
 (defun make-var (var &optional typ) `(:var ,(if (stringp var) (str->sym var) var) ,@(if typ `(,typ) nil)))
 
 (defun make-definition (name typs options) `(:definition ,name ,typs ,options))
@@ -293,12 +287,22 @@
 
 ;;;; SUBGOALS
 
+(defun make-subgoal (name args &optional options)
+   (if (equal name "colocated")
+       (cond
+          ((= (length args) 2) (make-constraint (make-colocated (first args) (second args))))
+          (t (error 'expr-invalid-error "Colocated expression must have two arguments")))
+       (list :subgoal name args options)))
+
 (defun subgoal-p (ls) (tagged-p ls :subgoal))
 (defun subgoal-name (subgoal) (second subgoal))
 (defun subgoal-args (subgoal) (third subgoal))
 (defun set-subgoal-args (subgoal new-args)
    (setf (third subgoal) new-args))
 (defsetf subgoal-args set-subgoal-args)
+(defun subgoal-options (subgoal) (fourth subgoal))
+(defun subgoal-has-option-p (subgoal opt)
+   (has-elem-p (subgoal-options subgoal) opt))
 
 (defun lookup-definition-types (pred)
    (when-let ((def (lookup-definition pred)))

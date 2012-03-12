@@ -201,14 +201,26 @@
          (set-type expr types)
          types)))
       
-(defun do-type-check-subgoal (name args &optional force-vars)
-   (let ((definition (lookup-definition-types name)))
-      (unless definition
+(defun do-type-check-subgoal (name args options &optional body-p)
+   (let* ((def (lookup-definition name))
+          (definition (definition-types def)))
+      (unless def
          (error 'type-invalid-error :text (concatenate 'string "Definition " name " not found")))
       (when (not (= (length definition) (length args)))
          (error 'type-invalid-error :text (tostring "Invalid number of arguments in subgoal ~a~a" name args)))
+      (unless body-p
+         (unless (null options)
+            (error 'type-invalid-error :text (tostring "Invalid option set for head subgoal ~a" name))))
+      (when (> (length options) 1)
+         (error 'type-invalid-error :text (tostring "Unrecognized options for subgoal ~a: ~a" name options)))
+      (dolist (opt options)
+         (case opt
+            (:reuse (unless (is-linear-p def)
+                        (error 'type-invalid-error :text (tostring "Subgoal ~a must be linear to use the reuse option" name))))
+            (otherwise
+               (error 'type-invalid-error :text (tostring "Option not recognized in subgoal ~a: ~a" name opt)))))
       (dolist2 (arg args) (forced-type (definition-arg-types definition))
-         (when (and force-vars (not (var-p arg)))
+         (when (and body-p (not (var-p arg)))
             (error 'type-invalid-error :text (tostring "only variables at body: ~a" arg)))
          (unless (one-elem-p (get-type arg `(,forced-type)))
             (error 'type-invalid-error :text "type error"))
@@ -305,15 +317,15 @@
    (with-typecheck-context
       (when axiom-p
          (variable-is-defined (head-host-node head)))
-      (do-subgoals body (:name name :args args)
-         (do-type-check-subgoal name args t))
+      (do-subgoals body (:name name :args args :options options)
+         (do-type-check-subgoal name args options t))
       (create-assignments body)
       (assert-assignment-undefined (get-assignments body))
       (do-type-check-assignments body #'typed-var-p)
       (unless (every #'variable-defined-p (all-variables (append head body)))
          (error 'type-invalid-error :text (tostring "undefined variables in ~a" (append head body))))
-      (do-subgoals head (:name name :args args)
-         (do-type-check-subgoal name args))
+      (do-subgoals head (:name name :args args :options options)
+         (do-type-check-subgoal name args options))
       (do-constraints body (:expr expr)
          (do-type-check-constraints expr))
       (do-type-check-assignments

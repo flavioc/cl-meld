@@ -228,25 +228,28 @@
       (do-worker-axioms (:head ,head :body ,body :clause ,clause :options ,options)
          ,@rest)))
             
-(defmacro with-subgoal (subgoal (&key name args) &body body)
+(defmacro with-subgoal (subgoal (&key name args options) &body body)
    `(let (,@(build-bind name `(subgoal-name ,subgoal))
-          ,@(build-bind args `(subgoal-args ,subgoal)))
+          ,@(build-bind args `(subgoal-args ,subgoal))
+          ,@(build-bind options `(subgoal-options ,subgoal)))
       ,@body))
       
-(defmacro do-subgoal-list (ls (&key (name nil) (args nil) (id nil)
+(defmacro do-subgoal-list (ls (&key (name nil) (args nil)
+                                    (options nil) (id nil)
                                     (subgoal nil) (operation 'do))
                                &body body)
    (with-gensyms (el)
       `(loop-list (,el ,ls :id ,id :operation ,operation)
          (let (,@(build-bind subgoal el))
             (when (subgoal-p ,el)
-               (with-subgoal ,el (:name ,name :args ,args)
+               (with-subgoal ,el (:name ,name :args ,args :options ,options)
                   ,@body))))))
 
-(defmacro do-subgoals (subgoals (&key (name nil) (args nil) (id nil)
+(defmacro do-subgoals (subgoals (&key (name nil) (args nil)
+                                      (options nil) (id nil)
                                       (subgoal nil) (operation 'do))
                                  &body body)
-   (let ((arg-list `(:name ,name :args ,args :id ,id
+   (let ((arg-list `(:name ,name :args ,args :options ,options :id ,id
                      :subgoal ,subgoal :operation ,operation)))
       `(cond
          ((clause-p ,subgoals)
