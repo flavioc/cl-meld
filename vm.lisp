@@ -37,6 +37,11 @@
 (defun make-return-select () '(:return-select))
 (defun make-return-derived () '(:return-derived))
 
+(defun instr-is-return-p (instr)
+   (case (instr-type instr)
+      ((:return :return-linear :return-select :return-derived) t)
+      (otherwise nil)))
+
 (defun instr-type (instr) (first instr))
 
 (defun make-reg (n) `(:reg ,n))

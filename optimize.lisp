@@ -67,9 +67,35 @@
             (multiple-value-bind (hash to-keep) (select-node-init instrs)
                (let ((new-instr (make-vm-select-with-rules hash)))
                   (setf (process-instrs proc) (cons new-instr to-keep))))))))
+                  
+(defmacro iterate-code ((&key definition instrs proc) &body body)
+   (with-gensyms (name)
+      `(do-definitions (:definition ,definition :name ,name)
+         (with-process (vm-find ,name) (:instrs ,instrs :proc ,proc)
+            ,@body))))
+       
+(defun optimize-return-instr-list (instrs)
+  (loop for instr-list on instrs
+     do (let ((instr (first instr-list)))
+         (case (instr-type instr)
+            (:iterate
+               (optimize-return-instr-list (iterate-instrs instr)))
+            (:if
+               (optimize-return-instr-list (if-instrs instr)))
+            (otherwise
+               (when (and (instr-is-return-p instr)
+                           (instr-is-return-p (second instr-list)))
+                  ;; remove second return
+                  (setf (rest instr-list) (rest (rest instr-list)))))))))
                
+(defun optimize-returns ()
+   (iterate-code (:definition def :instrs instrs :proc proc)
+      (declare (ignore proc))
+      (optimize-return-instr-list instrs)))
+
 (defun optimize-code ()
    (unless *use-optimizations*
       (return-from optimize-code nil))
-   (optimize-init))
+   (optimize-init)
+   (optimize-returns))
    
