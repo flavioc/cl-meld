@@ -132,17 +132,17 @@
                `(,@code ,(make-vm-test-nil place dest))))
          (t `(,@code1 ,@code2 ,(make-vm-op dest place1 (set-type-to-op operand-type ret-type base-op) place2))))))
 
-(defun get-remote-dest (clause)
-   (lookup-used-var (clause-get-remote-dest clause)))
+(defun get-remote-dest (subgoal)
+   (lookup-used-var (subgoal-get-remote-dest subgoal)))
    
-(defun get-remote-reg-and-code (clause default)
-   (if (clause-is-remote-p clause)
-      (let ((var (get-remote-dest clause)))
+(defun get-remote-reg-and-code (subgoal default)
+   (if (subgoal-is-remote-p subgoal)
+      (let ((var (get-remote-dest subgoal)))
          (if (reg-p var)
             var
             (with-reg (new-reg)
                (values new-reg `(,(make-move var new-reg)))))) 
-      default))
+         default))
 
 (defun add-subgoal (subgoal reg &optional (in-c reg))
    (with-subgoal subgoal (:args args)
@@ -189,16 +189,30 @@
       (compile-expr-to arg reg-dot)))
 
 (defun do-compile-head-subgoals (head clause)
-   (do-subgoals head (:name name :args args :operation append)
+   (do-subgoals head (:name name :args args :operation append :subgoal sub)
       (with-reg (tuple-reg)
          (let ((res `(,(make-vm-alloc name tuple-reg)
             ,@(loop for arg in args
                   for i upto (length args)
                   append (compile-head-move arg i tuple-reg))
-            ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code clause tuple-reg)
+            ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub tuple-reg)
                `(,@extra-code ,(make-send tuple-reg send-to))))))
             res))))
-       
+            
+(defun do-compile-head-comprehensions (head clause def subgoal)
+   (let ((code (do-comprehensions head (:left left :right right :operation append)
+                  (let ((new-body (list left))
+                        (new-head (list right)))
+                     (compile-iterate new-body new-body new-head nil nil nil)))))
+      (if (subgoal-to-be-deleted-p subgoal def)
+         (list (make-vm-reset-linear `(,@code (:next))))
+         code)))
+            
+(defun do-compile-head-code (head clause def subgoal)
+   (let ((subgoals-code (do-compile-head-subgoals head clause))
+         (comprehensions-code (do-compile-head-comprehensions head clause def subgoal)))
+      (append subgoals-code comprehensions-code)))
+      
 (defun subgoal-to-be-deleted-p (subgoal def)
    (and (is-linear-p def) (not (subgoal-has-option-p subgoal :reuse))))
         
@@ -210,9 +224,10 @@
             
 (defun do-compile-head (subgoal head clause delete-regs inside)
    (declare (ignore subgoal))
-   (let ((head-code (do-compile-head-subgoals head clause))
-         (linear-code (compile-linear-deletes-and-returns subgoal (lookup-definition (subgoal-name subgoal)) delete-regs inside))
-         (delete-code (compile-inner-delete clause)))
+   (let* ((def (lookup-definition (subgoal-name subgoal)))
+          (head-code (do-compile-head-code head clause def subgoal))
+          (linear-code (compile-linear-deletes-and-returns subgoal def delete-regs inside))
+          (delete-code (compile-inner-delete clause)))
       `(,@head-code ,@delete-code ,@linear-code)))
       
 (defun compile-assignments-and-head (assignments head-fun)

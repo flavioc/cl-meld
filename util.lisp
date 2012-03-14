@@ -57,6 +57,12 @@
 (defmacro do-hash-set ((el hash-set) &body body)
    `(loop for ,el being the hash-keys of ,hash-set
          do (progn ,@body)))
+         
+(defun copy-hash-table (h1 &optional (copy-fn #'identity))
+  (let ((h2 (make-hash-table :test #'equal)))
+    (maphash #'(lambda (key val) (setf (gethash key h2) (funcall copy-fn val)))
+	     h1)
+    h2))
 
 (defmacro any (predicates val)
    `(or ,@(mapcar (lambda (pred) `(,pred ,val)) predicates)))

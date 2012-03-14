@@ -256,6 +256,31 @@
             (do-subgoal-list (clause-body ,subgoals) ,arg-list ,@body)
             (do-subgoal-list (clause-head ,subgoals) ,arg-list ,@body))
          (t (do-subgoal-list ,subgoals ,arg-list ,@body)))))
+         
+(defmacro with-comprehension (comp (&key left right) &body body)
+   `(let (,@(build-bind left `(comprehension-left ,comp))
+          ,@(build-bind right `(comprehension-right ,comp)))
+      ,@body))
+      
+(defmacro do-comprehension-list (ls (&key (left nil) (right nil)
+                                       (comp nil)
+                                       (operation 'do))
+                                 &body body)
+   (with-gensyms (el)
+      `(loop-list (,el ,ls :operation ,operation)
+         (let (,@(build-bind comp el))
+            (when (comprehension-p ,el)
+               (with-comprehension ,el (:left ,left :right ,right)
+                  ,@body))))))
+                  
+(defmacro do-comprehensions (comps (&key (left nil) (right nil) (comp nil) (operation 'do)) &body body)
+   (let ((arg-list `(:left ,left :right ,right
+                     :comp ,comp :operation ,operation)))
+      `(cond
+         ((clause-p ,comps)
+            (do-comprehension-list (clause-body ,comps) ,arg-list ,@body)
+            (do-comprehension-list (clause-head ,comps) ,arg-list ,@body))
+         (t (do-comprehension-list ,comps ,arg-list ,@body)))))
 
 (defmacro do-constraints (constraints (&key (expr nil) (constraint nil) (id nil)) &body body)
    (with-gensyms (el)

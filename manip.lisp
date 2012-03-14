@@ -288,6 +288,15 @@
    (setf (third ass) new-expr))
 (defsetf assignment-expr set-assignment-expr)
 
+;;;; COMPREHENSIONS
+
+(defun make-comprehension (left right)
+   (list :comprehension left right))
+
+(defun comprehension-p (comp) (tagged-p comp :comprehension))
+(defun comprehension-left (comp) (second comp))
+(defun comprehension-right (comp) (third comp))
+
 ;;;; SUBGOALS
 
 (defun make-subgoal (name args &optional options)
@@ -306,6 +315,16 @@
 (defun subgoal-options (subgoal) (fourth subgoal))
 (defun subgoal-has-option-p (subgoal opt)
    (has-elem-p (subgoal-options subgoal) opt))
+(defun subgoal-get-tagged-option (subgoal opt)
+   (let ((res (find-if #L(tagged-p !1 opt) (subgoal-options subgoal))))
+      (when res
+         (rest res))))
+(defun subgoal-get-remote-dest (subgoal)
+   (first (subgoal-get-tagged-option subgoal :route)))
+(defun subgoal-is-remote-p (subgoal)
+   (subgoal-get-remote-dest subgoal))
+(defun subgoal-add-option (subgoal opt)
+   (setf (fourth subgoal) (cons opt (fourth subgoal))))
 
 (defun lookup-definition-types (pred)
    (when-let ((def (lookup-definition pred)))

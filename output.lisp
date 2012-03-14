@@ -145,8 +145,14 @@
 (defun output-instr (instr vec)
    (case (instr-type instr)
       (:return (add-byte #x0 vec))
+      (:next (add-byte #x1 vec))
       (:return-linear (add-byte #b11010000 vec))
       (:return-derived (add-byte #b11110000 vec))
+      (:reset-linear
+         (write-jump vec 1
+            (add-byte #b00001110 vec)
+            (jumps-here vec)
+            (output-instrs (vm-reset-linear-instrs instr) vec)))
       (:remove
             (let ((reg (vm-remove-reg instr)))
                (add-byte #b10000000 vec)
@@ -391,7 +397,6 @@
                                     (aggregate-mod-is-output-p aggmod))
                                  (multiple-value-bind (remote-pred use-home-p) (get-aggregate-remote def)
                                     (when remote-pred
-                                       ;(format t "remote agg ~a~%" def)
                                        (add-byte (if use-home-p +agg-remote-aggregate-home-byte+ +agg-remote-aggregate-byte+) vec)
                                        (add-byte (lookup-tuple-id remote-pred) vec))))
                               ((aggregate-mod-is-immediate-p aggmod)

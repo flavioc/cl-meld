@@ -98,6 +98,11 @@
           (*constraints* (make-hash-table)))
       ,@body))
 
+(defmacro extend-typecheck-context (&body body)
+   `(let ((*defined* (copy-list *defined*))
+          (*constaints* (copy-hash-table *constraints*)))
+      ,@body))
+
 (defun variable-is-defined (var) (unless (has-elem-p *defined* (var-name var)) (push (var-name var) *defined*)))
 (defun variable-defined-p (var) (has-elem-p *defined* (var-name var)))
 (defun has-variables-defined (expr) (every #'variable-defined-p (all-variables expr)))
@@ -201,7 +206,7 @@
          (set-type expr types)
          types)))
       
-(defun do-type-check-subgoal (name args options &optional body-p)
+(defun do-type-check-subgoal (name args options &key (body-p nil) (axiom-p nil))
    (let* ((def (lookup-definition name))
           (definition (definition-types def)))
       (unless def
@@ -225,7 +230,10 @@
          (unless (one-elem-p (get-type arg `(,forced-type)))
             (error 'type-invalid-error :text "type error"))
          (when (var-p arg)
-            (variable-is-defined arg)))))
+            (if (and (not body-p) (not (variable-defined-p arg)))
+               (error 'type-invalid-error :text (tostring "undefined variable: ~a" arg)))
+            (if body-p
+               (variable-is-defined arg))))))
 
 (defun do-type-check-constraints (expr)
    (unless (has-variables-defined expr)
@@ -313,19 +321,29 @@
    (do-axioms (:clause clause)
       (add-variable-head-clause clause)))
       
+(defun do-type-check-comprehension (comp)
+   (extend-typecheck-context
+      (with-comprehension comp (:left left :right right)
+         (with-subgoal left (:name name :args args :options options)
+            (do-type-check-subgoal name args options :body-p t))
+         (with-subgoal right (:name name :args args :options options)
+            (do-type-check-subgoal name args options)))))
+      
 (defun type-check-clause (head body clause axiom-p)
    (with-typecheck-context
       (when axiom-p
          (variable-is-defined (first-host-node head)))
       (do-subgoals body (:name name :args args :options options)
-         (do-type-check-subgoal name args options t))
+         (do-type-check-subgoal name args options :body-p t))
       (create-assignments body)
       (assert-assignment-undefined (get-assignments body))
       (do-type-check-assignments body #'typed-var-p)
-      (unless (every #'variable-defined-p (all-variables (append head body)))
-         (error 'type-invalid-error :text (tostring "undefined variables in ~a" (append head body))))
+      ;(unless (every #'variable-defined-p (all-variables (append head body)))
+      ;   (error 'type-invalid-error :text (tostring "undefined variables in ~a" (append head body))))
       (do-subgoals head (:name name :args args :options options)
-         (do-type-check-subgoal name args options))
+         (do-type-check-subgoal name args options :axiom-p axiom-p))
+      (do-comprehensions head (:comp comp)
+         (do-type-check-comprehension comp))
       (do-constraints body (:expr expr)
          (do-type-check-constraints expr))
       (do-type-check-assignments

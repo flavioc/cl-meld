@@ -10,10 +10,10 @@
                      `((declare (ignore stop-p))))
                (when new-val (setf ,x new-val))
                ,@(unless stop-here
-                  `((when (eq stop-p :stop)
-                        (transform-expr test-fn transform-fn ,x))))))
-            ,@(unless stop-here
-               `((transform-expr test-fn transform-fn ,x))))))
+                  `((when (not (eq stop-p :stop))
+                        (transform-expr test-fn transform-fn ,x)))))
+               ,@(unless stop-here
+                  `((transform-expr test-fn transform-fn ,x)))))))
 
 (defun transform-expr (test-fn transform-fn expr)
    "Traverses the entire expression and changes it.
@@ -36,6 +36,10 @@
       ((subgoal-p expr)
          (loop-cons-car (arg (subgoal-args expr))
             (transform-part-expression arg)))
+      ((comprehension-p expr)
+         (with-comprehension expr (:left left :right right)
+            (transform-part-expression left)
+            (transform-part-expression right)))
       ((constraint-p expr) (transform-part-expression (constraint-expr expr)))
       ((assignment-p expr)
          (transform-part-expression (assignment-var expr) t)
@@ -61,7 +65,7 @@
          (loop-cons-car (e expr)
             (transform-part-expression e)))
       (t (error 'expr-invalid-error
-               :text (tostring "Invalid expression: ~a" expr))))
+               :text (tostring "transform-expr: Invalid expression: ~a" expr))))
    expr)
    
 (defmacro do-map-expr (expr)
@@ -152,12 +156,13 @@
        (loop for item in expr
              collect (do-map-expr item)))
       (t (error 'expr-invalid-error
-               :text (tostring "Invalid expression: ~a" expr)))))
+               :text (tostring "map-expr: Invalid expression: ~a" expr)))))
 
 (defun transform-drop-subgoal-first-arg (expr)
-   (transform-expr #'subgoal-p #'(lambda (x)
-                                    (setf (subgoal-args x) (rest (subgoal-args x)))
-                                    (values nil :stop))
+   (transform-expr #'subgoal-p
+                        #'(lambda (x)
+                           (setf (subgoal-args x) (rest (subgoal-args x)))
+                           (values nil :stop))
                   expr))
 
 (defun transform-variable-to-host-id (expr old-var)

@@ -161,6 +161,9 @@
 (defun vm-delete-filter (d) (third d))
 (defun vm-delete-p (d) (tagged-p d :delete))
 
+(defun make-vm-reset-linear (instrs) `(:reset-linear ,instrs))
+(defun vm-reset-linear-instrs (reset) (second reset))
+
 (defun tuple-p (tp) (eq tp :tuple))
 (defun match-p (m) (eq m :match))
 

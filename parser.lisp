@@ -6,6 +6,8 @@
 	("\\,"                           (return (values :comma $@)))
 	("\\["                           (return (values :lsparen $@)))
 	("\\]"                           (return (values :rsparen $@)))
+	("\\{"                           (return (values :lcparen $@)))
+	("\\}"                           (return (values :rcparen $@)))
    ("\\."                           (return (values :dot $@)))
    ("immediate"                     (return (values :immediate $@)))
  	("type"			                  (return (values :type $@)))
@@ -108,7 +110,7 @@
 								:lsparen :rsparen :nil :bar :type-list :local
 								:route :include :file :world :action
 								:output :input :immediate :linear
-								:dollar))
+								:dollar :lcparen :rcparen))
 
 	(program
 	  (includes definitions externs consts statements #L(make-ast  !2 ; definitions
@@ -212,6 +214,8 @@
       (body-term :comma body-terms #'(lambda (x y z) (declare (ignore y)) (cons x z))))
 
    (head-term
+      (:lcparen subgoal :rcparen subgoal #'(lambda (l left r right) (declare (ignore l r))
+                                             (make-comprehension left right)))
       (subgoal #'identity))
       
    (body-term

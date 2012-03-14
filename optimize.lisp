@@ -68,9 +68,9 @@
                (let ((new-instr (make-vm-select-with-rules hash)))
                   (setf (process-instrs proc) (cons new-instr to-keep))))))))
                   
-(defmacro iterate-code ((&key definition instrs proc) &body body)
+(defmacro iterate-code ((&key instrs proc) &body body)
    (with-gensyms (name)
-      `(do-definitions (:definition ,definition :name ,name)
+      `(do-definitions (:name ,name)
          (with-process (vm-find ,name) (:instrs ,instrs :proc ,proc)
             ,@body))))
        
@@ -82,6 +82,8 @@
                (optimize-return-instr-list (iterate-instrs instr)))
             (:if
                (optimize-return-instr-list (if-instrs instr)))
+            (:reset-linear
+               (optimize-return-instr-list (vm-reset-linear-instrs instr)))
             (otherwise
                (when (and (instr-is-return-p instr)
                            (instr-is-return-p (second instr-list)))
@@ -89,7 +91,7 @@
                   (setf (rest instr-list) (rest (rest instr-list)))))))))
                
 (defun optimize-returns ()
-   (iterate-code (:definition def :instrs instrs :proc proc)
+   (iterate-code (:instrs instrs :proc proc)
       (declare (ignore proc))
       (optimize-return-instr-list instrs)))
 
