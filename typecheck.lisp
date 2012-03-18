@@ -92,18 +92,24 @@
    
 (defparameter *constraints* nil)
 (defparameter *defined* nil)
+(defparameter *defined-in-context* nil)
 
 (defmacro with-typecheck-context (&body body)
    `(let ((*defined* nil)
+          (*defined-in-context* nil)
           (*constraints* (make-hash-table)))
       ,@body))
 
 (defmacro extend-typecheck-context (&body body)
    `(let ((*defined* (copy-list *defined*))
+          (*defined-in-context* nil)
           (*constaints* (copy-hash-table *constraints*)))
       ,@body))
 
-(defun variable-is-defined (var) (unless (has-elem-p *defined* (var-name var)) (push (var-name var) *defined*)))
+(defun variable-is-defined (var)
+   (unless (has-elem-p *defined* (var-name var))
+      (push (var-name var) *defined-in-context*)
+      (push (var-name var) *defined*)))
 (defun variable-defined-p (var) (has-elem-p *defined* (var-name var)))
 (defun has-variables-defined (expr) (every #'variable-defined-p (all-variables expr)))
 
@@ -322,12 +328,20 @@
       (add-variable-head-clause clause)))
       
 (defun do-type-check-comprehension (comp)
-   (extend-typecheck-context
-      (with-comprehension comp (:left left :right right)
-         (with-subgoal left (:name name :args args :options options)
-            (do-type-check-subgoal name args options :body-p t))
-         (with-subgoal right (:name name :args args :options options)
-            (do-type-check-subgoal name args options)))))
+   (let ((old-defined *defined*)
+         (target-variables (mapcar #'var-name (comprehension-variables comp))))
+      (extend-typecheck-context
+         (with-comprehension comp (:left left :right right)
+            (do-subgoals left (:name name :args args :options options)
+               (do-type-check-subgoal name args options :body-p t))
+            (do-subgoals right (:name name :args args :options options)
+               (do-type-check-subgoal name args options)))
+         ;; check if the set of new defined variables is identical to target-variables
+         (let ((new-ones *defined-in-context*))
+            (unless (subsetp new-ones target-variables)
+               (error 'type-invalid-error :text (tostring "Comprehension ~a is using more variables than it specifies" comp)))
+            (unless (subsetp target-variables new-ones)
+               (error 'type-invalid-error :text (tostring "Comprehension ~a is not using enough variables" comp)))))))
       
 (defun type-check-clause (head body clause axiom-p)
    (with-typecheck-context

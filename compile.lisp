@@ -201,8 +201,8 @@
             
 (defun do-compile-head-comprehensions (head clause def subgoal)
    (let ((code (do-comprehensions head (:left left :right right :operation append)
-                  (let ((new-body (list left))
-                        (new-head (list right)))
+                  (let ((new-body left)
+                        (new-head right))
                      (compile-iterate new-body new-body new-head nil nil nil)))))
       (if (subgoal-to-be-deleted-p subgoal def)
          (list (make-vm-reset-linear `(,@code (:next))))

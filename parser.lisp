@@ -21,6 +21,7 @@
 	("include"                       (return (values :include $@)))
 	("@world"                        (return (values :world $@)))
 	("@"                             (return (values :local $@)))
+	("-o"                            (return (values :lolli $@)))
 	("\\$"                           (return (values :dollar $@)))
 	("linear"                        (return (values :linear $@)))
 	(":-"                            (return (values :arrow  $@)))
@@ -110,7 +111,7 @@
 								:lsparen :rsparen :nil :bar :type-list :local
 								:route :include :file :world :action
 								:output :input :immediate :linear
-								:dollar :lcparen :rcparen))
+								:dollar :lcparen :rcparen :lolli))
 
 	(program
 	  (includes definitions externs consts statements #L(make-ast  !2 ; definitions
@@ -201,24 +202,18 @@
 	 (statement statements #'cons))
 
 	(statement
-	   (:arrow body-terms :dot #'(lambda (x body y) (declare (ignore x y)) (make-clause body nil)))
-	   (head-terms :dot #'(lambda (head d) (declare (ignore d)) (make-clause nil head)))
-		(head-terms :arrow body-terms :dot #'(lambda (conc y perm w) (declare (ignore y w)) (make-clause perm conc))))
-
-   (head-terms
-      (head-term #'list)
-      (head-term :comma head-terms #'(lambda (x y z) (declare (ignore y)) (cons x z))))
-
-   (body-terms
-      (body-term #'list)
-      (body-term :comma body-terms #'(lambda (x y z) (declare (ignore y)) (cons x z))))
-
-   (head-term
-      (:lcparen subgoal :rcparen subgoal #'(lambda (l left r right) (declare (ignore l r))
-                                             (make-comprehension left right)))
-      (subgoal #'identity))
+	   (terms :lolli terms :dot #'(lambda (body l head d) (declare (ignore l d)) (make-clause body head)))
+	   (terms :lolli :dot #'(lambda (body l d) (declare (ignore l d)) (make-clause body nil)))
+	   (:arrow terms :dot #'(lambda (x body y) (declare (ignore x y)) (make-clause body nil)))
+	   (terms :dot #'(lambda (head d) (declare (ignore d)) (make-clause nil head)))
+		(terms :arrow terms :dot #'(lambda (conc y perm w) (declare (ignore y w)) (make-clause perm conc))))
+		
+   (terms
+      (term #'list)
+      (term :comma terms #'(lambda (el x ls) (declare (ignore x)) (cons el ls))))
       
-   (body-term
+   (term
+      (comprehension #'identity)
       (subgoal #'identity)
       (constraint #'identity))
 
@@ -226,6 +221,13 @@
 	 	(const :lparen args :rparen subgoal-options  #'(lambda (name x args y opts)
 	 	                                 (declare (ignore x y))
 	 	                                 (make-subgoal name args opts))))
+	(comprehension
+	    (:lcparen variable-list :bar terms :bar terms :rcparen #'(lambda (l vl b1 left b2 right r) (declare (ignore l b1 b2 r))
+                                              (make-comprehension left right vl))))
+                                                                              
+	(variable-list
+	   (variable #'list)
+	   (variable :comma variable-list #'(lambda (v c l) (declare (ignore c)) (cons v l))))
 	 	 
 	(subgoal-options
 	   ()

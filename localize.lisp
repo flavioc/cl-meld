@@ -150,11 +150,12 @@
                (subgoal-add-option sub `(:route ,(var-name first-arg))))))
       (do-comprehensions head (:right right :comp comp)
          (warn "comp ~a~%" comp)
-         (with-subgoal right (:args args)
+         (do-subgoals right (:args args :subgoal sub)
             (let ((first-arg (first args)))
                (if (var-eq-p first-arg host)
                   (setf all-transformed nil)
-                  (subgoal-add-option right `(:route ,(var-name first-arg)))))))
+                  (subgoal-add-option sub `(:route ,(var-name first-arg)))))))
+      (warn "done~%")
       all-transformed))
 
 (defun do-localize-one (clause from to route-subgoal remaining &optional (order 'forward))
@@ -262,11 +263,12 @@
             (error 'localize-invalid-error
                      :text (tostring "Variable was not found: ~a" first-arg)))))
    (do-comprehensions head (:left left :right right)
-      (let ((first-arg (first (subgoal-args left))))
-          (unless (and (var-p first-arg)
-                        (var-eq-p host first-arg))
-               (error 'localize-invalid-error
-                        :text (tostring "Variable is not host: ~a" first-arg))))))
+      (do-subgoals left (:args args)
+         (let ((first-arg (first args)))
+            (unless (and (var-p first-arg)
+                           (var-eq-p host first-arg))
+                  (error 'localize-invalid-error
+                           :text (tostring "Variable is not host: ~a" first-arg)))))))
 
 (defun remove-home-argument-clause (clause)
    (let ((host (clause-host-node clause)))

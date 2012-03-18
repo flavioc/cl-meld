@@ -290,12 +290,13 @@
 
 ;;;; COMPREHENSIONS
 
-(defun make-comprehension (left right)
-   (list :comprehension left right))
+(defun make-comprehension (left right variables)
+   (list :comprehension left right variables))
 
 (defun comprehension-p (comp) (tagged-p comp :comprehension))
 (defun comprehension-left (comp) (second comp))
 (defun comprehension-right (comp) (third comp))
+(defun comprehension-variables (comp) (fourth comp))
 
 ;;;; SUBGOALS
 
