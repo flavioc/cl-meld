@@ -22,6 +22,7 @@
 	("@world"                        (return (values :world $@)))
 	("@"                             (return (values :local $@)))
 	("-o"                            (return (values :lolli $@)))
+	("\\!"                           (return (values :bang $@)))
 	("\\$"                           (return (values :dollar $@)))
 	("linear"                        (return (values :linear $@)))
 	(":-"                            (return (values :arrow  $@)))
@@ -111,7 +112,7 @@
 								:lsparen :rsparen :nil :bar :type-list :local
 								:route :include :file :world :action
 								:output :input :immediate :linear
-								:dollar :lcparen :rcparen :lolli))
+								:dollar :lcparen :rcparen :lolli :bang))
 
 	(program
 	  (includes definitions externs consts statements #L(make-ast  !2 ; definitions
@@ -218,9 +219,21 @@
       (constraint #'identity))
 
 	(subgoal
-	 	(const :lparen args :rparen subgoal-options  #'(lambda (name x args y opts)
-	 	                                 (declare (ignore x y))
-	 	                                 (make-subgoal name args opts))))
+	   (inner-subgoal  #'identity)
+	   (:dollar inner-subgoal #'(lambda (d sub)
+	                                 (declare (ignore d))
+	                                 (subgoal-add-option sub :reuse)
+	                                 sub))
+	 	(:bang inner-subgoal  #'(lambda (o sub)
+	 	                                 (declare (ignore o))
+	 	                                 (subgoal-add-option sub :persistent)
+	 	                                 sub)))
+	 	                                 
+	 (inner-subgoal
+	    (const :lparen args :rparen #'(lambda (name x args y)
+	                                       (declare (ignore x y))
+	                                       (make-subgoal name args))))
+	 	
 	(comprehension
 	    (:lcparen variable-list :bar terms :bar terms :rcparen #'(lambda (l vl b1 left b2 right r) (declare (ignore l b1 b2 r))
                                               (make-comprehension left right vl))))
@@ -231,6 +244,7 @@
 	 	 
 	(subgoal-options
 	   ()
+	   (:bang (return-const '(:persistent)))
 	   (:dollar (return-const '(:reuse))))
 	                                   
    (constraint

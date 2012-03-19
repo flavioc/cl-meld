@@ -219,17 +219,29 @@
          (error 'type-invalid-error :text (concatenate 'string "Definition " name " not found")))
       (when (not (= (length definition) (length args)))
          (error 'type-invalid-error :text (tostring "Invalid number of arguments in subgoal ~a~a" name args)))
-      (unless body-p
-         (unless (null options)
-            (error 'type-invalid-error :text (tostring "Invalid option set for head subgoal ~a" name))))
-      (when (> (length options) 1)
-         (error 'type-invalid-error :text (tostring "Unrecognized options for subgoal ~a: ~a" name options)))
-      (dolist (opt options)
-         (case opt
-            (:reuse (unless (is-linear-p def)
-                        (error 'type-invalid-error :text (tostring "Subgoal ~a must be linear to use the reuse option" name))))
-            (otherwise
-               (error 'type-invalid-error :text (tostring "Option not recognized in subgoal ~a: ~a" name opt)))))
+      (cond
+         ((is-linear-p def) ;; linear fact
+            (dolist (opt options)
+               (case opt
+                  (:reuse
+                     (unless body-p
+                        (error 'type-invalid-error :text (tostring "Linear reuse of facts must be used in the body, not the head: ~a" name))))
+                  (:persistent
+                     (error 'type-invalid-error :text (tostring "Only persistent facts may use !: ~a" name)))
+                  (otherwise
+                     (error 'type-invalid-error :text (tostring "Unrecognized option ~a for subgoal ~a" opt name))))))
+         (t ;; persistent fact
+            (let ((has-persistent-p nil))
+               (dolist (opt options)
+                  (case opt
+                     (:reuse
+                        (error 'type-invalid-error :text (tostring "Reuse option $ may only be used with linear facts: ~a" name)))
+                     (:persistent
+                        (setf has-persistent-p t))
+                     (otherwise
+                        (error 'type-invalid-error :text (tostring "Unrecognized option ~a for subgoal ~a" opt name)))))
+               (unless has-persistent-p
+                  (warn (tostring "Subgoal ~a needs to have a !" name))))))
       (dolist2 (arg args) (forced-type (definition-arg-types definition))
          (when (and body-p (not (var-p arg)))
             (error 'type-invalid-error :text (tostring "only variables at body: ~a" arg)))

@@ -149,13 +149,11 @@
                (setf all-transformed nil)
                (subgoal-add-option sub `(:route ,(var-name first-arg))))))
       (do-comprehensions head (:right right :comp comp)
-         (warn "comp ~a~%" comp)
          (do-subgoals right (:args args :subgoal sub)
             (let ((first-arg (first args)))
                (if (var-eq-p first-arg host)
                   (setf all-transformed nil)
                   (subgoal-add-option sub `(:route ,(var-name first-arg)))))))
-      (warn "done~%")
       all-transformed))
 
 (defun do-localize-one (clause from to route-subgoal remaining &optional (order 'forward))
