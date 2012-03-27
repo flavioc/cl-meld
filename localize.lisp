@@ -148,7 +148,7 @@
             (if (var-eq-p first-arg host)
                (setf all-transformed nil)
                (subgoal-add-option sub `(:route ,(var-name first-arg))))))
-      (do-comprehensions head (:right right :comp comp)
+      (do-comprehensions head (:right right :comprehension comp)
          (do-subgoals right (:args args :subgoal sub)
             (let ((first-arg (first args)))
                (if (var-eq-p first-arg host)

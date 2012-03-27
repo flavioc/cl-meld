@@ -124,6 +124,9 @@
 
 (defmacro format-keyword (control &rest arguments)
    `(format-symbol "KEYWORD" ,control ,@arguments))
+   
+(defmacro output-symbol (control &rest arguments)
+   `(intern (string-upcase (tostring ,control ,@arguments))))
 
 (defun addify (ls &optional (n 0))
    (if (null ls)
@@ -186,3 +189,7 @@
    
 (defun ordered-p (ls &optional (fn #'<))
    (all-equal-p ls :test fn))
+   
+(defun mappend (fn &rest lsts)
+  "maps elements in list and finally appends all resulted lists."
+  (apply #'append (apply #'mapcar fn lsts)))

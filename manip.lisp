@@ -71,13 +71,16 @@
 (defsetf addr-num set-addr-num)
 
 (defun option-has-tag-p (opts opt) (some #L(tagged-p !1 opt) opts))
-   
-;; to take the home node from the first subgoal
+
+;; to take the home node from the first subgoal or agg-construct
 (defun first-host-node (list)
    "Returns the home body of a body list.
    Note that other things other than subgoals may be present"
    (do-subgoals list (:args args)
-      (return-from first-host-node (first args))))
+      (return-from first-host-node (first args)))
+   (do-agg-constructs list (:body body)
+      (do-subgoals body (:args args)
+         (return-from first-host-node (first args)))))
       
 (defun clause-head-host-node (clause)
    "Returns the host node of a clause.
@@ -120,6 +123,8 @@
 (defun set-definition-types (def new-types)
    (setf (third def) new-types))
 (defsetf definition-types set-definition-types)
+(defun definition-num-args (def)
+   (length (definition-types def)))
 (defun definition-options (def) (fourth def))
 (defun definition-add-option (def opt) (push opt (fourth def)))
 (defun definition-has-option-p (def opt)
@@ -298,6 +303,16 @@
 (defun comprehension-right (comp) (third comp))
 (defun comprehension-variables (comp) (fourth comp))
 
+;;;; AGGREGATES
+
+(defun make-agg-construct (op to vlist body)
+   `(:agg-construct ,op ,to ,vlist ,body))
+(defun agg-construct-p (x) (tagged-p x :agg-construct))
+(defun agg-construct-op (a) (second a))
+(defun agg-construct-to (a) (third a))
+(defun agg-construct-vlist (a) (fourth a))
+(defun agg-construct-body (a) (fifth a))
+   
 ;;;; SUBGOALS
 
 (defun make-subgoal (name args &optional options)

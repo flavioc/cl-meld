@@ -255,10 +255,10 @@
       
 (defun print-vm ()
    (with-output-to-string (str)
-      (do-processes (:proc proc)
+      (do-processes (:process proc)
          (process-print proc str))))
          
 (defun vm-find (name-find)
-   (do-processes (:name name :proc proc)
+   (do-processes (:name name :process proc)
       (when (equal name-find name)
          (return-from vm-find proc))))

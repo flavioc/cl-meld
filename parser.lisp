@@ -25,6 +25,8 @@
 	("\\!"                           (return (values :bang $@)))
 	("\\$"                           (return (values :dollar $@)))
 	("linear"                        (return (values :linear $@)))
+	("%count"                        (return (values :count $@)))
+	("=>"                            (return (values :to $@)))
 	(":-"                            (return (values :arrow  $@)))
 	("\\("			                  (return (values :lparen $@)))
 	("\\)"			                  (return (values :rparen $@)))
@@ -112,7 +114,8 @@
 								:lsparen :rsparen :nil :bar :type-list :local
 								:route :include :file :world :action
 								:output :input :immediate :linear
-								:dollar :lcparen :rcparen :lolli :bang))
+								:dollar :lcparen :rcparen :lolli
+								:bang :count :to))
 
 	(program
 	  (includes definitions externs consts statements #L(make-ast  !2 ; definitions
@@ -216,7 +219,8 @@
    (term
       (comprehension #'identity)
       (subgoal #'identity)
-      (constraint #'identity))
+      (constraint #'identity)
+      (aggregate-thing #'identity))
 
 	(subgoal
 	   (inner-subgoal  #'identity)
@@ -241,11 +245,14 @@
 	(variable-list
 	   (variable #'list)
 	   (variable :comma variable-list #'(lambda (v c l) (declare (ignore c)) (cons v l))))
-	 	 
-	(subgoal-options
-	   ()
-	   (:bang (return-const '(:persistent)))
-	   (:dollar (return-const '(:reuse))))
+	
+	(aggregate-thing
+	   (:lsparen aggregate-construct :to variable :bar variable-list :bar terms :rsparen
+	         #'(lambda (l aconstruct to var b1 vlist b2 terms r) (declare (ignore l r b1 b2 to))
+	               (make-agg-construct aconstruct var vlist terms))))
+	   
+	(aggregate-construct
+	   (:count (return-const :count)))
 	                                   
    (constraint
       (cmp #'(lambda (c) (make-constraint c))))

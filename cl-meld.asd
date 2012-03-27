@@ -20,8 +20,7 @@
 		 						             "manip"
 		 						             "conf"))
 		 			(:file "util"
-		 			         :depends-on ("package"
-		 			                       "macros"))
+		 			         :depends-on ("package"))
 		 			(:file "manip"
 		 			         :depends-on ("package"
 		 			                      "util"
@@ -43,7 +42,8 @@
 		 			                      "util"
 		 			                      "macros"))
 		 			(:file "macros"
-		 			         :depends-on ("package"))
+		 			         :depends-on ("package"
+		 			                      "util"))
 		 			(:file "ast"
 		 			         :depends-on ("context"
 		 			                      "util"
@@ -54,7 +54,8 @@
 		 			         :depends-on ("package"
 		 			                      "manip"
 		 			                      "macros"
-		 			                      "types"))
+		 			                      "types"
+                                     "aggtransformer"))
 		 			(:file "localize"
 		 			         :depends-on ("package"
 		 			                      "search"
@@ -113,12 +114,18 @@
 		 			                      "util"
 		 			                      "macros"
 		 			                      "ast"))
+               (:file "aggtransformer"
+                        :depends-on ("manip"
+                                     "util"
+                                     "macros"
+                                     "ast"))
 		 			(:file "topology"
 		 			         :depends-on ("manip"
 		 			                      "util"
 		 			                      "conf"))
 		 			(:file "print"
 		 			         :depends-on ("package"
-		 			                      "manip"))
+		 			                      "manip"
+		 			                      "macros"))
 	 						(:file "package")))
 

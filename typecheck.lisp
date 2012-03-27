@@ -103,7 +103,7 @@
 (defmacro extend-typecheck-context (&body body)
    `(let ((*defined* (copy-list *defined*))
           (*defined-in-context* nil)
-          (*constaints* (copy-hash-table *constraints*)))
+          (*constraints* (copy-hash-table *constraints*)))
       ,@body))
 
 (defun variable-is-defined (var)
@@ -131,7 +131,10 @@
             (error 'type-invalid-error :text
                   (tostring "Type error in variable ~a: new constraint are types ~a but variable is set as ~a" var new-types types))))
       (setf (gethash var *constraints*) new-types)))
-      
+
+(defun get-var-constraint (var)
+   (gethash var *constraints*))
+   
 (defun select-simpler-types (types)
    (cond
       ((null (set-difference types *number-types*))
@@ -253,6 +256,27 @@
             (if body-p
                (variable-is-defined arg))))))
 
+(defun do-type-check-agg-construct (c)
+   (with-agg-construct c (:body body :to to :vlist vlist :op op)
+      (let ((old-defined *defined*)
+            (target-variables (mapcar #'var-name vlist))
+            (types nil))
+         (extend-typecheck-context
+            (type-check-body body)
+            (let ((new-ones *defined-in-context*))
+               (unless (subsetp new-ones target-variables)
+                  (warn "~a" new-ones)
+                  (error 'type-invalid-error :text (tostring "Aggregate ~a is using more variables than it specifies" c)))
+               (unless (subsetp target-variables new-ones)
+                  (error 'type-invalid-error :text (tostring "Aggregate ~a is not using enough variables" c))))
+               (setf types (get-var-constraint (var-name to))))
+         (case op
+            (:count
+               (force-constraint (var-name to) '(:type-int))
+               (variable-is-defined to))
+            (otherwise
+               (error 'type-invalid-error :text (tostring "Unrecognized aggregate operator ~a" op)))))))
+
 (defun do-type-check-constraints (expr)
    (unless (has-variables-defined expr)
       (error 'type-invalid-error :text "all variables must be defined"))
@@ -304,7 +328,7 @@
          (setf (second orig) op1)
          (setf (cddr orig) (list op2))
          (push (var-name op1) vars))))))
-         
+
 (defun unfold-cons (mangled-var cons clause)
    (let ((tail-var (generate-random-var))
          (tail (cons-tail cons)))
@@ -340,8 +364,7 @@
       (add-variable-head-clause clause)))
       
 (defun do-type-check-comprehension (comp)
-   (let ((old-defined *defined*)
-         (target-variables (mapcar #'var-name (comprehension-variables comp))))
+   (let ((target-variables (mapcar #'var-name (comprehension-variables comp))))
       (extend-typecheck-context
          (with-comprehension comp (:left left :right right)
             (do-subgoals left (:name name :args args :options options)
@@ -355,20 +378,23 @@
             (unless (subsetp target-variables new-ones)
                (error 'type-invalid-error :text (tostring "Comprehension ~a is not using enough variables" comp)))))))
       
+      
+(defun type-check-body (body)
+   (do-subgoals body (:name name :args args :options options)
+      (do-type-check-subgoal name args options :body-p t))
+   (do-agg-constructs body (:agg-construct c)
+      (do-type-check-agg-construct c))
+   (create-assignments body)
+   (assert-assignment-undefined (get-assignments body))
+   (do-type-check-assignments body #'typed-var-p))
+   
 (defun type-check-clause (head body clause axiom-p)
    (with-typecheck-context
-      (when axiom-p
-         (variable-is-defined (first-host-node head)))
-      (do-subgoals body (:name name :args args :options options)
-         (do-type-check-subgoal name args options :body-p t))
-      (create-assignments body)
-      (assert-assignment-undefined (get-assignments body))
-      (do-type-check-assignments body #'typed-var-p)
-      ;(unless (every #'variable-defined-p (all-variables (append head body)))
-      ;   (error 'type-invalid-error :text (tostring "undefined variables in ~a" (append head body))))
+      (variable-is-defined (first-host-node head))
+      (type-check-body body)
       (do-subgoals head (:name name :args args :options options)
          (do-type-check-subgoal name args options :axiom-p axiom-p))
-      (do-comprehensions head (:comp comp)
+      (do-comprehensions head (:comprehension comp)
          (do-type-check-comprehension comp))
       (do-constraints body (:expr expr)
          (do-type-check-constraints expr))

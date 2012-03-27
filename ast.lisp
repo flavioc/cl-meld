@@ -96,4 +96,5 @@
 (defun delete-option-name (delete-opt) (first delete-opt))
 
 (defun is-axiom-p (clause)
-   (null (find-if #'subgoal-p (clause-body clause))))
+   (and (null (find-if #'subgoal-p (clause-body clause)))
+         (null (find-if #'agg-construct-p (clause-body clause)))))

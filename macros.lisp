@@ -17,17 +17,17 @@
 (defmacro on-top-level (&rest forms)
    `(eval-when (:compile-toplevel :load-toplevel :execute)
          ,@forms))
-         
+
 (defmacro with-var (var &body body)
    `(let (,var)
       ,@body
       ,var))
-      
+
 (defmacro with-ret (var &body body)
    `(with-var ,var
       ,@body
       ,var))
-      
+
 (defmacro letret ((var form) &body body)
    `(let ((,var ,form))
       ,@body
@@ -37,7 +37,7 @@
    (with-gensyms (ret)
       `(letret (,ret ,form)
          ,@body)))
-      
+
 (defmacro iff (test thing)
    (with-gensyms (ret)
       `(let ((,ret ,thing))
@@ -113,21 +113,64 @@
                ,@body)
             (setf *default-pathname-defaults* ,old-dir)))))
 
+(defmacro define-with (name list-keywords &key use-self-p)
+   (with-gensyms (thing)
+      (let ((with-name (output-symbol "with-~a" name))
+            (self (if use-self-p `((build-bind ,`,name ,`,thing)) nil))
+            (build-binds (loop for kw in list-keywords
+                           collect `(build-bind ,kw `(,',(output-symbol "~a-~a" name kw) ,,thing)))))                  
+         `(on-top-level
+            (defmacro ,with-name (,thing (&key ,@list-keywords ,@(if use-self-p `(,name) nil)) &body code-body)
+               `(let (,@,@(loop for a in build-binds
+                              collect a)
+                     ,@,@self)
+                  ,@code-body))))))
+                  
+(defmacro define-loop (name with-name list-name list-keywords &key filter)
+   (let* ((key-keys (loop for kw in list-keywords
+                  append
+                     (let ((key (format-keyword "~a" kw))
+                           (part (rest ``(,,`,kw))))
+                        `(,key ,@part))))
+            (base (cond
+                     (filter
+                        ``(when (,',filter ,el)
+                           (,',with-name ,el (,,@key-keys)
+                              ,@code-body)))
+                     (t
+                        ``(,',with-name ,el (,,@key-keys)
+                              ,@code-body)))))
+   `(on-top-level
+      (defmacro ,list-name (ls (&key (id nil) (,name nil) (operation 'do)
+                  ,@(mapcar #'(lambda (kw) `(,kw nil)) list-keywords)) &body code-body)
+          (with-gensyms (el)
+             `(loop-list (,el ,ls :id ,id :operation ,operation)
+                (let (,@(build-bind ,name el))
+                  ,,base)))))))
+       
+(defmacro define-term-construct (name filter-p list-keywords)
+   (let* ((do-list-name (output-symbol "do-~a-list" name))
+          (with-name (output-symbol "with-~a" name))
+          (do-filter-name (output-symbol "do-~as" name))
+          (name-keyword (format-keyword "~a" name)))
+   `(on-top-level
+      (define-with ,name ,list-keywords)
+      (define-loop ,name ,with-name ,do-list-name ,list-keywords :filter ,filter-p)
+      (defmacro ,do-filter-name (clause (&key (id nil) (,name nil) (operation 'do)
+               ,@(mapcar #'(lambda (kw) `(,kw nil)) list-keywords)) &body code-body)
+         (let ((arg-list `(,',name-keyword ,,name :operation ,operation :id ,id
+                           ,,@(loop for kw in list-keywords
+                              append `(,(format-keyword "~a" kw) ,kw)))))
+            `(cond
+               ((clause-p ,clause)
+                  (,',do-list-name (clause-body ,clause) ,arg-list ,@code-body)
+                  (,',do-list-name (clause-head ,clause) ,arg-list ,@code-body))
+               (t (,',do-list-name ,clause ,arg-list ,@code-body))))))))
+
 ;; Meld related code
 
-(defmacro with-definition (def (&key (name nil) (types nil) (options nil) (definition nil) (num-args nil)) &body body)
-   `(let (,@(build-bind name `(definition-name ,def))
-          ,@(build-bind types `(definition-types ,def))
-          ,@(build-bind options `(definition-options ,def))
-          ,@(build-bind definition def)
-          ,@(build-bind num-args `(length (definition-types ,def))))
-      ,@body))
-      
-(defmacro do-definitions-list (ls (&key definition name types options id (operation 'do)) &body body)
-   (with-gensyms (el)
-      `(loop-list (,el ,ls :id ,id :operation ,operation)
-         (with-definition ,el (:name ,name :types ,types :options ,options :definition ,definition)
-            ,@body))))
+(define-with definition (name types options num-args) :use-self-p t)
+(define-loop definition with-definition do-definitions-list (name types options))
       
 (defmacro do-definitions ((&key definition name types options id (operation 'do)) &body body)
    `(do-definitions-list *definitions* (:name ,name :types ,types :options ,options :definition ,definition
@@ -153,31 +196,12 @@
                                        :operation ,operation)
       ,@body))
          
-(defmacro with-extern (extern (&key (name nil) (ret-type nil) (types nil)) &body body)
-   `(let (,@(build-bind name `(extern-name ,extern))
-          ,@(build-bind ret-type `(extern-ret-type ,extern))
-          ,@(build-bind types `(extern-types ,extern)))
-      ,@body))
-      
-(defmacro do-externs (code (&key (name nil) (ret-type nil) (types nil) (id nil) (operation 'do)) &body body)
-   (with-gensyms (el)
-      `(loop-list (,el (externs ,code) :id ,id :operation ,operation)
-         (with-extern ,el (:name ,name :ret-type ,ret-type :types ,types)
-            ,@body))))
-              
-(defmacro with-clause (clause (&key (head nil) (body nil) (options nil)) &body rest)
-   `(let (,@(build-bind head `(clause-head ,clause))
-          ,@(build-bind body `(clause-body ,clause))
-          ,@(build-bind options `(clause-options ,clause)))
-      ,@rest))
+(define-with extern (name ret-type types))
+(define-loop extern with-extern do-externs (name ret-type types))
 
-(defmacro do-clauses (clauses (&key head body clause options id (operation 'do)) &body rest)
-   (with-gensyms (el)
-      `(loop-list (,el ,clauses :id ,id :operation ,operation)
-         (let (,@(build-bind clause el))
-            (with-clause ,el (:head ,head :body ,body :options ,options)
-               ,@rest)))))
-               
+(define-with clause (head body options))
+(define-loop clause with-clause do-clauses (head body options))
+              
 (defmacro par-do-clauses (clauses (&key (head nil) (body nil) (clause nil)
                                     (options nil)) &body rest)
    (with-gensyms (el)
@@ -227,91 +251,18 @@
          ,@rest)
       (do-worker-axioms (:head ,head :body ,body :clause ,clause :options ,options)
          ,@rest)))
-            
-(defmacro with-subgoal (subgoal (&key name args options) &body body)
-   `(let (,@(build-bind name `(subgoal-name ,subgoal))
-          ,@(build-bind args `(subgoal-args ,subgoal))
-          ,@(build-bind options `(subgoal-options ,subgoal)))
-      ,@body))
-      
-(defmacro do-subgoal-list (ls (&key (name nil) (args nil)
-                                    (options nil) (id nil)
-                                    (subgoal nil) (operation 'do))
-                               &body body)
-   (with-gensyms (el)
-      `(loop-list (,el ,ls :id ,id :operation ,operation)
-         (let (,@(build-bind subgoal el))
-            (when (subgoal-p ,el)
-               (with-subgoal ,el (:name ,name :args ,args :options ,options)
-                  ,@body))))))
 
-(defmacro do-subgoals (subgoals (&key (name nil) (args nil)
-                                      (options nil) (id nil)
-                                      (subgoal nil) (operation 'do))
-                                 &body body)
-   (let ((arg-list `(:name ,name :args ,args :options ,options :id ,id
-                     :subgoal ,subgoal :operation ,operation)))
-      `(cond
-         ((clause-p ,subgoals)
-            (do-subgoal-list (clause-body ,subgoals) ,arg-list ,@body)
-            (do-subgoal-list (clause-head ,subgoals) ,arg-list ,@body))
-         (t (do-subgoal-list ,subgoals ,arg-list ,@body)))))
-         
-(defmacro with-comprehension (comp (&key left right variables) &body body)
-   `(let (,@(build-bind left `(comprehension-left ,comp))
-          ,@(build-bind right `(comprehension-right ,comp))
-          ,@(build-bind variables `(comprehension-variables ,comp)))
-      ,@body))
-      
-(defmacro do-comprehension-list (ls (&key (left nil) (right nil)
-                                       (comp nil) (variables nil)
-                                       (operation 'do))
-                                 &body body)
-   (with-gensyms (el)
-      `(loop-list (,el ,ls :operation ,operation)
-         (let (,@(build-bind comp el))
-            (when (comprehension-p ,el)
-               (with-comprehension ,el (:left ,left :right ,right :variables ,variables)
-                  ,@body))))))
-                  
-(defmacro do-comprehensions (comps (&key (left nil) (right nil)
-                                         (variables nil)
-                                         (comp nil) (operation 'do)) &body body)
-   (let ((arg-list `(:left ,left :right ,right
-                     :variables ,variables
-                     :comp ,comp :operation ,operation)))
-      `(cond
-         ((clause-p ,comps)
-            (do-comprehension-list (clause-body ,comps) ,arg-list ,@body)
-            (do-comprehension-list (clause-head ,comps) ,arg-list ,@body))
-         (t (do-comprehension-list ,comps ,arg-list ,@body)))))
+(define-term-construct subgoal subgoal-p (name args options))
+(define-term-construct comprehension comprehension-p (left right variables))
+(define-term-construct constraint constraint-p (expr))
+(define-term-construct assignment assignment-p (var expr))
+(define-term-construct agg-construct agg-construct-p (op to vlist body))
 
-(defmacro do-constraints (constraints (&key (expr nil) (constraint nil) (id nil)) &body body)
-   (with-gensyms (el)
-      `(dolist-filter (,el ,constraints constraint-p ,id)
-         (let (,@(build-bind expr `(constraint-expr ,el))
-               ,@(build-bind constraint el))
-            ,@body))))
-            
-(defmacro do-assignments (assignments (&key (var nil) (expr nil) (assignment nil) (id nil)) &body body)
-   (with-gensyms (el)
-      `(dolist-filter (,el ,assignments assignment-p ,id)
-         (let (,@(build-bind var `(assignment-var ,el))
-               ,@(build-bind expr `(assignment-expr ,el))
-               ,@(build-bind assignment `,el))
-            ,@body))))
-            
-(defmacro with-process (process (&key (name nil) (instrs nil) (proc nil)) &body body)
-   (with-gensyms (el)
-      `(let ((,el ,process))
-         (let (,@(build-bind name `(process-name ,el))
-               ,@(build-bind proc el)
-               ,@(build-bind instrs `(process-instrs ,el)))
-            ,@body))))
-            
-(defmacro do-processes ((&key (proc nil) (name nil) (instrs nil) (operation 'do)) &body body)
+(define-with process (name instrs) :use-self-p t)
+
+(defmacro do-processes ((&key (process nil) (name nil) (instrs nil) (operation 'do)) &body body)
    (with-gensyms (el)
       `(loop-list (,el *code* :operation ,operation)
-         (with-process ,el (:name ,name :instrs ,instrs :proc ,proc)
+         (with-process ,el (:name ,name :instrs ,instrs :process ,process)
             ,@body))))
             

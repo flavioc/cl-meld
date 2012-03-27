@@ -63,7 +63,7 @@
    (let ((def (find-init-predicate *definitions*)))
       (assert (not (null def)))
       (with-definition def (:name init-name)
-         (with-process (vm-find init-name) (:instrs instrs :proc proc)
+         (with-process (vm-find init-name) (:instrs instrs :process proc)
             (multiple-value-bind (hash to-keep) (select-node-init instrs)
                (let ((new-instr (make-vm-select-with-rules hash)))
                   (setf (process-instrs proc) (cons new-instr to-keep))))))))
@@ -71,7 +71,7 @@
 (defmacro iterate-code ((&key instrs proc) &body body)
    (with-gensyms (name)
       `(do-definitions (:name ,name)
-         (with-process (vm-find ,name) (:instrs ,instrs :proc ,proc)
+         (with-process (vm-find ,name) (:instrs ,instrs :process ,proc)
             ,@body))))
        
 (defun optimize-return-instr-list (instrs)
