@@ -1,10 +1,5 @@
 
 (in-package :cl-meld)
-
-(defparameter *var-counter* 0)
-(defun generate-random-var ()
-   "Generates a new variable name."
-   (make-var (tostring "MV~a" (incf *var-counter*))))
    
 (defun get-assignments (body) (filter #'assignment-p body))
 (defun get-assignment-vars (assignments) (mapcar #'assignment-var assignments))

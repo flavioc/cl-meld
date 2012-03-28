@@ -43,8 +43,8 @@
 
 (defmacro return-expr (place &optional code) `(values ,place ,code *used-regs*))
 
-(defmacro with-compiled-expr ((place code) expr &body body)
-   `(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr) ,@body))
+(defmacro with-compiled-expr ((place code &key (force-dest nil)) expr &body body)
+   `(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr ,force-dest) ,@body))
    
 (defmacro with-dest-or-new-reg ((dest) &body body)
    `(if (null ,dest)
@@ -89,6 +89,13 @@
          (with-compiled-expr (place code) (convert-float-expr expr)
             (with-dest-or-new-reg (dest)
                (return-expr dest `(,@code ,(make-vm-convert-float place dest))))))
+      ((let-p expr)
+         (with-dest-or-new-reg (dest)
+            (with-compiled-expr (place-expr code-expr) (let-expr expr)
+               (add-used-var (var-name (let-var expr)) place-expr)
+               (with-compiled-expr (place-body code-body :force-dest dest) (let-body expr)
+                  (remove-used-var (var-name (let-var expr)))
+                  (return-expr place-body `(,@code-expr ,@code-body))))))
       ((tail-p expr) (with-compiled-expr (place code) (tail-list expr)
                         (with-dest-or-new-reg (dest)
                            (return-expr dest `(,@code ,(make-vm-tail place dest (expr-type expr)))))))

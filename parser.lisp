@@ -9,29 +9,29 @@
 	("\\{"                           (return (values :lcparen $@)))
 	("\\}"                           (return (values :rcparen $@)))
    ("\\."                           (return (values :dot $@)))
-   ("immediate"                     (return (values :immediate $@)))
- 	("type"			                  (return (values :type $@)))
- 	("extern"                        (return (values :extern $@)))
- 	("const"                         (return (values :const-decl $@)))
-	("int"			                  (return (values :type-int $@)))
-	("float"                         (return (values :type-float $@)))
-	("node"                          (return (values :type-addr $@)))
-	("worker"                        (return (values :type-worker $@)))
-	("list"                          (return (values :type-list $@)))
-	("include"                       (return (values :include $@)))
+   ("\\bimmediate\\b"               (return (values :immediate $@)))
+ 	("\\btype\\b"			            (return (values :type $@)))
+ 	("\\bextern\\b"                  (return (values :extern $@)))
+ 	("\\bconst\\b"                   (return (values :const-decl $@)))
+	("\\bint\\b"			            (return (values :type-int $@)))
+	("\\bfloat\\b"                   (return (values :type-float $@)))
+	("\\bnode\\b"                    (return (values :type-addr $@)))
+	("\\bworker\\b"                  (return (values :type-worker $@)))
+	("\\blist\\b"                    (return (values :type-list $@)))
+	("\\binclude\\b"                 (return (values :include $@)))
 	("@world"                        (return (values :world $@)))
 	("@"                             (return (values :local $@)))
 	("-o"                            (return (values :lolli $@)))
 	("\\!"                           (return (values :bang $@)))
 	("\\$"                           (return (values :dollar $@)))
-	("linear"                        (return (values :linear $@)))
-	("%count"                        (return (values :count $@)))
+	("\\blinear\\b"                  (return (values :linear $@)))
 	("=>"                            (return (values :to $@)))
 	(":-"                            (return (values :arrow  $@)))
+	("\\:"                           (return (values :colon $@)))
 	("\\("			                  (return (values :lparen $@)))
 	("\\)"			                  (return (values :rparen $@)))
 	("\\|"                           (return (values :bar $@)))
-	("nil"                           (return (values :nil $@)))
+	("\\bnil\\b"                     (return (values :nil $@)))
 	("/\\*.*\\*/"                    (return (values :comment)))
 	("\\<-"                          (return (values :input $@)))
 	("\\->"                          (return (values :output $@)))
@@ -45,12 +45,12 @@
 	("\\>"                           (return (values :greater $@)))
 	("\\>="                          (return (values :greater-equal $@)))
 	("\\="                           (return (values :equal $@)))
-	("min"                           (return (values :min $@)))
-	("max"                           (return (values :max $@)))
-	("sum"                           (return (values :sum $@)))
-	("first"                         (return (values :first $@)))
-	("route"                         (return (values :route $@)))
-	("action"                        (return (values :action $@)))
+	("\\broute\\b"                   (return (values :route $@)))
+	("\\baction\\b"                  (return (values :action $@)))
+	("\\blet\\b"                     (return (values :let $@)))
+	("\\bin\\b"                      (return (values :in $@)))
+	("\\bend\\b"                     (return (values :end $@)))
+	("\\bfun\\b"                     (return (values :fun $@)))
 	("_"				                  (return (values :variable $@)))
  	("[a-z]([a-z]|[A-Z]|\_)*"		   (return (values :const $@)))
 	("'\\w+"		                     (return (values :const $@)))
@@ -93,6 +93,53 @@
 (defvar *included-files* nil)
 (defun add-included-file (file) (push (subseq file 1) *included-files*))
 
+(defvar *defined-functions* nil)
+(defun add-defined-function (fun) (push fun *defined-functions*))
+
+(defun has-function-call-p (name)
+   (do-functions *defined-functions* (:name other :function f)
+      (when (string-equal other name)
+         (return-from has-function-call-p f)))
+   nil)
+   
+(defun generate-part-expression (final-type body fun-args args)
+   (let ((this-fun-arg (first fun-args))
+         (this-arg (first args))
+         (rest-fun-args (rest fun-args))
+         (rest-args (rest args)))
+      (cond
+         ((var-p this-arg)
+            (let ((new-body (map-one-variable-to-another body this-fun-arg this-arg)))
+               (setf (var-type this-arg) (var-type this-fun-arg))
+               (cond
+                  ((one-elem-p fun-args) new-body)
+                  (t (generate-part-expression final-type
+                           new-body
+                           rest-fun-args
+                           rest-args)))))
+         (t
+            (let* ((new-var-name (generate-random-var-name))
+                   (new-var (make-var new-var-name (var-type this-fun-arg)))
+                   (new-body (map-one-variable-to-another body this-fun-arg new-var)))
+               (cond
+                  ((one-elem-p fun-args)
+                     (make-let new-var
+                        this-arg
+                        new-body 
+                        final-type))
+                  (t
+                     (make-let new-var
+                        this-arg
+                        (generate-part-expression final-type new-body rest-fun-args rest-args)
+                        final-type))))))))
+   
+(defun generate-expression-by-function-call (fun args)
+   (with-function fun (:args fun-args :ret-type ret-type :body body :name name)
+      (unless (= (length args) (length fun-args))
+         (error 'parse-error :text (tostring "function call to ~a has invalid number of arguments" name)))
+      (generate-part-expression ret-type body fun-args args)
+      ))
+
 (defun may-be-worker-types-p (types)
    (and types
         (type-worker-p (first types))))
@@ -100,6 +147,20 @@
    (let* ((initial-options (if option (list option)))
           (all-options (append initial-options (if (may-be-worker-types-p types) '(:worker)))))
       (make-definition name types all-options)))
+
+(defun parse-agg-construct (str)
+   (cond
+      ((string-equal str "count") :count)
+      ((string-equal str "sum") :sum)))
+      
+(defun parse-agg-decl (str)
+   (cond
+      ((string-equal str "sum") :sum)
+      ((string-equal str "min") :min)
+      ((string-equal str "max") :max)
+      ((string-equal str "first") :first)
+      (t
+         (error 'parse-error :text (tostring "aggregate declaration not recognized ~a" str)))))
 
 (define-parser meld-parser
  	(:start-symbol program)
@@ -110,18 +171,19 @@
 								:bar :arrow :dot :comma :type-int :type-addr
 								:type-worker :type-float :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal :equal
-								:extern :const-decl :min :max :first :sum
+								:extern :const-decl
 								:lsparen :rsparen :nil :bar :type-list :local
 								:route :include :file :world :action
 								:output :input :immediate :linear
 								:dollar :lcparen :rcparen :lolli
-								:bang :count :to))
+								:bang :to :let :in :fun :end :colon))
 
 	(program
-	  (includes definitions externs consts statements #L(make-ast  !2 ; definitions
+	  (includes definitions externs consts funs statements #L(make-ast  !2 ; definitions
 	                                                               !3 ; externs
-	                                                               (remove-if #'is-axiom-p !5) ; clauses
-	                                                               (filter #'is-axiom-p !5) ; axioms
+	                                                               (remove-if #'is-axiom-p !6) ; clauses
+	                                                               (filter #'is-axiom-p !6) ; axioms
+	                                                               !5
 	                                                               (defined-nodes-list)))) ; nodes
 
 	(includes
@@ -149,6 +211,25 @@
    	                                             (push (make-const-definition name expr) *parsed-consts*)
    	                                             nil)))
 
+   (funs
+      ()
+      (fun funs #'cons))
+      
+   (fun
+      (:fun const :lparen fun-args :rparen :colon atype :equal expr :dot
+            #'(lambda (f name l args r c ret-type eq body d)
+               (declare (ignore f l r c eq d))
+                  (let ((fun (make-function name args ret-type body)))
+                     (add-defined-function fun)
+                     fun))))
+                  
+   (fun-args
+      (fun-arg #'list)
+      (fun-arg :comma fun-args #'cons))
+      
+   (fun-arg
+      (atype variable #'(lambda (typ var) (make-var (var-name var) typ))))
+         
    (externs
       ()
       (extern-definition externs #'cons))
@@ -175,11 +256,8 @@
     (aggregate-decl atype aggregate-mods #'make-aggregate))
     
    (aggregate-decl
-    (:min (return-const :min))
-    (:max (return-const :max))
-    (:first (return-const :first))
-    (:sum (return-const :sum)))
-    
+      (const #L(parse-agg-decl !1)))
+
    (aggregate-mods
      ()
      (:lsparen :immediate :rsparen (return-const :immediate))
@@ -247,13 +325,10 @@
 	   (variable :comma variable-list #'(lambda (v c l) (declare (ignore c)) (cons v l))))
 	
 	(aggregate-thing
-	   (:lsparen aggregate-construct :to variable :bar variable-list :bar terms :rsparen
+	   (:lsparen const :to variable :bar variable-list :bar terms :rsparen
 	         #'(lambda (l aconstruct to var b1 vlist b2 terms r) (declare (ignore l r b1 b2 to))
-	               (make-agg-construct aconstruct var vlist terms))))
-	   
-	(aggregate-construct
-	   (:count (return-const :count)))
-	                                   
+	               (make-agg-construct (parse-agg-construct aconstruct) var vlist terms))))
+	                          
    (constraint
       (cmp #'(lambda (c) (make-constraint c))))
 
@@ -263,7 +338,12 @@
 
 	(expr
 	   variable
-	   (const :lparen args :rparen #'(lambda (name l args r) (declare (ignore l r)) (make-call name args)))
+	   (const :lparen args :rparen #'(lambda (name l args r) (declare (ignore l r))
+	            (acond
+	               ((has-function-call-p name)
+	                  (generate-expression-by-function-call it args)
+	                  )
+	               (t (make-call name args)))))
 	   (const #L(lookup-const-def !1))
 	   (:local :number #L(let ((val (parse-integer !2))) (add-found-node val) (make-addr val)))
 		(:number #L(parse-number !1))
@@ -275,6 +355,7 @@
 	   (expr :mod expr #'make-mod)
 	   (expr :div expr #'make-div)
 	   (expr :plus expr #'make-plus)
+	   (:let variable :equal expr :in expr :end #'(lambda (l var eq expr i body e) (declare (ignore l eq i e)) (make-let var expr body)))
 	   (list-expr #'identity))
 	   
 	(list-expr
@@ -369,6 +450,7 @@
 (defun parse-meld-file-rec (file)
    "Parses a Meld file, including included files."
    (let* ((*included-files* nil)
+          (*defined-functions* nil)
           (ast (with-inner-parse-context
                   (parse-file-as-stream file))))
       (in-directory (pathname (directory-namestring (pathname file)))

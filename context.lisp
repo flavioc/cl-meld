@@ -14,5 +14,6 @@
 (define-symbol-macro *worker-axioms* (worker-axioms *ast*))
 (define-symbol-macro *nodes* (nodes *ast*))
 (define-symbol-macro *externs* (externs *ast*))
+(define-symbol-macro *functions* (functions *ast*))
 
 (defun set-abstract-syntax-tree (ast) (setf *ast* ast))

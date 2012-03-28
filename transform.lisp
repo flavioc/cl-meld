@@ -55,6 +55,10 @@
          (transform-part-expression (cons-tail expr)))
       ((head-p expr) (transform-part-expression (head-list expr)))
       ((tail-p expr) (transform-part-expression (tail-list expr)))
+      ((let-p expr)
+         (transform-part-expression (let-var expr))
+         (transform-part-expression (let-expr expr))
+         (transform-part-expression (let-body expr)))
       ((not-p expr) (transform-part-expression (not-expr expr)))
       ((test-nil-p expr) (transform-part-expression (test-nil-expr expr)))
       ((convert-float-p expr) (transform-part-expression (convert-float-expr expr)))
@@ -123,6 +127,11 @@
          (with-mapped-expr
             (make-assignment (do-map-expr (assignment-var expr))
                              (do-map-expr (assignment-expr expr)))))
+      ((let-p expr)
+         (with-mapped-expr
+            (make-let (do-map-expr (let-var expr))
+                      (do-map-expr (let-expr expr))
+                      (do-map-expr (let-body expr)))))
       ((call-p expr)
          (with-mapped-expr
             (make-call (call-name expr)
@@ -175,3 +184,17 @@
                            (declare (ignore var))
                            (values host-id :stop))
                      expr)))
+
+(defun map-one-variable-to-another (expr old-var new-var)
+   (map-expr #'(lambda (x) (var-eq-p x old-var))
+                   #'(lambda (var) (declare (ignore var)) new-var)
+                  expr
+            :go-down-fn
+            #'(lambda (x)
+               (cond
+                  ((let-p x)
+                     (if (var-eq-p (let-var x) old-var)
+                           nil
+                           t))
+                  (t t)))
+               ))

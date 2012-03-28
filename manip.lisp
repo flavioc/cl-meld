@@ -19,6 +19,13 @@
 (defun call-name (call) (second call))
 (defun call-args (call) (third call))
 
+(defun make-function (name args ret-type body)
+   `(:function ,name ,args ,ret-type ,body))
+(defun function-name (fun) (second fun))
+(defun function-args (fun) (third fun))
+(defun function-ret-type (fun) (fourth fun))
+(defun function-body (fun) (fifth fun))
+
 (defun make-cons (h ts) `(:cons ,h ,ts))
 (defun cons-head (c) (second c))
 (defun cons-tail (c) (third c))
@@ -77,10 +84,7 @@
    "Returns the home body of a body list.
    Note that other things other than subgoals may be present"
    (do-subgoals list (:args args)
-      (return-from first-host-node (first args)))
-   (do-agg-constructs list (:body body)
-      (do-subgoals body (:args args)
-         (return-from first-host-node (first args)))))
+      (return-from first-host-node (first args))))
       
 (defun clause-head-host-node (clause)
    "Returns the host node of a clause.
@@ -113,8 +117,6 @@
 (defun set-colocated-second (c new)
    (setf (third c) new))
 (defsetf colocated-second set-colocated-second)
-      
-(defun make-var (var &optional typ) `(:var ,(if (stringp var) (str->sym var) var) ,@(if typ `(,typ) nil)))
 
 (defun make-definition (name typs options) `(:definition ,name ,typs ,options))
 (defun definition-p (def) (tagged-p def :definition))
@@ -254,6 +256,21 @@
 (defun op-p (val)
    (any (plus-p minus-p mul-p div-p mod-p not-equal-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p) val))
 
+(defun make-let (var expr body &optional type) `(:let ,var ,expr ,body ,type))
+(defun let-p (l) (tagged-p l :let))
+(defun let-var (l) (second l))
+(defun let-expr (l) (third l))
+(defun let-body (l) (fourth l))
+(defun set-let-var (l v)
+   (setf (second l) v))
+(defsetf let-var set-let-var)
+(defun set-let-expr (l expr)
+   (setf (third l) expr))
+(defsetf let-expr set-let-expr)
+(defun set-let-body (l body)
+   (setf (fourth l) body))
+(defsetf let-body set-let-body)
+   
 (defun int-val (val) (second val))
 (defun make-int (int &optional typ)
    (if typ
@@ -275,8 +292,25 @@
 
 (defun make-world () (list :world))
 
+
+(defun make-var (var &optional typ) `(:var ,(if (stringp var) (str->sym var) var) ,@(if typ `(,typ) nil)))      
 (defun var-name (val) (second val))
+(defun var-type (val) (third val))
 (defun var-eq-p (v1 v2) (equal (var-name v1) (var-name v2)))
+(defun set-var-type (var ty)
+   (cond
+      ((= (length var) 2)
+         (push-end ty var))
+      (t
+         (setf (third var) ty))))
+(defsetf var-type set-var-type)
+
+(defparameter *var-counter* 0)
+(defun generate-random-var-name ()
+   (tostring "MV~a" (incf *var-counter*)))
+(defun generate-random-var ()
+   "Generates a new variable name."
+   (make-var (generate-random-var-name)))
 
 ;;;; ASSIGNMENTS
 

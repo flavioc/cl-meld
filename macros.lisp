@@ -11,7 +11,25 @@
 (defmacro tostring (&rest args)
    `(with-output-to-string (str)
       (format str ,@args)))
+      
+(defmacro aif (test-form then-form &optional else-form)
+  `(let ((it ,test-form))
+     (if it ,then-form ,else-form)))
+
+(defmacro awhen (test-form &body body)
+  `(aif ,test-form
+	   (progn ,@body)))
          
+(defmacro acond (&rest clauses)
+  (if (null clauses)
+      nil
+    (let ((cl1 (car clauses))
+	  (sym (gensym)))
+      `(let ((,sym ,(car cl1)))
+	 (if ,sym
+	     (let ((it ,sym)) ,@(cdr cl1))
+	   (acond ,@(cdr clauses)))))))
+	   
 (defmacro ensure-bool (form) `(if ,form t nil))
  
 (defmacro on-top-level (&rest forms)
@@ -201,7 +219,10 @@
 
 (define-with clause (head body options))
 (define-loop clause with-clause do-clauses (head body options))
-              
+
+(define-with function (name args ret-type body))
+(define-loop function with-function do-functions (name args ret-type body))
+     
 (defmacro par-do-clauses (clauses (&key (head nil) (body nil) (clause nil)
                                     (options nil)) &body rest)
    (with-gensyms (el)

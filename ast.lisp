@@ -25,6 +25,10 @@
       :initarg :worker-axioms
       :initform (error "missing worker axioms.")
       :accessor worker-axioms)
+    (functions
+      :initarg :functions
+      :initform (error "missing functions.")
+      :accessor functions)
     (nodes
       :initarg :nodes
       :initform (error "missing nodes.")
@@ -35,7 +39,7 @@
       (let ((first (find-if #'subgoal-p (clause-head clause))))
          (is-worker-definition-p (lookup-definition (subgoal-name first) defs)))))
 
-(defun make-ast (defs externs clauses axioms nodes)
+(defun make-ast (defs externs clauses axioms funs nodes)
    (multiple-value-bind (worker-clauses node-clauses) (split-mult-return (is-worker-clause-p defs) clauses)
       (multiple-value-bind (worker-axioms node-axioms) (split-mult-return (is-worker-clause-p defs) axioms)
          (make-instance 'ast
@@ -45,6 +49,7 @@
             :worker-clauses worker-clauses
             :axioms node-axioms
             :worker-axioms worker-axioms
+            :functions funs
             :nodes nodes))))
  
 (defun merge-asts (ast1 ast2)
@@ -56,6 +61,7 @@
          :worker-clauses (nconc (worker-clauses ast1) (worker-clauses ast2))
          :axioms (nconc (axioms ast1) (axioms ast2))
          :worker-axioms (nconc (worker-axioms ast1) (worker-axioms ast2))
+         :functions (nconc (functions ast1) (functions ast2))
          :nodes (union (nodes ast1) (nodes ast2))))
 
 ;;;;;;;;;;;;;;;;;;;
@@ -63,6 +69,7 @@
 ;;;;;;;;;;;;;;;;;;;
 
 (defun make-clause (perm conc &rest options) `(:clause ,perm ,conc ,options))
+(defun make-axiom (conc &rest options) (make-clause nil conc options))
 (defun clause-p (clause) (tagged-p clause :clause))
 (defun clause-head (clause) (third clause))
 (defun clause-body (clause) (second clause))

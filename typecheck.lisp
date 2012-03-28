@@ -11,79 +11,6 @@
       (error 'type-invalid-error
          :text (concatenate 'string "first argument of tuple " name " must be of type 'node' or 'worker'"))))
          
-(defun valid-aggregate-p (agg)
-   (let ((agg (aggregate-agg agg))
-         (typ (aggregate-type agg)))
-      (case agg
-         (:first t)
-         (:sum
-            (eq-or typ :type-int :type-float :type-list-int :type-list-float))
-         ((:min :max)
-            (eq-or typ :type-int :type-float)))))
-            
-(defun update-aggregate-head (head body modifier edge-name agg-name get-fun)
-   ;; If this rule produces an aggregate fact, push the route node into the last
-   ;; argument or else put the home node (for local rules)
-   (let ((head-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals head))))
-      (when head-subs
-         (let* ((host (first-host-node head))
-                (routes (filter #L(equal (subgoal-name !1) edge-name) (get-subgoals body))))
-            (if routes
-               (setf host (funcall get-fun (subgoal-args (first routes))))
-               (unless (aggregate-mod-includes-home-p modifier)
-                  (aggregate-mod-include-home modifier)))
-            (loop for sub in head-subs
-                  do (push-end host (subgoal-args sub)))))))
-         
-
-(defun update-aggregate-input (modifier edge-name agg-name get-fun)
-   "For an aggregate that has an INPUT/OUTPUT modifier, executes source code transformations
-   that puts the input/output node as the last argument of the aggregate"
-   (do-axioms (:head head)
-      (update-aggregate-head head nil modifier edge-name agg-name get-fun))
-   (do-rules (:head head :body body)
-      (update-aggregate-head head body modifier edge-name agg-name get-fun)
-      ;; Add an unnamed variable for clauses that use the aggregated result.
-      (let ((body-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals body))))
-         (loop for sub in body-subs
-               do (push-end (generate-random-var) (subgoal-args sub)))))
-   (let ((def (lookup-definition agg-name)))
-      (assert (not (null def)))
-      (push-end :type-addr (definition-types def))))
-
-(defun valid-aggregate-modifier-p (agg-name agg)
-   (let ((aggmod (aggregate-mod agg)))
-      (cond
-         ((null aggmod) t)
-         ((aggregate-mod-is-immediate-p aggmod) t)
-         ((aggregate-mod-is-input-p aggmod)
-            (let* ((name (aggregate-mod-io-name aggmod))
-                   (def (lookup-definition name))
-                   (ret (and def (is-route-p def))))
-               (when ret
-                  (update-aggregate-input aggmod name agg-name #'first))
-               ret))
-         ((aggregate-mod-is-output-p aggmod)
-            (let* ((name (aggregate-mod-io-name aggmod))
-                   (def (lookup-definition name))
-                   (ret (and def (is-route-p def))))
-               (when ret
-                  (update-aggregate-input aggmod name agg-name #'second))
-               ret)))))
-
-(defun check-aggregates (name typs)
-   (let ((total (count-if #'aggregate-p typs)))
-      (unless (<= total 1)
-         (error 'type-invalid-error
-            :text (concatenate 'string "tuple " name " must have only one aggregate")))
-      (when-let ((agg (find-if #'aggregate-p typs)))
-         (unless (valid-aggregate-p agg)
-            (error 'type-invalid-error
-               :text "invalid aggregate type"))
-         (unless (valid-aggregate-modifier-p name agg)
-            (error 'type-invalid-error
-               :text "invalid aggregate modifier")))))
-         
 (defun no-types-p (ls) (null ls))
 (defun merge-types (ls types) (intersection ls types))
 (defun valid-type-combination-p (types)
@@ -121,6 +48,7 @@
                (not-p expr) (test-nil-p expr) (addr-p expr) (convert-float-p expr))
             (setf (cddr expr) typ))
          ((or (call-p expr) (op-p expr) (cons-p expr) (colocated-p expr)) (setf (cdddr expr) typ))
+         ((or (let-p expr)) (setf (cddddr expr) typ))
          (t (error 'type-invalid-error :text (tostring "Unknown expression ~a to set-type" expr))))))
       
 (defun force-constraint (var new-types)
@@ -167,6 +95,26 @@
                            for arg in (call-args expr)
                            do (get-type arg `(,typ)))
                      (merge-types forced-types `(,(extern-ret-type extern)))))
+               ((let-p expr)
+                  (if (variable-defined-p (let-var expr))
+                     (error 'type-invalid-error :text (tostring "Variable ~a in LET is already defined" (let-var expr))))
+                  (let* (ret
+                         constraints
+                         (var (let-var expr))
+                         (typ-expr (get-type (let-expr expr) *all-types*)))
+                     (extend-typecheck-context
+                        (force-constraint (var-name var) typ-expr)
+                        (variable-is-defined var)
+                        (setf ret (get-type (let-body expr) forced-types))
+                        (setf constraints (get-var-constraint (var-name var))))
+                     (when (and (equal typ-expr constraints)
+                                 (> (length constraints) 1))
+                        
+                        (error 'type-invalid-error :text
+                              (tostring "Type of variable ~a cannot be properly defined. Maybe it is not being used in the LET?" var)))
+                     (get-type (let-expr expr) constraints) 
+                     ret
+                  ))
                ((convert-float-p expr)
                   (get-type (convert-float-expr expr) '(:type-int))
                   (merge-types forced-types '(:type-float)))
@@ -264,6 +212,8 @@
          (extend-typecheck-context
             (type-check-body body)
             (let ((new-ones *defined-in-context*))
+               (when (eq op :sum)
+                  (push (var-name to) target-variables))
                (unless (subsetp new-ones target-variables)
                   (warn "~a" new-ones)
                   (error 'type-invalid-error :text (tostring "Aggregate ~a is using more variables than it specifies" c)))
@@ -273,6 +223,9 @@
          (case op
             (:count
                (force-constraint (var-name to) '(:type-int))
+               (variable-is-defined to))
+            (:sum
+               (get-type to types)
                (variable-is-defined to))
             (otherwise
                (error 'type-invalid-error :text (tostring "Unrecognized aggregate operator ~a" op)))))))
@@ -408,8 +361,7 @@
             
 (defun type-check ()
    (do-definitions (:name name :types typs)
-      (check-home-argument name typs)
-      (check-aggregates name typs))
+      (check-home-argument name typs))
    (add-variable-head)
    (do-rules (:clause clause)
       (transform-clause-constants clause))
