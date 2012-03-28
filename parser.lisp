@@ -41,6 +41,7 @@
 	("\\%"                           (return (values :mod $@)))
 	("\\/"                           (return (values :div $@)))
 	("\\<="                          (return (values :lesser-equal $@)))
+	("\\<>"                          (return (values :not-equal $@)))
 	("\\<"                           (return (values :lesser $@)))
 	("\\>"                           (return (values :greater $@)))
 	("\\>="                          (return (values :greater-equal $@)))
@@ -176,7 +177,8 @@
 								:route :include :file :world :action
 								:output :input :immediate :linear
 								:dollar :lcparen :rcparen :lolli
-								:bang :to :let :in :fun :end :colon))
+								:bang :to :let :in :fun :end :colon
+								:not-equal))
 
 	(program
 	  (includes definitions externs consts funs statements #L(make-ast  !2 ; definitions
@@ -370,6 +372,7 @@
 
    (cmp
       (expr :equal expr #'make-equal)
+      (expr :not-equal expr #'make-not-equal)
       (expr :lesser expr #'make-lesser)
       (expr :lesser-equal expr #'make-lesser-equal)
       (expr :greater expr #'make-greater)
