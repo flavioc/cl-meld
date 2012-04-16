@@ -59,6 +59,10 @@
          (transform-part-expression (let-var expr))
          (transform-part-expression (let-expr expr))
          (transform-part-expression (let-body expr)))
+      ((if-p expr)
+         (transform-part-expression (if-cmp expr))
+         (transform-part-expression (if-e1 expr))
+         (transform-part-expression (if-e2 expr)))
       ((not-p expr) (transform-part-expression (not-expr expr)))
       ((test-nil-p expr) (transform-part-expression (test-nil-expr expr)))
       ((convert-float-p expr) (transform-part-expression (convert-float-expr expr)))
@@ -152,6 +156,11 @@
       ((test-nil-p expr)
          (with-mapped-expr
             (make-test-nil (do-map-expr (test-nil-expr expr)))))
+      ((if-p expr)
+         (with-mapped-expr
+            (make-if (do-map-expr (if-cmp expr))
+                     (do-map-expr (if-e1 expr))
+                     (do-map-expr (if-e2 expr)))))
       ((convert-float-p expr)
          (with-mapped-expr
             (make-convert-float (do-map-expr (convert-float-expr expr)))))

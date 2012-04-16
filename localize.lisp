@@ -38,7 +38,7 @@
 (defun create-inverse-non-fact-route-definition (route new-name)
    (let* ((old-definition (lookup-definition-types route))
           (new-definition (make-definition new-name old-definition (list :route `(:reverse-route ,route)))))
-      (push new-definition *definitions*)
+      (push-end new-definition *definitions*)
       new-definition))
       
 (defun create-inverse-non-fact-route (route new-name new-definition)
@@ -261,12 +261,21 @@
             (error 'localize-invalid-error
                      :text (tostring "Variable was not found: ~a" first-arg)))))
    (do-comprehensions head (:left left :right right)
-      (do-subgoals left (:args args)
+      (do-subgoals left (:args args :subgoal sub :name name)
          (let ((first-arg (first args)))
             (unless (and (var-p first-arg)
                            (var-eq-p host first-arg))
-                  (error 'localize-invalid-error
-                           :text (tostring "Variable is not host: ~a" first-arg)))))))
+					(let ((def (lookup-subgoal-definition sub)))
+						(cond
+							((and (is-route-p def)
+										(= (length (get-subgoals left)) 1)
+										(var-eq-p host (second args)))
+								(let ((inverse-name (generate-inverse-name name)))
+									(setf (subgoal-name sub) inverse-name)
+									(setf (subgoal-args sub) (swap-first-two-args args)))
+								(add-route-fact-to-invert name))
+                  	(t (error 'localize-invalid-error
+                           	:text (tostring "Variable is not host: ~a" first-arg))))))))))
 
 (defun remove-home-argument-clause (clause)
    (let ((host (clause-host-node clause)))

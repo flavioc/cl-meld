@@ -43,8 +43,8 @@
 	("\\<="                          (return (values :lesser-equal $@)))
 	("\\<>"                          (return (values :not-equal $@)))
 	("\\<"                           (return (values :lesser $@)))
-	("\\>"                           (return (values :greater $@)))
 	("\\>="                          (return (values :greater-equal $@)))
+	("\\>"                           (return (values :greater $@)))
 	("\\="                           (return (values :equal $@)))
 	("\\broute\\b"                   (return (values :route $@)))
 	("\\baction\\b"                  (return (values :action $@)))
@@ -52,6 +52,9 @@
 	("\\bin\\b"                      (return (values :in $@)))
 	("\\bend\\b"                     (return (values :end $@)))
 	("\\bfun\\b"                     (return (values :fun $@)))
+	("\\bif\\b"                      (return (values :if $@)))
+   ("\\bthen\\b"                    (return (values :then $@)))
+   ("\\belse\\b"                    (return (values :else $@)))
 	("_"				                  (return (values :variable $@)))
  	("[a-z]([a-z]|[A-Z]|\_)*"		   (return (values :const $@)))
 	("'\\w+"		                     (return (values :const $@)))
@@ -178,7 +181,7 @@
 								:output :input :immediate :linear
 								:dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :fun :end :colon
-								:not-equal))
+								:not-equal :if :then :else))
 
 	(program
 	  (includes definitions externs consts funs statements #L(make-ast  !2 ; definitions
@@ -357,6 +360,9 @@
 	   (expr :mod expr #'make-mod)
 	   (expr :div expr #'make-div)
 	   (expr :plus expr #'make-plus)
+	   (:if cmp :then expr :else expr :end #'(lambda (if cmp then e1 else e2 end)
+	                                                (declare (ignore if then else end))
+	                                                (make-if cmp e1 e2)))
 	   (:let variable :equal expr :in expr :end #'(lambda (l var eq expr i body e) (declare (ignore l eq i e)) (make-let var expr body)))
 	   (list-expr #'identity))
 	   

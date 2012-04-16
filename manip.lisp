@@ -161,6 +161,8 @@
    (definition-has-option-p def :route))
 (defun is-linear-p (def)
    (definition-has-option-p def :linear))
+(defun is-action-p (def)
+   (definition-has-option-p def :action))
 (defun is-reverse-route-p (def)
    (definition-has-tagged-option-p def :reverse-route))
 (defun find-init-predicate (defs) (find-if #'is-init-p defs))
@@ -271,6 +273,21 @@
    (setf (fourth l) body))
 (defsetf let-body set-let-body)
    
+(defun make-if (cmp e1 e2 &optional type) `(:if ,cmp ,e1 ,e2 ,type))
+(defun if-p (i) (tagged-p i :if))
+(defun if-cmp (i) (second i))
+(defun if-e1 (i) (third i))
+(defun if-e2 (i) (fourth i))
+(defun set-if-cmp (i cmp)
+   (setf (second i) cmp))
+(defsetf if-cmp set-if-cmp)
+(defun set-if-e1 (i e1)
+   (setf (third i) e1))
+(defsetf if-e1 set-if-e1)
+(defun set-if-e2 (i e2)
+   (setf (fourth i) e2))
+(defsetf if-e2 set-if-e2)
+   
 (defun int-val (val) (second val))
 (defun make-int (int &optional typ)
    (if typ
@@ -336,6 +353,9 @@
 (defun comprehension-left (comp) (second comp))
 (defun comprehension-right (comp) (third comp))
 (defun comprehension-variables (comp) (fourth comp))
+(defun set-comprehension-left (comp left)
+	(setf (second comp) left))
+(defsetf comprehension-left set-comprehension-left)
 
 ;;;; AGGREGATES
 
@@ -358,6 +378,9 @@
 
 (defun subgoal-p (ls) (tagged-p ls :subgoal))
 (defun subgoal-name (subgoal) (second subgoal))
+(defun set-subgoal-name (subgoal name)
+	(setf (second subgoal) name))
+(defsetf subgoal-name set-subgoal-name)
 (defun subgoal-args (subgoal) (third subgoal))
 (defun set-subgoal-args (subgoal new-args)
    (setf (third subgoal) new-args))

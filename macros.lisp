@@ -23,12 +23,14 @@
 (defmacro acond (&rest clauses)
   (if (null clauses)
       nil
-    (let ((cl1 (car clauses))
-	  (sym (gensym)))
-      `(let ((,sym ,(car cl1)))
-	 (if ,sym
-	     (let ((it ,sym)) ,@(cdr cl1))
-	   (acond ,@(cdr clauses)))))))
+    (let ((cl1 (car clauses)))
+	   (if (eq (car cl1) t)
+	      `(progn ,@(cdr cl1))
+	      (let ((sym (gensym)))
+            `(let ((,sym ,(car cl1)))
+	            (if ,sym
+	               (let ((it ,sym)) ,@(cdr cl1))
+	                  (acond ,@(cdr clauses)))))))))
 	   
 (defmacro ensure-bool (form) `(if ,form t nil))
  

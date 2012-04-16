@@ -74,7 +74,7 @@
       (:int-div #b10101)
       (:addr-equal #b10111)
       (:addr-not-equal #b10110)
-      (otherwise (error 'output-invalid-error :text "Unknown operation to convert"))))
+      (otherwise (error 'output-invalid-error :text (tostring "Unknown operation to convert ~a" op)))))
       
 (defun reg-to-byte (reg) (reg-num reg))
 
@@ -182,12 +182,12 @@
                   (let ((res (output-value arg)))
                      (add-byte (first res) vec)
                      (add-bytes vec (second res))))))
-      (:if (let ((reg-b (reg-to-byte (if-reg instr))))
+      (:if (let ((reg-b (reg-to-byte (vm-if-reg instr))))
              (write-jump vec 2
                (add-byte #b01100000 vec)
                (add-byte (logand *reg-mask* reg-b) vec)
                (jumps-here vec)
-               (output-instrs (if-instrs instr) vec))))
+               (output-instrs (vm-if-instrs instr) vec))))
       (:iterate (write-jump vec 2
                   (add-byte #b10100000 vec)
                   (add-byte (lookup-tuple-id (iterate-name instr)) vec)
@@ -329,10 +329,15 @@
    (letret (prop #b00000000)
       (when (definition-aggregate def)
          (setf prop (logior prop #b00000001)))
-      (cond
-         ((is-reverse-route-p def) (setf prop (logior prop #b00000100)))
-         ((is-route-p def) (setf prop (logior prop #b00000010)))
-         ((is-linear-p def) (setf prop (logior prop #b00001000))))))
+      (when (is-reverse-route-p def)
+         (setf prop (logior prop #b00000100)))
+      (when (is-route-p def)
+         (setf prop (logior prop #b00000010)))
+      (when (is-linear-p def)
+         (setf prop (logior prop #b00001000)))
+      (when (is-action-p def)
+         (setf prop (logior prop #b00010000)))
+      prop))
 
 (defparameter *max-tuple-name* 32)
 (defparameter *max-tuple-args* 32)

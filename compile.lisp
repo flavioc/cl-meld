@@ -96,6 +96,13 @@
                (with-compiled-expr (place-body code-body :force-dest dest) (let-body expr)
                   (remove-used-var (var-name (let-var expr)))
                   (return-expr place-body `(,@code-expr ,@code-body))))))
+      ((if-p expr)
+         (with-compiled-expr (place-cmp code-cmp) (if-cmp expr)
+            (with-dest-or-new-reg (dest)
+               (let ((code1 (compile-expr-to (if-e1 expr) dest))
+                     (code2 (compile-expr-to (if-e2 expr) dest)))
+                  (return-expr dest `(,@code-cmp ,(make-vm-if place-cmp code1)
+                        ,(make-vm-not place-cmp place-cmp) ,(make-vm-if place-cmp code2)))))))
       ((tail-p expr) (with-compiled-expr (place code) (tail-list expr)
                         (with-dest-or-new-reg (dest)
                            (return-expr dest `(,@code ,(make-vm-tail place dest (expr-type expr)))))))
@@ -137,7 +144,10 @@
             (let ((place (if (nil-p op1) place2 place1))
                   (code (if (nil-p op1) code2 code1)))
                `(,@code ,(make-vm-test-nil place dest))))
-         (t `(,@code1 ,@code2 ,(make-vm-op dest place1 (set-type-to-op operand-type ret-type base-op) place2))))))
+         (t
+				(let ((vm-op (set-type-to-op operand-type ret-type base-op)))
+					(assert (not (null vm-op)))
+					`(,@code1 ,@code2 ,(make-vm-op dest place1 vm-op place2)))))))
 
 (defun get-remote-dest (subgoal)
    (lookup-used-var (subgoal-get-remote-dest subgoal)))
@@ -181,7 +191,7 @@
                (multiple-value-bind (remain-instrs places) (compile-remain-delete-args 2 remain)
                   ;(format t "remain-instrs ~a places ~a~%" remain-instrs places)
                   (let* ((delete-code (make-vm-delete (subgoal-name subgoal) `(,(cons 1 place) ,@places)))
-                         (if-instr (make-if reg `(,delete-code))))
+                         (if-instr (make-vm-if reg `(,delete-code))))
                      `(,@instrs ,@remain-instrs ,greater-instr ,if-instr))))))))
             
 (defun compile-inner-delete (clause)
@@ -208,9 +218,7 @@
             
 (defun do-compile-head-comprehensions (head clause def subgoal)
    (let ((code (do-comprehensions head (:left left :right right :operation append)
-                  (let ((new-body left)
-                        (new-head right))
-                     (compile-iterate new-body new-body new-head nil nil nil)))))
+                  (compile-iterate left left right nil nil nil))))
       (cond
          ((null code) nil)
          (t
@@ -276,7 +284,7 @@
 (defun compile-constraint (inner-code constraint)
    (let ((c-expr (constraint-expr constraint)))
       (with-compiled-expr (reg expr-code) c-expr
-         `(,@expr-code ,(make-if reg inner-code)))))
+         `(,@expr-code ,(make-vm-if reg inner-code)))))
                
 (defun select-best-constraint (constraints all-vars)
    (let ((all (filter (valid-constraint-p all-vars) constraints)))
@@ -307,10 +315,12 @@
 (defun compile-low-constraints (constraints inner-code)
    (with-reg (reg)
       (reduce #'(lambda (c old)
-                  (list (make-vm-op reg (low-constraint-v1 c)
-                                    (set-type-to-op (low-constraint-type c) :type-bool :equal)
+						(let ((vm-op (set-type-to-op (low-constraint-type c) :type-bool :equal)))
+							(assert (not (null vm-op)))
+                  	(list (make-vm-op reg (low-constraint-v1 c)
+												vm-op
                                     (low-constraint-v2 c))
-                           (make-if reg old)))
+                           (make-vm-if reg old))))
                constraints :initial-value inner-code :from-end t)))
 
 (defun compile-initial-subgoal (body orig-body head clause subgoal)

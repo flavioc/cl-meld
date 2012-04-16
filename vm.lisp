@@ -9,9 +9,12 @@
 
 (defun set-type-to-op (typ-args typ-ret op)
    (declare (ignore typ-ret))
+	(assert (not (null typ-args)))
+	(assert (not (null op)))
    (case typ-args
       (:type-addr (case op
-                     (:equal :addr-equal)))
+                     (:equal :addr-equal)
+							(:not-equal :addr-not-equal)))
       (:type-int (do-type-conversion op int))
       (:type-float (do-type-conversion op float))))
       
@@ -87,10 +90,10 @@
 (defun vm-tail-type (tail) (fourth tail))
 (defun vm-tail-p (tail) (tagged-p tail :tail))
 
-(defun make-if (r instrs) (list :if r instrs))
-(defun if-reg (i) (second i))
-(defun if-instrs (i) (third i))
-(defun if-p (i) (tagged-p i :if))
+(defun make-vm-if (r instrs) (list :if r instrs))
+(defun vm-if-reg (i) (second i))
+(defun vm-if-instrs (i) (third i))
+(defun vm-if-p (i) (tagged-p i :if))
 
 (defun make-vm-op (dst v1 op v2) (list :op dst :to v1 op v2))
 (defun vm-op-dest (st) (second st))
@@ -232,7 +235,7 @@
       (:op (tostring "OP ~a ~a ~a TO ~a" (print-place (vm-op-v1 instr)) (print-op (vm-op-op instr))
                                              (print-place (vm-op-v2 instr)) (print-place (vm-op-dest instr))))
       (:not (tostring "NOT ~a TO ~a" (print-place (vm-not-place instr)) (print-place (vm-not-dest instr))))
-      (:if (tostring "IF (~a) THEN~%~a~%ENDIF" (print-place (if-reg instr)) (print-instr-ls (if-instrs instr))))
+      (:if (tostring "IF (~a) THEN~%~a~%ENDIF" (print-place (vm-if-reg instr)) (print-instr-ls (vm-if-instrs instr))))
       (:move (tostring "MOVE ~a TO ~a" (print-place (move-from instr)) (print-place (move-to instr))))
       (:convert-float (tostring "FLOAT ~a TO ~a" (print-place (vm-convert-float-place instr)) (print-place (vm-convert-float-dest instr))))
       (:select-node (tostring "START SELECT BY NODE~%~a~%-~%END SELECT BY NODE" (print-select-node instr)))

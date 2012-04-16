@@ -50,7 +50,7 @@
          (third expr))
       ((or (op-p expr) (call-p expr) (cons-p expr))
          (fourth expr))
-      ((or (let-p expr)) (fifth expr))
+      ((or (let-p expr) (if-p expr)) (fifth expr))
       (t (error 'type-invalid-error :text (tostring "Cannot deduce type of expression ~a" expr)))))
       
 (defun typed-var-p (var) (and (= (length var) 3)))
