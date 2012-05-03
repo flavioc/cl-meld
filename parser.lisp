@@ -55,6 +55,7 @@
 	("\\bif\\b"                      (return (values :if $@)))
    ("\\bthen\\b"                    (return (values :then $@)))
    ("\\belse\\b"                    (return (values :else $@)))
+	("\\bprio\\b"							(return (values :prio $@)))
 	("_"				                  (return (values :variable $@)))
  	("[a-z]([a-z]|[A-Z]|\_)*"		   (return (values :const $@)))
 	("'\\w+"		                     (return (values :const $@)))
@@ -78,7 +79,9 @@
 
 (defvar *parsed-consts* nil)
 (defun lookup-const-def (name)
-   (const-definition-expr (find-if #L(equal (const-definition-name !1) name) *parsed-consts*)))
+	(let ((x (find-if #L(equal (const-definition-name !1) name) *parsed-consts*)))
+		(assert x)
+		(const-definition-expr x)))
    
 (defmacro return-const (const)
    `#'(lambda (&rest x) (declare (ignore x)) ,const))
@@ -155,7 +158,8 @@
 (defun parse-agg-construct (str)
    (cond
       ((string-equal str "count") :count)
-      ((string-equal str "sum") :sum)))
+      ((string-equal str "sum") :sum)
+		((string-equal str "collect") :collect)))
       
 (defun parse-agg-decl (str)
    (cond
@@ -181,15 +185,16 @@
 								:output :input :immediate :linear
 								:dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :fun :end :colon
-								:not-equal :if :then :else))
+								:not-equal :if :then :else :prio))
 
 	(program
-	  (includes definitions externs consts funs statements #L(make-ast  !2 ; definitions
-	                                                               !3 ; externs
-	                                                               (remove-if #'is-axiom-p !6) ; clauses
-	                                                               (filter #'is-axiom-p !6) ; axioms
-	                                                               !5
-	                                                               (defined-nodes-list)))) ; nodes
+	  (includes definitions priorities externs consts funs statements #L(make-ast  !2 ; definitions
+	                                                               !4 ; externs
+	                                                               (remove-if #'is-axiom-p !7) ; clauses
+	                                                               (filter #'is-axiom-p !7) ; axioms
+	                                                               !6 ; functions
+	                                                               (defined-nodes-list) ; nodes
+																						!3))) ; priorities
 
 	(includes
 	   ()
@@ -206,6 +211,14 @@
       (:type predicate-option const type-args-part #L(parser-make-definition !3 !4 !2))
       (:type const type-args-part #L(parser-make-definition !2 !3)))
 
+	(priorities
+		()
+		(priority priorities #'cons))
+		
+	(priority
+		(:prio const :lesser const :dot #'(lambda (p name1 l name2 d) (declare (ignore p l d)) (make-descending-priority name1 name2)))
+		(:prio const :greater const :dot #'(lambda (p name1 g name2 d) (declare (ignore p g d)) (make-ascending-priority name1 name2))))
+		
    (consts
       ()
       (const-definition consts (return-const nil)))
@@ -326,13 +339,18 @@
                                               (make-comprehension left right vl))))
                                                                               
 	(variable-list
-	   (variable #'list)
+		(variable #'list)
 	   (variable :comma variable-list #'(lambda (v c l) (declare (ignore c)) (cons v l))))
 	
 	(aggregate-thing
+		(:lsparen const :to variable :bar variable-list :bar terms :bar terms :rsparen
+			#'(lambda (l aconstruct to var b1 vlist b2 body b3 head r)
+				(declare (ignore l r b1 b2 b3 r to))
+				(make-agg-construct (parse-agg-construct aconstruct) var vlist body head)))
 	   (:lsparen const :to variable :bar variable-list :bar terms :rsparen
 	         #'(lambda (l aconstruct to var b1 vlist b2 terms r) (declare (ignore l r b1 b2 to))
-	               (make-agg-construct (parse-agg-construct aconstruct) var vlist terms))))
+	               (make-agg-construct (parse-agg-construct aconstruct) var vlist terms)))
+		)
 	                          
    (constraint
       (cmp #'(lambda (c) (make-constraint c))))
@@ -346,8 +364,7 @@
 	   (const :lparen args :rparen #'(lambda (name l args r) (declare (ignore l r))
 	            (acond
 	               ((has-function-call-p name)
-	                  (generate-expression-by-function-call it args)
-	                  )
+	                  (generate-expression-by-function-call it args))
 	               (t (make-call name args)))))
 	   (const #L(lookup-const-def !1))
 	   (:local :number #L(let ((val (parse-integer !2))) (add-found-node val) (make-addr val)))

@@ -18,8 +18,14 @@
 		 						:depends-on ("package"
 		 						             "macros"
 		 						             "manip"
-		 						             "conf"))
-		 			(:file "util"
+		 						             "conf"
+												 "priorities"))
+		 			(:file "priorities"
+								:depends-on ("package"
+												 "macros"
+												 "util"
+												 "conf"))
+					(:file "util"
 		 			         :depends-on ("package"))
 		 			(:file "manip"
 		 			         :depends-on ("package"

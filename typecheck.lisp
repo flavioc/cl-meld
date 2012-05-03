@@ -54,12 +54,15 @@
 (defun force-constraint (var new-types)
    (multiple-value-bind (types ok) (gethash var *constraints*)
       (when ok
-         (setf new-types (merge-types types new-types))
+			(setf new-types (merge-types types new-types))
          (when (no-types-p new-types)
             (error 'type-invalid-error :text
                   (tostring "Type error in variable ~a: new constraint are types ~a but variable is set as ~a" var new-types types))))
-      (setf (gethash var *constraints*) new-types)))
+      (set-var-constraint var new-types)))
 
+(defun set-var-constraint (var new-types)
+	(assert (listp new-types))
+	(setf (gethash var *constraints*) new-types))
 (defun get-var-constraint (var)
    (gethash var *constraints*))
    
@@ -172,7 +175,7 @@
          types)))
       
 (defun do-type-check-subgoal (name args options &key (body-p nil) (axiom-p nil))
-   (let* ((def (lookup-definition name))
+	(let* ((def (lookup-definition name))
           (definition (definition-types def)))
       (unless def
          (error 'type-invalid-error :text (concatenate 'string "Definition " name " not found")))
@@ -202,8 +205,9 @@
                (unless has-persistent-p
                   (warn (tostring "Subgoal ~a needs to have a !" name))))))
       (dolist2 (arg args) (forced-type (definition-arg-types definition))
+			(assert arg)
          (when (and body-p (not (var-p arg)))
-            (error 'type-invalid-error :text (tostring "only variables at body: ~a" arg)))
+            (error 'type-invalid-error :text (tostring "only variables at body: ~a (~a)" name arg)))
          (unless (one-elem-p (get-type arg `(,forced-type)))
             (error 'type-invalid-error :text "type error"))
          (when (var-p arg)
@@ -212,30 +216,49 @@
             (if body-p
                (variable-is-defined arg))))))
 
-(defun do-type-check-agg-construct (c)
-   (with-agg-construct c (:body body :to to :vlist vlist :op op)
+(defun do-type-check-agg-construct (c in-body-p)
+   (with-agg-construct c (:body body :head head :to to :op op)
       (let ((old-defined *defined*)
-            (target-variables (mapcar #'var-name vlist))
             (types nil))
          (extend-typecheck-context
-            (type-check-body body)
-            (let ((new-ones *defined-in-context*))
-               (when (eq op :sum)
+				(transform-agg-constructs-constants c)
+				(type-check-body body)
+				(case op
+					(:collect
+						(let* ((vtype (get-var-constraint (var-name to)))
+								 (vtype-list (mapcar #'list-type vtype)))
+							(assert (= 1 (length vtype)))
+							(set-type to vtype-list)
+							(set-var-constraint (var-name to) vtype-list)))
+					(:count
+						(warn "added total")
+						(variable-is-defined to)
+						(set-type to '(:type-int))
+						(set-var-constraint (var-name to) '(:type-int)))		
+					)
+				(setf (agg-construct-body c)
+					(type-check-all-except-body body head :check-comprehensions nil :check-agg-constructs nil :axiom-p nil))
+            (let ((new-ones *defined-in-context*)
+						(target-variables (mapcar #'var-name (agg-construct-vlist c))))
+               (when (or (eq op :sum)
+								 (eq op :collect)
+								 (eq op :count))
                   (push (var-name to) target-variables))
                (unless (subsetp new-ones target-variables)
-                  (error 'type-invalid-error :text (tostring "Aggregate ~a is using more variables than it specifies" c)))
+                  (error 'type-invalid-error :text (tostring "Aggregate ~a is using more variables than it specifies ~a -> ~a" c new-ones target-variables)))
                (unless (subsetp target-variables new-ones)
-                  (error 'type-invalid-error :text (tostring "Aggregate ~a is not using enough variables" c))))
+                  (error 'type-invalid-error :text (tostring "Aggregate ~a is not using enough variables ~a ~a" c target-variables new-ones))))
                (setf types (get-var-constraint (var-name to))))
-         (case op
-            (:count
-               (force-constraint (var-name to) '(:type-int))
-               (variable-is-defined to))
-            (:sum
-               (get-type to types)
-               (variable-is-defined to))
-            (otherwise
-               (error 'type-invalid-error :text (tostring "Unrecognized aggregate operator ~a" op)))))))
+         (when in-body-p
+				(case op
+            	(:count
+               	(force-constraint (var-name to) '(:type-int))
+               	(variable-is-defined to))
+            	(:sum
+               	(get-type to types)
+               	(variable-is-defined to))
+            	(otherwise
+               	(error 'type-invalid-error :text (tostring "Unrecognized aggregate operator ~a" op))))))))
 
 (defun do-type-check-constraints (expr)
    (unless (has-variables-defined expr)
@@ -257,7 +280,7 @@
                                                    (not (one-elem-p (expr-type (assignment-var a))))))
                                     assignments)))
                   (update-assignment assignments other)))))))
-                  
+
 (defun assert-assignment-undefined (assignments)
    (unless (every #'(lambda (a) (not (variable-defined-p a))) (get-assignment-vars assignments))
       (error 'type-invalid-error :text "some variables are already defined")))
@@ -289,33 +312,75 @@
          (setf (cddr orig) (list op2))
          (push (var-name op1) vars))))))
 
-(defun unfold-cons (mangled-var cons clause)
-   (let ((tail-var (generate-random-var))
-         (tail (cons-tail cons)))
-      (push (make-constraint (make-not (make-test-nil mangled-var)) 100) (clause-body clause))
-      (push (make-constraint (make-equal (cons-head cons) '= (make-head mangled-var))) (clause-body clause))
+(defun unfold-cons (mangled-var cons)
+   (let* ((tail-var (generate-random-var))
+          (tail (cons-tail cons))
+			 (c1 (make-constraint (make-not (make-test-nil mangled-var)) 100))
+			 (c2 (make-constraint (make-equal (cons-head cons) '= (make-head mangled-var)))))
       (cond
          ((cons-p tail)
-            (push (make-constraint (make-equal tail-var '= (make-tail mangled-var))) (clause-body clause))
-            (unfold-cons tail-var tail clause))
+				(multiple-value-bind (new-constraints new-vars)
+						(unfold-cons tail-var tail)
+					(values (append `(,c1 ,c2
+									,(make-constraint (make-equal tail-var '= (make-tail mangled-var))))
+									new-constraints)
+							`(,tail-var ,@new-vars))))
          (t
-            (push (make-constraint (make-equal tail '= (make-tail mangled-var))) (clause-body clause))))))
+				(values `(,c1 ,c2 ,(make-constraint (make-equal tail '= (make-tail mangled-var))))
+							`(,tail-var))))))
 
-(defun transform-constant-to-constraint (clause arg &optional only-addr-p)
-   (cond ((const-p arg)
-            (letret (new-var (generate-random-var))
-               (if (and (not only-addr-p) (cons-p arg))
-                  (unfold-cons new-var arg clause)
-                  (push (make-constraint (make-equal new-var '= arg)) (clause-body clause)))))
-          (t arg)))
-(defun transform-constants-to-constraints (clause args &optional only-addr-p)
-   (mapcar #L(transform-constant-to-constraint clause !1 only-addr-p) args))
+(defun transform-constant-to-constraint (arg &optional only-addr-p)
+   (cond
+		((const-p arg)
+          (let ((new-var (generate-random-var)))
+             (if (and (not only-addr-p) (cons-p arg))
+					(multiple-value-bind (new-constraints new-vars)
+							(unfold-cons new-var arg)
+						(values new-var new-constraints `(,new-var ,@new-vars)))
+					(values new-var
+							`(,(make-constraint (make-equal new-var '= arg)))
+							`(,new-var)))))
+      (t (values arg nil nil))))
+
+(defun transform-constants-to-constraints-clause (clause args &optional only-addr-p)
+   (mapcar #'(lambda (arg)
+						(multiple-value-bind (new-arg new-constraints)
+							(transform-constant-to-constraint arg only-addr-p)
+							(dolist (new-constraint new-constraints)
+								(assert (constraint-p new-constraint))
+								(push-end new-constraint (clause-body clause)))
+							new-arg))
+				args))
+				
+(defun transform-clause-constants (clause)
+   (do-subgoals (clause-body clause) (:args args :subgoal sub)
+      (setf (subgoal-args sub) (transform-constants-to-constraints-clause clause args))))
+
+(defun transform-constants-to-constraints-agg-construct (c args &optional only-addr-p)
+   (mapcar #'(lambda (arg)
+						(multiple-value-bind (new-arg new-constraints new-vars)
+							(transform-constant-to-constraint arg only-addr-p)
+							(when new-vars
+								(warn "added to ~a" c)
+								(setf (agg-construct-vlist c) (append (agg-construct-vlist c) new-vars))
+								(warn "added to ~a" c))
+							(dolist (new-constraint new-constraints)
+								(assert (constraint-p new-constraint))
+								(push-end new-constraint (agg-construct-body c)))
+							new-arg))
+				args))
+				
+(defun transform-agg-constructs-constants (c)
+	(do-subgoals (agg-construct-body c) (:args args :subgoal sub)
+		(setf (subgoal-args sub) (transform-constants-to-constraints-agg-construct c args))))
 
 (defun add-variable-head-clause (clause)
    (do-subgoals (clause-head clause) (:args args :subgoal sub)
-      (setf (first (subgoal-args sub))
-               (transform-constant-to-constraint clause
-                     (first args)))))
+		(multiple-value-bind (new-arg constraints)
+			(transform-constant-to-constraint (first args))
+			(dolist (constraint constraints)
+				(push constraint (clause-body clause)))
+			(setf (first (subgoal-args sub)) new-arg))))
                      
 (defun add-variable-head ()
    (do-rules (:clause clause)
@@ -340,43 +405,45 @@
    (do-subgoals body (:name name :args args :options options)
       (do-type-check-subgoal name args options :body-p t))
    (do-agg-constructs body (:agg-construct c)
-      (do-type-check-agg-construct c))
+      (do-type-check-agg-construct c t))
    (create-assignments body)
    (assert-assignment-undefined (get-assignments body))
-   (do-type-check-assignments body #'typed-var-p))
-   
-(defun type-check-body-and-head (body head &key check-comprehensions axiom-p)
-	(type-check-body body)
+   (do-type-check-assignments body #'typed-var-p)
+	(do-constraints body (:expr expr)
+      (do-type-check-constraints expr)))
+
+(defun type-check-all-except-body (body head &key check-comprehensions check-agg-constructs axiom-p)
 	(do-subgoals head (:name name :args args :options options)
       (do-type-check-subgoal name args options :axiom-p axiom-p))
    (when check-comprehensions
 		(do-comprehensions head (:comprehension comp)
       	(do-type-check-comprehension comp)))
-   (do-constraints body (:expr expr)
-      (do-type-check-constraints expr))
-	(do-constraints body (:expr expr)
-      (do-type-check-constraints expr))
+	(when check-agg-constructs
+		(do-agg-constructs head (:agg-construct c)
+			(do-type-check-agg-construct c nil)))
 	(let ((new-body (remove-unneeded-assignments body head)))
    	(do-type-check-assignments new-body	#'single-typed-var-p)
 		new-body))
-	
+		
+(defun type-check-body-and-head (body head &key check-comprehensions check-agg-constructs axiom-p)
+	(type-check-body body)
+	(type-check-all-except-body body head :check-comprehensions check-comprehensions
+													  :check-agg-constructs check-agg-constructs
+													  :axiom-p axiom-p))
+
 (defun type-check-clause (head body clause axiom-p)
    (with-typecheck-context
       (variable-is-defined (first-host-node head))
 		(setf (clause-body clause)
-			(type-check-body-and-head body head :check-comprehensions t :axiom-p axiom-p))))
+			(type-check-body-and-head body head :check-comprehensions t :check-agg-constructs t :axiom-p axiom-p))))
 
-(defun transform-clause-constants (clause)
-   (do-subgoals (clause-body clause) (:args args :subgoal sub)
-      (setf (subgoal-args sub) (transform-constants-to-constraints clause args))))
-            
 (defun type-check ()
-   (do-definitions (:name name :types typs)
+	(do-definitions (:name name :types typs)
       (check-home-argument name typs))
    (add-variable-head)
    (do-rules (:clause clause)
       (transform-clause-constants clause))
-   (do-axioms (:clause clause)
+	(do-axioms (:clause clause)
       (transform-clause-constants clause))
    (do-all-rules (:head head :body body :clause clause)
       (type-check-clause head body clause nil))

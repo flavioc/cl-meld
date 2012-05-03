@@ -343,9 +343,17 @@
                (remove-all clauses will-really-fire))))))
 
 (defun mark-unstratified-predicates ()
-   (do-definitions (:definition def)
-      (unless (definition-has-tagged-option-p def :strat)
-         (push-strata def *current-strat-level*))))
+	; find new priorities before computing the priority list
+	(find-priorities)
+	(let ((priorities (assign-priorities *current-strat-level* *priorities*)))
+		(dolist (prio priorities)
+			(let ((name (first prio))
+					(priority (rest prio)))
+			(setf *current-strat-level* (max *current-strat-level* priority))
+			(push-strata (lookup-definition name) priority))) 
+		(do-definitions (:definition def)
+      	(unless (definition-has-tagged-option-p def :strat)
+         	(push-strata def *current-strat-level*)))))
 
 (defun do-strat-loop (clauses)
    (incf *current-strat-level*)

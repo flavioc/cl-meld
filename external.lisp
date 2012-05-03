@@ -24,3 +24,6 @@
 (define-external-function "divide")
 (define-external-function "convolve")
 (define-external-function "addfloatlists")
+(define-external-function "intlistlength")
+(define-external-function "intlistdiff")
+(define-external-function "intlistnth")

@@ -14,7 +14,8 @@
    (case typ-args
       (:type-addr (case op
                      (:equal :addr-equal)
-							(:not-equal :addr-not-equal)))
+							(:not-equal :addr-not-equal)
+							(:greater :addr-greater)))
       (:type-int (do-type-conversion op int))
       (:type-float (do-type-conversion op float))))
       
@@ -166,6 +167,7 @@
 
 (defun make-vm-reset-linear (instrs) `(:reset-linear ,instrs))
 (defun vm-reset-linear-instrs (reset) (second reset))
+(defun make-vm-reset-linear-end () '(:end-linear))
 
 (defun tuple-p (tp) (eq tp :tuple))
 (defun match-p (m) (eq m :match))

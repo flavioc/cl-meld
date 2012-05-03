@@ -72,7 +72,7 @@
          (multiple-value-bind (place code *used-regs*)
             (compile-call name (rest args) `(,@regs ,arg-place) `(,@code ,@arg-code))
             (return-expr place code)))))
-         
+
 (defun compile-expr (expr &optional dest)
    (cond
       ((int-p expr) ;; Int expression in the previous phases maybe coerced into a float
@@ -215,21 +215,63 @@
             ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub tuple-reg)
                `(,@extra-code ,(make-send tuple-reg send-to))))))
             res))))
+
+(defun agg-construct-start (op acc)
+	(case op
+		(:collect
+			`(,(make-move-nil acc)))
+		(:count
+			`(,(make-move (make-vm-int 0) acc)))
+		(otherwise (error 'compile-invalid-error :text (tostring "agg-construct-start: op ~a not recognized" op)))))
+
+(defun agg-construct-end (op acc)
+	(case op
+		(:collect nil)
+		(:count nil)
+		(otherwise (error 'compile-invalid-error :text (tostring "agg-construct-end: op ~a not recognized" op)))))
+		
+(defun agg-construct-step (op acc var)
+	(case op
+		(:collect
+			(let ((dest (lookup-used-var (var-name var))))
+				`(,(make-vm-cons dest acc acc (expr-type var)))))
+		(:count
+			`(,(make-vm-op acc acc :int-plus (make-vm-int 1))))
+		(otherwise (error 'compile-invalid-error
+								:text (tostring "agg-construct-step: op ~a not recognized" op)))))
+	
+(defun compile-agg-construct (c)
+	(with-reg (acc)
+		(with-agg-construct c (:body body :head head :to var :op op)
+			(let* ((start (agg-construct-start op acc))
+				  	 (inner-code (compile-iterate body body nil nil nil nil
+						:head-compiler #'(lambda (h c d s)
+												(declare (ignore h c d s))
+												(agg-construct-step op acc var))))
+					(end (agg-construct-end op acc)))
+				(add-used-var (var-name var) acc)
+				(let ((head-code (do-compile-head-code head nil nil nil)))
+					(remove-used-var (var-name var))
+					`(,@start ,(make-vm-reset-linear (append inner-code (append end (append head-code `(,(make-vm-reset-linear-end))))))))))))
             
 (defun do-compile-head-comprehensions (head clause def subgoal)
-   (let ((code (do-comprehensions head (:left left :right right :operation append)
+   (let* ((code (do-comprehensions head (:left left :right right :operation append)
                   (compile-iterate left left right nil nil nil))))
       (cond
          ((null code) nil)
          (t
-            (if (subgoal-to-be-deleted-p subgoal def)
-               (list (make-vm-reset-linear `(,@code (:next))))
-               code)))))
+            `(,(make-vm-reset-linear `(,@code ,(make-vm-reset-linear-end))))))))
+
+(defun do-compile-head-aggs (head clause def subgoal)
+	(let ((code-agg (do-agg-constructs head (:agg-construct c :operation append)
+				(compile-agg-construct c))))
+		code-agg))
             
 (defun do-compile-head-code (head clause def subgoal)
    (let ((subgoals-code (do-compile-head-subgoals head clause))
-         (comprehensions-code (do-compile-head-comprehensions head clause def subgoal)))
-      (append subgoals-code comprehensions-code)))
+         (comprehensions-code (do-compile-head-comprehensions head clause def subgoal))
+			(agg-code (do-compile-head-aggs head clause def subgoal)))
+      (append subgoals-code (append comprehensions-code agg-code))))
       
 (defun subgoal-to-be-deleted-p (subgoal def)
    (and (is-linear-p def) (not (subgoal-has-option-p subgoal :reuse))))
@@ -239,11 +281,11 @@
       (if (subgoal-to-be-deleted-p subgoal def)
          `(,@deletes ,(make-return-linear))
          `(,@deletes ,@(if inside (list (make-return-derived)) nil)))))
-            
-(defun do-compile-head (subgoal head clause delete-regs inside)
-   (declare (ignore subgoal))
+
+; head-compiler is isually do-compile-head-code
+(defun do-compile-head (subgoal head clause delete-regs inside head-compiler)
    (let* ((def (lookup-definition (subgoal-name subgoal)))
-          (head-code (do-compile-head-code head clause def subgoal))
+          (head-code (funcall head-compiler head clause def subgoal))
           (linear-code (compile-linear-deletes-and-returns subgoal def delete-regs inside))
           (delete-code (compile-inner-delete clause)))
       `(,@head-code ,@delete-code ,@linear-code)))
@@ -259,25 +301,26 @@
 
 (defun remove-defined-assignments (assignments) (mapcar #L(remove-used-var (var-name (assignment-var !1))) assignments))
 
-(defun compile-head (body head clause subgoal delete-regs inside)
+(defun compile-head (body head clause subgoal delete-regs inside head-compiler)
    (let ((assigns (filter #'assignment-p body)))
-      (always-ret (compile-assignments-and-head assigns #L(do-compile-head subgoal head clause delete-regs inside))
+      (always-ret (compile-assignments-and-head assigns #L(do-compile-head subgoal head clause delete-regs inside head-compiler))
          (remove-defined-assignments assigns))))
                      
-(defun compile-iterate (body orig-body head clause subgoal delete-regs &optional inside)
+(defun compile-iterate (body orig-body head clause subgoal delete-regs &key (inside nil) (head-compiler #'do-compile-head-code))
    (multiple-value-bind (constraints assignments) (get-compile-constraints-and-assignments body)
       (let* ((next-sub (find-if #'subgoal-p body))
              (rem-body (remove-unneeded-assignments (remove-tree-first next-sub (remove-all body constraints)) head)))
          (compile-constraints-and-assignments constraints assignments
             (if (not next-sub)
-               (compile-head rem-body head clause subgoal delete-regs inside)
+               (compile-head rem-body head clause subgoal delete-regs inside head-compiler)
                (let ((next-sub-name (subgoal-name next-sub)))
                   (with-reg (reg next-sub)
                      (let* ((match-constraints (mapcar #'rest (add-subgoal next-sub reg :match)))
                             (def (lookup-definition next-sub-name))
                             (new-delete-regs (if (subgoal-to-be-deleted-p next-sub def)
                                                 (cons reg delete-regs) delete-regs))
-                            (iterate-code (compile-iterate rem-body orig-body head clause subgoal new-delete-regs t))
+                            (iterate-code (compile-iterate rem-body orig-body head clause subgoal new-delete-regs
+																					:inside t :head-compiler head-compiler))
                             (other-code `(,(make-move :tuple reg) ,@iterate-code)))
                         `(,(make-iterate next-sub-name match-constraints other-code))))))))))
       

@@ -15,5 +15,6 @@
 (define-symbol-macro *nodes* (nodes *ast*))
 (define-symbol-macro *externs* (externs *ast*))
 (define-symbol-macro *functions* (functions *ast*))
+(define-symbol-macro *priorities* (priorities *ast*))
 
 (defun set-abstract-syntax-tree (ast) (setf *ast* ast))

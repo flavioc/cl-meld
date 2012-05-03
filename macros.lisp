@@ -279,7 +279,7 @@
 (define-term-construct comprehension comprehension-p (left right variables))
 (define-term-construct constraint constraint-p (expr))
 (define-term-construct assignment assignment-p (var expr))
-(define-term-construct agg-construct agg-construct-p (op to vlist body))
+(define-term-construct agg-construct agg-construct-p (op to vlist body head))
 
 (define-with process (name instrs) :use-self-p t)
 
@@ -288,4 +288,3 @@
       `(loop-list (,el *code* :operation ,operation)
          (with-process ,el (:name ,name :instrs ,instrs :process ,process)
             ,@body))))
-            
