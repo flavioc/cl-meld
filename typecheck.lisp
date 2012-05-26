@@ -15,7 +15,7 @@
 (defun merge-types (ls types) (intersection ls types))
 (defun valid-type-combination-p (types)
    (equal-or types (:type-int) (:type-float) (:type-int :type-float) (:type-bool) (:type-addr) (:type-worker)
-                   (:type-list-int) (:type-list-float) (:type-list-addr)))
+                   (:type-list-int) (:type-list-float) (:type-list-addr) (:type-string)))
    
 (defparameter *constraints* nil)
 (defparameter *defined* nil)
@@ -44,7 +44,7 @@
    (let ((typ (list (try-one typs))))
       (cond
          ((or (nil-p expr) (world-p expr)) (setf (cdr expr) typ))
-         ((or (var-p expr) (int-p expr) (float-p expr) (tail-p expr) (head-p expr)
+         ((or (var-p expr) (int-p expr) (float-p expr) (string-constant-p expr) (tail-p expr) (head-p expr)
                (not-p expr) (test-nil-p expr) (addr-p expr) (convert-float-p expr))
             (setf (cddr expr) typ))
          ((or (call-p expr) (op-p expr) (cons-p expr) (colocated-p expr)) (setf (cdddr expr) typ))
@@ -87,6 +87,7 @@
 (defun get-type (expr forced-types)
    (labels ((do-get-type (expr forced-types)
             (cond
+					((string-constant-p expr) (merge-types forced-types '(:type-string)))
                ((var-p expr) (force-constraint (var-name expr) forced-types))
                ((int-p expr) (merge-types forced-types '(:type-int :type-float)))
                ((float-p expr) (merge-types forced-types '(:type-float)))
@@ -231,7 +232,6 @@
 							(set-type to vtype-list)
 							(set-var-constraint (var-name to) vtype-list)))
 					(:count
-						(warn "added total")
 						(variable-is-defined to)
 						(set-type to '(:type-int))
 						(set-var-constraint (var-name to) '(:type-int)))		
@@ -261,8 +261,9 @@
                	(error 'type-invalid-error :text (tostring "Unrecognized aggregate operator ~a" op))))))))
 
 (defun do-type-check-constraints (expr)
-   (unless (has-variables-defined expr)
-      (error 'type-invalid-error :text "all variables must be defined"))
+   ;; LET has problems with this
+	;(unless (has-variables-defined expr)
+   ;   (error 'type-invalid-error :text (tostring "all variables must be defined: ~a , ~a" expr (all-variables expr))))
    (let ((typs (get-type expr '(:type-bool))))
       (unless (and (one-elem-p typs) (type-bool-p (first typs)))
          (error 'type-invalid-error :text "constraint must be of type bool"))))
@@ -361,9 +362,7 @@
 						(multiple-value-bind (new-arg new-constraints new-vars)
 							(transform-constant-to-constraint arg only-addr-p)
 							(when new-vars
-								(warn "added to ~a" c)
-								(setf (agg-construct-vlist c) (append (agg-construct-vlist c) new-vars))
-								(warn "added to ~a" c))
+								(setf (agg-construct-vlist c) (append (agg-construct-vlist c) new-vars)))
 							(dolist (new-constraint new-constraints)
 								(assert (constraint-p new-constraint))
 								(push-end new-constraint (agg-construct-body c)))

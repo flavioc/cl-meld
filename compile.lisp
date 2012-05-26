@@ -80,6 +80,7 @@
             (return-expr (funcall (if (type-int-p typ) #'make-vm-int #'make-vm-float)
                               (int-val expr)))))
       ((float-p expr) (return-expr (make-vm-float (float-val expr))))
+		((string-constant-p expr) (return-expr (make-vm-string-constant (string-constant-val expr))))
       ((addr-p expr) (return-expr (make-vm-addr (addr-num expr))))
       ((host-id-p expr) (return-expr (make-vm-host-id)))
       ((var-p expr) (return-expr (lookup-used-var (var-name expr))))
@@ -277,10 +278,10 @@
    (and (is-linear-p def) (not (subgoal-has-option-p subgoal :reuse))))
         
 (defun compile-linear-deletes-and-returns (subgoal def delete-regs inside)
-   (let ((deletes (mapcar #'make-vm-remove delete-regs)))
+	(let ((deletes (mapcar #'make-vm-remove delete-regs)))
       (if (subgoal-to-be-deleted-p subgoal def)
          `(,@deletes ,(make-return-linear))
-         `(,@deletes ,@(if inside (list (make-return-derived)) nil)))))
+         `(,@deletes ,@(if inside `(,(make-return-derived)) nil)))))
 
 ; head-compiler is isually do-compile-head-code
 (defun do-compile-head (subgoal head clause delete-regs inside head-compiler)

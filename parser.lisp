@@ -3,6 +3,7 @@
 
 (define-string-lexer meld-lexer
    ("[-+]?[0-9]+(\\.[0-9]+|[0-9]+)?" (return (values :number $@)))
+	("\".*\""								(return (values :string $@)))
 	("\\,"                           (return (values :comma $@)))
 	("\\["                           (return (values :lsparen $@)))
 	("\\]"                           (return (values :rsparen $@)))
@@ -16,6 +17,7 @@
 	("\\bint\\b"			            (return (values :type-int $@)))
 	("\\bfloat\\b"                   (return (values :type-float $@)))
 	("\\bnode\\b"                    (return (values :type-addr $@)))
+	("\\bstring\\b"						(return (values :type-string $@)))
 	("\\bworker\\b"                  (return (values :type-worker $@)))
 	("\\blist\\b"                    (return (values :type-list $@)))
 	("\\binclude\\b"                 (return (values :include $@)))
@@ -175,9 +177,9 @@
  	
  	(:precedence ((:left :mul :div :mod) (:left :plus :minus)))
  	
-	(:terminals (:const :type :variable :number :lparen :rparen
+	(:terminals (:const :type :variable :number :string :lparen :rparen
 								:bar :arrow :dot :comma :type-int :type-addr
-								:type-worker :type-float :plus :minus :mul :mod :div
+								:type-worker :type-float :type-string :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl
 								:lsparen :rsparen :nil :bar :type-list :local
@@ -295,6 +297,7 @@
  	 (:type-int (return-const :type-int))
  	 (:type-float (return-const :type-float))
  	 (:type-addr (return-const :type-addr))
+	 (:type-string (return-const :type-string))
  	 (:type-worker (return-const :type-worker)))
 	   
 	(statements
@@ -361,6 +364,7 @@
 
 	(expr
 	   variable
+		(:string #'(lambda (x) (make-string-constant (subseq x 1 (1- (length x)))))) ;; need to trim the first and final ""
 	   (const :lparen args :rparen #'(lambda (name l args r) (declare (ignore l r))
 	            (acond
 	               ((has-function-call-p name)

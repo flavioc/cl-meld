@@ -27,3 +27,4 @@
 (define-external-function "intlistlength")
 (define-external-function "intlistdiff")
 (define-external-function "intlistnth")
+(define-external-function "concatenate")

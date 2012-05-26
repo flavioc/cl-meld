@@ -26,10 +26,15 @@
       (return-from transform-expr nil))
    (cond
       ;; we do nothing for these
-      ((var-p expr)) ((int-p expr))
-      ((float-p expr)) ((host-id-p expr))
-      ((nil-p expr)) ((world-p expr))
+      ((var-p expr))
+		((int-p expr))
+      ((float-p expr))
+		((host-id-p expr))
+      ((nil-p expr))
+		((world-p expr))
       ((addr-p expr))
+		((string-constant-p expr))
+		;; the real deal
       ((clause-p expr)
          (transform-expr test-fn transform-fn (clause-head expr))
          (transform-expr test-fn transform-fn (clause-body expr)))

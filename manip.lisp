@@ -287,6 +287,10 @@
 (defun set-if-e2 (i e2)
    (setf (fourth i) e2))
 (defsetf if-e2 set-if-e2)
+
+(defun make-string-constant (v) `(:string ,v :type-string))
+(defun string-constant-val (x) (second x))
+(defun string-constant-p (x) (tagged-p x :string))
    
 (defun int-val (val) (second val))
 (defun make-int (int &optional typ)

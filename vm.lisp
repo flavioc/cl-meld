@@ -122,6 +122,10 @@
 (defun vm-float-p (flt) (tagged-p flt :float))
 (defun vm-float-val (flt) (second flt))
 
+(defun make-vm-string-constant (v) `(:string ,v))
+(defun vm-string-constant-p (x) (tagged-p x :string))
+(defun vm-string-constant-val (x) (second x))
+
 (defun make-vm-convert-float (place dest) `(:convert-float ,place ,dest))
 (defun vm-convert-float-p (flt) (tagged-p flt :convert-float))
 (defun vm-convert-float-place (flt) (second flt))

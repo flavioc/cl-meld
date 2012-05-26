@@ -4,6 +4,12 @@
 (define-condition output-invalid-error (error)
    ((text :initarg :text :reader text)))
 
+(defparameter *output-string-constants* nil)
+(defun push-string-constant (str)
+	"Adds string constant to database and returns the string integer code."
+	(push-end str *output-string-constants*)
+	(1- (length *output-string-constants*)))
+
 (defmacro with-memory-stream (s &body body)
    `(let ((,s (make-in-memory-output-stream)))
       ,@body
@@ -13,11 +19,17 @@
    (loop for i upto 3
       collect (ldb (byte 8 (* i 8)) int)))
 (defun output-float (flt) (output-int (encode-float32 (coerce flt 'float))))
+(defun output-string (str)
+	(map 'list #'char-code str))
 
 (defun output-value (val)
    (cond
       ((vm-int-p val) (list #b000001 (output-int (vm-int-val val))))
       ((vm-float-p val) (list #b000000 (output-float (vm-float-val val))))
+		((vm-string-constant-p val)
+			(let* ((str (vm-string-constant-val val))
+					 (code (push-string-constant str)))
+				(list #b000110 (output-int code))))
       ((vm-addr-p val) (list  #b000101 (output-int (vm-addr-num val))))
       ((vm-host-id-p val) (list #b000011))
       ((vm-nil-p val) (list #b000100))
@@ -29,7 +41,7 @@
 
 (defmacro add-byte (b vec) `(vector-push-extend ,b ,vec))
 (defun add-bytes (vec ls)
- (dolist (b ls) (add-byte b vec)))
+	(dolist (b ls) (add-byte b vec)))
 
 (defmacro do-vm-values (vec vals &rest instrs)
    (labels ((map-value (i) (case i (1 'first-value) (2 'second-value) (3 'third-value)))
@@ -302,6 +314,7 @@
          (:type-list-float #b0100)
          (:type-list-addr #b0101)
          (:type-worker #b0110)
+			(:type-string #b1001)
          (otherwise (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ))))
       vec))
 
@@ -455,8 +468,16 @@
 (defun do-output-code (stream)
    (write-hexa stream (length *definitions*))
    (write-nodes stream *nodes*)
-   (let ((processes (output-processes))
-         (descriptors (output-descriptors)))
+   (let* ((*output-string-constants* nil)
+			 (processes (output-processes))
+          (descriptors (output-descriptors)))
+		(warn "~a" *output-string-constants*)
+		;; output strings
+		(write-int-stream stream (length *output-string-constants*))
+		(loop for str in *output-string-constants*
+				for i from 0
+				do (write-int-stream stream (length str))
+				do (write-vec stream (output-string str)))
       (loop for vec-desc in descriptors
             for vec-proc in processes
             do (write-int-stream stream (length vec-proc)) ; write code size first
