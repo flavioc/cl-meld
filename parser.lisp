@@ -3,7 +3,7 @@
 
 (define-string-lexer meld-lexer
    ("[-+]?[0-9]+(\\.[0-9]+|[0-9]+)?" (return (values :number $@)))
-	("\".*\""								(return (values :string $@)))
+	("\"[^\"]*\""						(return (values :string $@)))
 	("\\,"                           (return (values :comma $@)))
 	("\\["                           (return (values :lsparen $@)))
 	("\\]"                           (return (values :rsparen $@)))
