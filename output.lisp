@@ -471,7 +471,6 @@
    (let* ((*output-string-constants* nil)
 			 (processes (output-processes))
           (descriptors (output-descriptors)))
-		(warn "~a" *output-string-constants*)
 		;; output strings
 		(write-int-stream stream (length *output-string-constants*))
 		(loop for str in *output-string-constants*

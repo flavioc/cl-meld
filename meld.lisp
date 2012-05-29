@@ -54,6 +54,7 @@
 (defun create-debug-file (prog)
    (concatenate 'string "/Users/flaviocruz/Projects/meld/" prog ".meld"))
 
-(defun comp (prog &optional (out "base"))
-   (meld-compile (create-debug-file prog)
-                 (concatenate 'string "/Users/flaviocruz/Projects/meld/" out)))
+(defun comp (prog &optional (out nil))
+	(let ((output-file (if out out (pathname-name (pathname prog)))))
+   	(meld-compile (create-debug-file prog)
+                 	(concatenate 'string "/Users/flaviocruz/Projects/meld/" output-file))))
