@@ -208,10 +208,11 @@
    (with-definition def (:types typs)
       (some #'aggregate-p typs)))
 
-(defun make-extern (name ret-type types) `(:extern ,name ,ret-type ,types))
+(defun make-extern (name ret-type types &optional id) `(:extern ,name ,ret-type ,types ,id))
 (defun extern-name (ext) (second ext))
 (defun extern-ret-type (ext) (third ext))
 (defun extern-types (ext) (fourth ext))
+(defun extern-id (ext) (fifth ext))
 
 (defun make-constraint (expr &optional (priority 0)) (list :constraint expr priority))
 (defun constraint-expr (ls) (second ls))

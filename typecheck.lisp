@@ -101,7 +101,7 @@
                               (tostring "expressions ~a and ~a must have equal types" (if-e1 expr) (if-e2 expr))))
                      t1))
                ((call-p expr)
-                  (let ((extern (lookup-extern (call-name expr))))
+                  (let ((extern (lookup-external-definition (call-name expr))))
                      (unless extern (error 'type-invalid-error :text (tostring "undefined call ~a" (call-name expr))))
                      (loop for typ in (extern-types extern)
                            for arg in (call-args expr)
@@ -439,6 +439,19 @@
 (defun type-check ()
 	(do-definitions (:name name :types typs)
       (check-home-argument name typs))
+	(do-externs *externs* (:name name :ret-type ret-type :types types)
+		(let ((extern (lookup-external-definition name)))
+			(unless extern
+				(error 'type-invalid-error :text (tostring "could not found external definition ~a" name)))
+			(unless (eq ret-type (extern-ret-type extern))
+				(error 'type-invalid-error :text
+					(tostring "external function return types do not match: ~a and ~a"
+						ret-type (extern-ret-type extern))))
+			(dolist2 (t1 types) (t2 (extern-types extern))
+				(unless (eq t1 t2)
+					(error 'type-invalid-error :text
+						(tostring "external function argument types do not match: ~a and ~a"
+							t1 t2))))))
    (add-variable-head)
    (do-rules (:clause clause)
       (transform-clause-constants clause))
