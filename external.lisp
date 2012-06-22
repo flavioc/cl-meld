@@ -32,3 +32,4 @@
 (define-external-function "intlistnth" :type-int '(:type-list-int :type-int))
 (define-external-function "concatenate" :type-string '(:type-string :type-string))
 (define-external-function "str2float" :type-float '(:type-string))
+(define-external-function "str2int" :type-int '(:type-string))
