@@ -45,10 +45,12 @@
       (cond
          ((or (nil-p expr) (world-p expr)) (setf (cdr expr) typ))
          ((or (var-p expr) (int-p expr) (float-p expr) (string-constant-p expr) (tail-p expr) (head-p expr)
-               (not-p expr) (test-nil-p expr) (addr-p expr) (convert-float-p expr))
+               (not-p expr) (test-nil-p expr) (addr-p expr) (convert-float-p expr)
+					(get-constant-p expr))
             (setf (cddr expr) typ))
          ((or (call-p expr) (op-p expr) (cons-p expr) (colocated-p expr)) (setf (cdddr expr) typ))
          ((or (let-p expr) (if-p expr)) (setf (cddddr expr) typ))
+			((or (argument-p expr))) ; do nothing
          (t (error 'type-invalid-error :text (tostring "set-type: Unknown expression ~a" expr))))))
       
 (defun force-constraint (var new-types)
@@ -68,10 +70,11 @@
    
 (defun select-simpler-types (types)
    (cond
-      ((null (set-difference types *number-types*))
+      ((set-equal-p types *number-types*)
        (intersection types '(:type-int)))
-      ((null (set-difference  types *list-number-types*))
-       (intersection types '(:type-list-int)))))
+      ((set-equal-p types *list-number-types*)
+       (intersection types '(:type-list-int)))
+		(t types)))
 
 (defun list-base-type (typ)
    (case typ
@@ -92,6 +95,14 @@
                ((int-p expr) (merge-types forced-types '(:type-int :type-float)))
                ((float-p expr) (merge-types forced-types '(:type-float)))
                ((addr-p expr) (merge-types forced-types '(:type-addr)))
+					((argument-p expr) (merge-types forced-types '(:type-string)))
+					((get-constant-p expr)
+						(with-get-constant expr (:name name)
+							(let ((const (lookup-const name)))
+								(unless const
+									(error 'type-invalid-error :text
+										(tostring "could not find constant ~a" name)))
+								(merge-types forced-types (list (constant-type const))))))
                ((if-p expr)
                   (get-type (if-cmp expr) '(:type-bool))
                   (let ((t1 (get-type (if-e1 expr) forced-types))
@@ -168,7 +179,7 @@
                            (setf t1 (get-type op1 (select-simpler-types t1)))
                            (setf t2 (get-type op2 (select-simpler-types t2))))
                         (type-oper-op op t1))))
-               (t (error 'type-invalid-error :text (tostring "typecheck: Unknown expression ~a" expr))))))
+               (t (error 'type-invalid-error :text (tostring "get-type: Unknown expression ~a" expr))))))
       (let ((types (do-get-type expr forced-types)))
          (when (no-types-p types)
             (error 'type-invalid-error :text (tostring "Type error in expression ~a: wanted types ~a" expr forced-types)))
@@ -436,9 +447,18 @@
 		(setf (clause-body clause)
 			(type-check-body-and-head body head :check-comprehensions t :check-agg-constructs t :axiom-p axiom-p))))
 
+(defun type-check-const (const)
+	(with-constant const (:name name :expr expr)
+		(let ((res (select-simpler-types (get-type expr *all-types*))))
+			(unless (one-elem-p res)
+				(error 'type-invalid-error :text (tostring "could not determine type of const ~a" name)))
+			(setf (constant-type const) (first res)))))
+
 (defun type-check ()
 	(do-definitions (:name name :types typs)
       (check-home-argument name typs))
+	(dolist (const *consts*)
+		(type-check-const const))
 	(do-externs *externs* (:name name :ret-type ret-type :types types)
 		(let ((extern (lookup-external-definition name)))
 			(unless extern

@@ -126,6 +126,10 @@
 (defun vm-string-constant-p (x) (tagged-p x :string))
 (defun vm-string-constant-val (x) (second x))
 
+(defun make-vm-argument (id) `(:argument ,id))
+(defun vm-argument-p (a) (tagged-p a :argument))
+(defun vm-argument-id (a) (second a))
+
 (defun make-vm-convert-float (place dest) `(:convert-float ,place ,dest))
 (defun vm-convert-float-p (flt) (tagged-p flt :convert-float))
 (defun vm-convert-float-place (flt) (second flt))
@@ -172,6 +176,10 @@
 (defun make-vm-reset-linear (instrs) `(:reset-linear ,instrs))
 (defun vm-reset-linear-instrs (reset) (second reset))
 (defun make-vm-reset-linear-end () '(:end-linear))
+
+(defun make-vm-constant (name) `(:constant ,name))
+(defun vm-constant-p (c) (tagged-p c :constant))
+(defun vm-constant-name (c) (second c))
 
 (defun tuple-p (tp) (eq tp :tuple))
 (defun match-p (m) (eq m :match))
@@ -266,6 +274,16 @@
    (with-output-to-string (str)
       (do-processes (:process proc)
          (process-print proc str))))
+
+(defclass code ()
+   ((processes
+      :initarg :processes
+      :initform (error "missing processes.")
+      :accessor processes)
+    (consts
+		:initarg :consts
+		:initform (error "missing const code.")
+		:accessor consts)))
          
 (defun vm-find (name-find)
    (do-processes (:name name :process proc)

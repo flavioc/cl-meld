@@ -22,6 +22,7 @@
 	("\\blist\\b"                    (return (values :type-list $@)))
 	("\\binclude\\b"                 (return (values :include $@)))
 	("@world"                        (return (values :world $@)))
+	("@arg[0-9]"							(return (values :arg $@)))
 	("@"                             (return (values :local $@)))
 	("-o"                            (return (values :lolli $@)))
 	("\\!"                           (return (values :bang $@)))
@@ -59,7 +60,7 @@
    ("\\belse\\b"                    (return (values :else $@)))
 	("\\bprio\\b"							(return (values :prio $@)))
 	("_"				                  (return (values :variable $@)))
- 	("[a-z]([a-z]|[A-Z]|\_)*"		   (return (values :const $@)))
+ 	("[a-z]([a-z]|[A-Z]|[0-9]|\\-|\_)*"		   (return (values :const $@)))
 	("'\\w+"		                     (return (values :const $@)))
 	("\\#.+"                         (return (values :file $@)))
 	("[A-Z]([A-Z]|[a-z]|[0-9])*"	   (return (values :variable $@))))
@@ -181,7 +182,7 @@
 								:bar :arrow :dot :comma :type-int :type-addr
 								:type-worker :type-float :type-string :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal :equal
-								:extern :const-decl
+								:extern :const-decl :arg
 								:lsparen :rsparen :nil :bar :type-list :local
 								:route :include :file :world :action
 								:output :input :immediate :linear
@@ -196,7 +197,8 @@
 	                                                               (filter #'is-axiom-p !7) ; axioms
 	                                                               !6 ; functions
 	                                                               (defined-nodes-list) ; nodes
-																						!3))) ; priorities
+																						!3 ; priorities
+																						!5))) ; consts
 
 	(includes
 	   ()
@@ -223,13 +225,13 @@
 		
    (consts
       ()
-      (const-definition consts (return-const nil)))
+      (const-definition consts #'cons))
 
 	(const-definition
 	   (:const-decl const :equal expr :dot #'(lambda (a name e expr dot)
    	                                             (declare (ignore a e dot))
    	                                             (push (make-const-definition name expr) *parsed-consts*)
-   	                                             nil)))
+																	(make-constant name expr))))
 
    (funs
       ()
@@ -364,13 +366,14 @@
 
 	(expr
 	   variable
+		arg
 		(:string #'(lambda (x) (make-string-constant (subseq x 1 (1- (length x)))))) ;; need to trim the first and final ""
 	   (const :lparen args :rparen #'(lambda (name l args r) (declare (ignore l r))
 	            (acond
 	               ((has-function-call-p name)
 	                  (generate-expression-by-function-call it args))
 	               (t (make-call name args)))))
-	   (const #L(lookup-const-def !1))
+	   (const #L(make-get-constant !1))
 	   (:local :number #L(let ((val (parse-integer !2))) (add-found-node val) (make-addr val)))
 		(:number #L(parse-number !1))
 	   (:lparen expr :rparen #'(lambda (l expr r) (declare (ignore l r)) expr))
@@ -392,6 +395,10 @@
 	   (:lsparen :rsparen #'(lambda (a b) (declare (ignore a b)) (make-nil)))
 	   (:nil #'(lambda (a) (declare (ignore a)) (make-nil))))
 	   
+	(arg
+		(:arg (lambda (x)
+			(make-argument (parse-integer (subseq x 4 5))))))
+		
 	(sub-list
 	   (expr #'(lambda (expr) (make-cons expr (make-nil))))
 	   (expr :comma sub-list #'(lambda (expr x sub) (declare (ignore x)) (make-cons expr sub)))

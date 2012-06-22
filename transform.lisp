@@ -34,6 +34,8 @@
 		((world-p expr))
       ((addr-p expr))
 		((string-constant-p expr))
+		((argument-p expr))
+		((get-constant-p expr))
 		;; the real deal
       ((clause-p expr)
          (transform-expr test-fn transform-fn (clause-head expr))

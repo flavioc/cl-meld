@@ -103,6 +103,10 @@
 (defmacro tree-intersection (t1 t2) `(intersection ,t1 ,t2 :test #'equal))
 (defmacro tree-subsetp (t1 t2) `(subsetp ,t1 ,t2 :test #'equal))
 
+(defun set-equal-p (s1 s2)
+	(and (subsetp s1 s2)
+		  (subsetp s2 s1)))
+
 (defun intersection-all (lists)
    "Returns the intersection of all sub-lists in 'lists'."
    (reduce #'intersection (rest lists) :initial-value (first lists))) 

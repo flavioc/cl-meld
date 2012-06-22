@@ -273,6 +273,17 @@
 (defun set-let-body (l body)
    (setf (fourth l) body))
 (defsetf let-body set-let-body)
+
+(defun make-argument (id)
+	(assert (numberp id))
+	(assert (and (>= id 1) (<= id 9)))
+	`(:argument ,id :type-string))
+(defun argument-p (x) (tagged-p x :argument))
+(defun argument-id (x) (second x))
+
+(defun make-get-constant (name &optional type) `(:get-constant ,name ,type))
+(defun get-constant-p (c) (tagged-p c :get-constant))
+(defun get-constant-name (c) (second c))
    
 (defun make-if (cmp e1 e2 &optional type) `(:if ,cmp ,e1 ,e2 ,type))
 (defun if-p (i) (tagged-p i :if))
@@ -421,6 +432,9 @@
 
 (defun lookup-extern (name)
    (find-if #L(string-equal name (extern-name !1)) *externs*))
+
+(defun lookup-const (name)
+	(find-if #L(string-equal name (constant-name !1)) *consts*))
 
 (defun has-constraints-p (subgoals) (some #'constraint-p subgoals))
 (defun has-assignments-p (subgoals) (some #'assignment-p subgoals))

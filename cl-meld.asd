@@ -13,7 +13,8 @@
                         :depends-on ("package"))
                (:file "external"
                         :depends-on ("package"
-                                     "util"))
+                                     "util"
+												 "manip"))
                (:file "parser"
 		 						:depends-on ("package"
 		 						             "macros"
@@ -26,7 +27,8 @@
 												 "util"
 												 "conf"))
 					(:file "util"
-		 			         :depends-on ("package"))
+		 			         :depends-on ("package"
+												 "macros"))
 		 			(:file "manip"
 		 			         :depends-on ("package"
 		 			                      "util"
@@ -48,8 +50,7 @@
 		 			                      "util"
 		 			                      "macros"))
 		 			(:file "macros"
-		 			         :depends-on ("package"
-		 			                      "util"))
+		 			         :depends-on ("package"))
 		 			(:file "ast"
 		 			         :depends-on ("context"
 		 			                      "util"

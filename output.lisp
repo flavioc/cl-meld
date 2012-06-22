@@ -37,6 +37,8 @@
       ((tuple-p val) (list #b011111))
       ((reg-p val) (list (logior #b100000 (logand #b011111 (reg-num val)))))
       ((reg-dot-p val) (list #b000010 (list (reg-dot-field val) (reg-num (reg-dot-reg val)))))
+		((vm-argument-p val) (list #b00000111 (list (vm-argument-id val))))
+		((vm-constant-p val) (list #b00001000 (output-int (lookup-const-id (vm-constant-name val)))))
       (t (error 'output-invalid-error :text (tostring "Invalid expression value: ~a" val)))))
 
 (defmacro add-byte (b vec) `(vector-push-extend ,b ,vec))
@@ -93,11 +95,15 @@
 
 (defun lookup-tuple-id (tuple)
    (do-definitions (:id id :name name)
-      (if (equal name tuple) (return-from lookup-tuple-id id))))
+      (if (string-equal name tuple) (return-from lookup-tuple-id id))))
       
 (defun lookup-extern-id (ast extern)
    (do-externs ast (:id id :name name)
-      (if (equal name extern) (return-from lookup-extern-id id))))
+      (if (string-equal name extern) (return-from lookup-extern-id id))))
+
+(defun lookup-const-id (const)
+	(do-constant-list *consts* (:name name :id id)
+		(if (string-equal name const) (return-from lookup-const-id id))))
       
 (defun output-match (match vec fs)
    (let* ((val (output-value (match-right match)))
@@ -304,19 +310,20 @@
       (letret (vec (create-bin-array))
          (output-instrs instrs vec))))
 
+(defun type-to-byte (typ)
+	(case typ
+      (:type-int #b0000)
+      (:type-float #b0001)
+      (:type-addr #b0010)
+      (:type-list-int #b0011)
+      (:type-list-float #b0100)
+      (:type-list-addr #b0101)
+      (:type-worker #b0110)
+		(:type-string #b1001)
+      (otherwise (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ)))))
+
 (defun output-arg-type (typ vec)
-   (add-byte
-      (case typ
-         (:type-int #b0000)
-         (:type-float #b0001)
-         (:type-addr #b0010)
-         (:type-list-int #b0011)
-         (:type-list-float #b0100)
-         (:type-list-addr #b0101)
-         (:type-worker #b0110)
-			(:type-string #b1001)
-         (otherwise (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ))))
-      vec))
+   (add-byte (type-to-byte typ) vec))
 
 (defun output-aggregate-type (agg typ)
    (case agg
@@ -438,6 +445,10 @@
          (output-tuple-name name vec) ;; predicate name
          (output-aggregate-info def vec) ;; aggregate info
       )))
+
+(defun output-consts ()
+	(letret (vec (create-bin-array))
+		(output-instrs *consts-code* vec)))
             
 (defparameter *total-written* 0)
 
@@ -470,13 +481,21 @@
    (write-nodes stream *nodes*)
    (let* ((*output-string-constants* nil)
 			 (processes (output-processes))
-          (descriptors (output-descriptors)))
+          (descriptors (output-descriptors))
+			 (consts (output-consts)))
 		;; output strings
 		(write-int-stream stream (length *output-string-constants*))
 		(loop for str in *output-string-constants*
 				for i from 0
 				do (write-int-stream stream (length str))
 				do (write-vec stream (output-string str)))
+		; output constant code
+		(write-int-stream stream (length *consts*))
+		(do-constant-list *consts* (:type typ)
+			(write-hexa stream (type-to-byte typ)))
+		(write-int-stream stream (length consts))
+		(write-vec stream consts)
+		; output predicate descriptions
       (loop for vec-desc in descriptors
             for vec-proc in processes
             do (write-int-stream stream (length vec-proc)) ; write code size first

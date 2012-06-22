@@ -280,11 +280,13 @@
 (define-term-construct constraint constraint-p (expr))
 (define-term-construct assignment assignment-p (var expr))
 (define-term-construct agg-construct agg-construct-p (op to vlist body head))
+(define-term-construct constant constant-p (name expr type))
 
 (define-with process (name instrs) :use-self-p t)
+(define-with get-constant (name))
 
 (defmacro do-processes ((&key (process nil) (name nil) (instrs nil) (operation 'do)) &body body)
    (with-gensyms (el)
-      `(loop-list (,el *code* :operation ,operation)
+      `(loop-list (,el *processes* :operation ,operation)
          (with-process ,el (:name ,name :instrs ,instrs :process ,process)
             ,@body))))

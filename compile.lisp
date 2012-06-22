@@ -83,7 +83,11 @@
 		((string-constant-p expr) (return-expr (make-vm-string-constant (string-constant-val expr))))
       ((addr-p expr) (return-expr (make-vm-addr (addr-num expr))))
       ((host-id-p expr) (return-expr (make-vm-host-id)))
-      ((var-p expr) (return-expr (lookup-used-var (var-name expr))))
+      ((argument-p expr)
+			(return-expr (make-vm-argument (argument-id expr))))
+		((get-constant-p expr)
+			(return-expr (make-vm-constant (get-constant-name expr))))
+		((var-p expr) (return-expr (lookup-used-var (var-name expr))))
       ((call-p expr)
          (compile-call (call-name expr) (call-args expr) nil nil))
       ((convert-float-p expr)
@@ -402,7 +406,7 @@
    (do-axioms (:body body :head head :clause clause :operation :append)
       (compile-with-starting-subgoal body head clause)))
 
-(defun compile-ast ()
+(defun compile-processes ()
    (par-collect-definitions (:definition def :name name)
       (if (is-worker-definition-p def)
          (make-process name `(,(make-return)))
@@ -410,3 +414,14 @@
             (make-process name `(,@(compile-init-process) ,(make-return)))
             (make-process name `(,@(compile-normal-process name (find-clauses-with-subgoal-in-body name))
                                  ,(make-return)))))))
+
+(defun compile-consts ()
+	(do-constant-list *consts* (:name name :expr expr :operation append)
+		(with-compiled-expr (place code) expr
+			`(,@code ,(make-move place (make-vm-constant name))))))
+
+(defun compile-ast ()
+	(let ((procs (compile-processes))
+			(consts (compile-consts)))
+		(warn "~a" consts)
+		(make-instance 'code :processes procs :consts `(,@consts (:return-derived)))))

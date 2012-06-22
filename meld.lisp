@@ -40,6 +40,7 @@
       (localize-invalid-error (c) (format t "Localization error: ~a~%" (text c)))
       (stratification-error (c) (format t "Stratification error: ~a~%" (text c)))
       (compile-invalid-error (c) (format t "Compile error: ~a~%" (text c)))
+		(external-invalid-error (c) (format t "External functions: ~a~%" (text c)))
       (output-invalid-error (c) (format t "Output error: ~a~%" (text c)))))
 
 (defun meld-compile-list (pairs)
