@@ -37,6 +37,8 @@
 		((argument-p expr))
 		((get-constant-p expr))
 		;; the real deal
+		((constant-p expr)
+			(transform-part-expression (constant-expr expr)))
       ((clause-p expr)
          (transform-expr test-fn transform-fn (clause-head expr))
          (transform-expr test-fn transform-fn (clause-body expr)))
@@ -122,6 +124,7 @@
       ((nil-p expr) (map-atom-expr))
       ((world-p expr) (map-atom-expr))
       ((addr-p expr) (map-atom-expr))
+		((get-constant-p expr) (map-atom-expr))
       ((clause-p expr)
          (with-mapped-expr
             (make-clause (do-map-expr (clause-body expr))

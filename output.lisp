@@ -162,6 +162,11 @@
 (defparameter *tuple-id-mask* #b01111111)
 (defparameter *extern-id-mask* #b01111111)
 
+(defun iterate-options-byte (iter)
+	(if (iterate-random-p iter)
+		#b00000001
+		#b00000000))
+
 (defun output-instr (instr vec)
    (case (instr-type instr)
       (:return (add-byte #x0 vec))
@@ -210,9 +215,10 @@
                (add-byte (logand *reg-mask* reg-b) vec)
                (jumps-here vec)
                (output-instrs (vm-if-instrs instr) vec))))
-      (:iterate (write-jump vec 2
+      (:iterate (write-jump vec 3
                   (add-byte #b10100000 vec)
                   (add-byte (lookup-tuple-id (iterate-name instr)) vec)
+						(add-byte (iterate-options-byte instr) vec)
                   (jumps-here vec)
                   (output-matches (iterate-matches instr) vec)
                   (output-instrs (iterate-instrs instr) vec)
@@ -366,7 +372,7 @@
 (defparameter *max-tuple-name* 32)
 (defparameter *max-tuple-args* 32)
 (defparameter *max-agg-info* 32)
-         
+
 (defmacro refill-up-to ((vec max) &body body)
    (with-gensyms (pos new-pos)
       `(save-pos (,pos ,vec)
@@ -475,6 +481,18 @@
    (iterate-nodes (fake-id real-id nodes)
       (write-int-stream stream fake-id)
       (write-int-stream stream real-id)))
+
+(defun output-global-priority (stream)
+	(write-hexa stream 1)
+	(let* ((found (find-if #'global-priority-p *priorities*))
+			 (id (lookup-tuple-id (global-priority-name found))))
+		(write-hexa stream (logand *tuple-id-mask* id))
+		(write-short-stream stream (global-priority-argument found))
+		))
+
+(defun any-global-priority-p ()
+	(let ((found (find-if #'global-priority-p *priorities*)))
+		(ensure-bool found)))
       
 (defun do-output-code (stream)
    (write-hexa stream (length *definitions*))
@@ -500,6 +518,10 @@
             for vec-proc in processes
             do (write-int-stream stream (length vec-proc)) ; write code size first
             do (write-vec stream vec-desc))
+		; output global priority predicate, if any
+		(if (any-global-priority-p)
+			(output-global-priority stream)
+			(write-hexa stream 0))
       (dolist (vec processes) (write-vec stream vec))))
    
 (defmacro with-output-file ((stream file) &body body)

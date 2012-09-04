@@ -345,7 +345,7 @@
 (defun mark-unstratified-predicates ()
 	; find new priorities before computing the priority list
 	(find-priorities)
-	(let ((priorities (assign-priorities *current-strat-level* *priorities*)))
+	(let ((priorities (assign-priorities *current-strat-level* (filter #'priority-p *priorities*))))
 		(dolist (prio priorities)
 			(let ((name (first prio))
 					(priority (rest prio)))

@@ -12,7 +12,7 @@
 
 (defun tagged-p (list tag)
    (and (listp list)
-        (eq (first list) tag)))        
+        (eq (first list) tag)))
 (defun tagged-tag (list) (first list))
 
 (defun one-elem-p (list)
@@ -125,12 +125,6 @@
    `(if (null ,ls)
       (setf ,ls (list ,el))
       (nconc ,ls (list ,el))))
-
-(defmacro format-keyword (control &rest arguments)
-   `(format-symbol "KEYWORD" ,control ,@arguments))
-   
-(defmacro output-symbol (control &rest arguments)
-   `(intern (string-upcase (tostring ,control ,@arguments))))
 
 (defun addify (ls &optional (n 0))
    (if (null ls)

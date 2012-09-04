@@ -206,6 +206,7 @@
                         (error 'type-invalid-error :text (tostring "Linear reuse of facts must be used in the body, not the head: ~a" name))))
                   (:persistent
                      (error 'type-invalid-error :text (tostring "Only persistent facts may use !: ~a" name)))
+						(:random)
                   (otherwise
                      (error 'type-invalid-error :text (tostring "Unrecognized option ~a for subgoal ~a" opt name))))))
          (t ;; persistent fact
@@ -216,6 +217,7 @@
                         (error 'type-invalid-error :text (tostring "Reuse option $ may only be used with linear facts: ~a" name)))
                      (:persistent
                         (setf has-persistent-p t))
+							(:random)
                      (otherwise
                         (error 'type-invalid-error :text (tostring "Unrecognized option ~a for subgoal ~a" opt name)))))
                (unless has-persistent-p
@@ -416,7 +418,7 @@
                (error 'type-invalid-error :text (tostring "Comprehension ~a is not using enough variables" comp)))))))
       
 (defun type-check-body (body)
-   (do-subgoals body (:name name :args args :options options)
+	(do-subgoals body (:name name :args args :options options)
       (do-type-check-subgoal name args options :body-p t))
    (do-agg-constructs body (:agg-construct c)
       (do-type-check-agg-construct c t))
@@ -453,9 +455,12 @@
 
 (defun type-check-const (const)
 	(with-constant const (:name name :expr expr)
-		(let ((res (select-simpler-types (get-type expr *all-types*))))
+		(let* ((first-types (get-type expr *all-types*))
+				 (res (select-simpler-types first-types)))
 			(unless (one-elem-p res)
 				(error 'type-invalid-error :text (tostring "could not determine type of const ~a" name)))
+			(unless (same-types-p first-types res)
+				(get-type expr res))
 			(setf (constant-type const) (first res)))))
 
 (defun type-check ()

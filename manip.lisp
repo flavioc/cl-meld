@@ -240,7 +240,7 @@
 
 (defun const-p (s)
    (or (int-p s) (float-p s) (call-p s)
-      (cons-p s) (nil-p s) (addr-p s)))
+      (cons-p s) (nil-p s) (addr-p s) (get-constant-p s)))
             
 (defun make-op (op op1 op2)
    `(,op ,op1 ,op2))

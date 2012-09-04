@@ -187,4 +187,6 @@
       ;(print-mapping mapping)
       (setf *nodes* mapping)
       (do-axioms (:clause clause)
-         (flip-nodes mapping clause))))
+         (flip-nodes mapping clause))
+		(do-constant-list *consts* (:constant c)
+			(flip-nodes mapping c))))

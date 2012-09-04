@@ -21,6 +21,7 @@
 	("\\bworker\\b"                  (return (values :type-worker $@)))
 	("\\blist\\b"                    (return (values :type-list $@)))
 	("\\binclude\\b"                 (return (values :include $@)))
+	("\\brandom\\b"						(return (values :random $@)))
 	("@world"                        (return (values :world $@)))
 	("@arg[0-9]"							(return (values :arg $@)))
 	("@"                             (return (values :local $@)))
@@ -188,7 +189,7 @@
 								:output :input :immediate :linear
 								:dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :fun :end :colon
-								:not-equal :if :then :else :prio))
+								:not-equal :if :then :else :prio :random))
 
 	(program
 	  (includes definitions priorities externs consts funs statements #L(make-ast  !2 ; definitions
@@ -220,6 +221,7 @@
 		(priority priorities #'cons))
 		
 	(priority
+		(:prio :type const number :dot #'(lambda (p ty name arg d) (declare (ignore p ty d)) (make-global-priority name (int-val arg))))
 		(:prio const :lesser const :dot #'(lambda (p name1 l name2 d) (declare (ignore p l d)) (make-descending-priority name1 name2)))
 		(:prio const :greater const :dot #'(lambda (p name1 g name2 d) (declare (ignore p g d)) (make-ascending-priority name1 name2))))
 		
@@ -284,7 +286,7 @@
      ()
      (:lsparen :immediate :rsparen (return-const :immediate))
      (:lsparen :input const :rsparen #'(lambda (l i name r) (declare (ignore l i r)) (list :input name)))
-     (:lsparen :output const :rsparen #'(lambda (l i name r) (declare (ignore l i r)) (list :output name)))) 
+     (:lsparen :output const :rsparen #'(lambda (l i name r) (declare (ignore l i r)) (list :output name))))
     
 	(atype
 	 base-type
@@ -294,7 +296,7 @@
 	                              (:type-int :type-list-int)
 	                              (:type-float :type-list-float)
 	                              (:type-addr :type-list-addr)))))
-	 
+
 	(base-type
  	 (:type-int (return-const :type-int))
  	 (:type-float (return-const :type-float))
@@ -325,6 +327,10 @@
 
 	(subgoal
 	   (inner-subgoal  #'identity)
+		(:colon subgoal-modifier subgoal #'(lambda (x mod sub)
+																	(declare (ignore x mod))
+																	(subgoal-add-option sub :random)
+																	sub))
 	   (:dollar inner-subgoal #'(lambda (d sub)
 	                                 (declare (ignore d))
 	                                 (subgoal-add-option sub :reuse)
@@ -339,6 +345,9 @@
 	                                       (declare (ignore x y))
 	                                       (make-subgoal name args))))
 	 	
+	(subgoal-modifier
+		(:random #'identity))
+		
 	(comprehension
 	    (:lcparen variable-list :bar terms :bar terms :rcparen #'(lambda (l vl b1 left b2 right r) (declare (ignore l b1 b2 r))
                                               (make-comprehension left right vl))))
@@ -375,7 +384,7 @@
 	               (t (make-call name args)))))
 	   (const #L(make-get-constant !1))
 	   (:local :number #L(let ((val (parse-integer !2))) (add-found-node val) (make-addr val)))
-		(:number #L(parse-number !1))
+		number
 	   (:lparen expr :rparen #'(lambda (l expr r) (declare (ignore l r)) expr))
 	   (:type-float :lparen expr :rparen #'(lambda (f l expr r) (declare (ignore f l r)) (make-convert-float expr)))
 	   (:world (return-const (make-world)))
@@ -411,6 +420,9 @@
       (expr :lesser-equal expr #'make-lesser-equal)
       (expr :greater expr #'make-greater)
       (expr :greater-equal expr #'make-greater-equal))
+
+	(number
+		(:number #L(parse-number !1)))
       
 	(variable
 	 (:variable (lambda (x) (make-var-parser x))))

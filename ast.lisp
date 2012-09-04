@@ -74,7 +74,7 @@
          :functions (nconc (functions ast1) (functions ast2))
          :nodes (union (nodes ast1) (nodes ast2))
 			:priorities (union (priorities ast1) (priorities ast2))
-			:consts (union (consts ast1) (consts ast2))))
+			:consts (append (consts ast1) (consts ast2))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Clauses
@@ -127,6 +127,9 @@
 (defun constant-name (c) (second c))
 (defun constant-expr (c) (third c))
 (defun constant-type (c) (fourth c))
+(defun set-constant-expr (c expr)
+	(setf (third c) expr))
+(defsetf constant-expr set-constant-expr)
 
 (defun set-constant-type (c newt)
 	(setf (fourth c) newt))

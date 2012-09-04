@@ -11,6 +11,12 @@
 (defmacro tostring (&rest args)
    `(with-output-to-string (str)
       (format str ,@args)))
+	  
+(defmacro format-keyword (control &rest arguments)
+ `(format-symbol "KEYWORD" ,control ,@arguments))
+		 
+(defmacro output-symbol (control &rest arguments)
+ `(intern (string-upcase (tostring ,control ,@arguments))))
       
 (defmacro aif (test-form then-form &optional else-form)
   `(let ((it ,test-form))

@@ -57,3 +57,6 @@
 (defun single-typed-var-p (var) (and (typed-var-p var) (one-elem-p (third var))))
 (defun typed-op-p (op) (= (length op) 4))
 (defun typed-int-p (i) (= (length i) 3))
+
+(defun same-types-p (types1 types2)
+	(set-equal-p types1 types2))

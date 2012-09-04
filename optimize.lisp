@@ -143,5 +143,7 @@
       (return-from optimize-code nil))
    (optimize-init)
    (optimize-returns)
-	(optimize-multiple-move-0s))
+	; this is buggy when we have subgoals with simple conditions
+	; (optimize-multiple-move-0s)
+	)
    

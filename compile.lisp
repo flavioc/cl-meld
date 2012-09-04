@@ -327,7 +327,10 @@
                             (iterate-code (compile-iterate rem-body orig-body head clause subgoal new-delete-regs
 																					:inside t :head-compiler head-compiler))
                             (other-code `(,(make-move :tuple reg) ,@iterate-code)))
-                        `(,(make-iterate next-sub-name match-constraints other-code))))))))))
+                        `(,(make-iterate next-sub-name
+											match-constraints other-code
+											(subgoal-has-option-p next-sub :random)
+											))))))))))
       
 (defun compile-constraint (inner-code constraint)
    (let ((c-expr (constraint-expr constraint)))
@@ -389,7 +392,7 @@
       (multiple-value-bind (first-constraints first-assignments) (get-compile-constraints-and-assignments body)
          (let* ((remaining (remove-unneeded-assignments (remove-all body first-constraints) head))
                 (inner-code (compile-initial-subgoal remaining body head clause subgoal)))
-            (compile-constraints-and-assignments first-constraints first-assignments inner-code)))))
+				(compile-constraints-and-assignments first-constraints first-assignments inner-code)))))
 
 (defun compile-subgoal-clause (name clause)
    (with-clause clause (:body body :head head)
@@ -399,7 +402,8 @@
 (defun compile-normal-process (name clauses)
    (unless clauses (return-from compile-normal-process nil))
    (do-clauses clauses (:clause clause :operation append)
-      (compile-subgoal-clause name clause)))
+		(let ((clause-code (compile-subgoal-clause name clause)))
+			clause-code)))
       
 (defun compile-init-process ()
    (unless *axioms* (return-from compile-init-process nil))
@@ -423,5 +427,4 @@
 (defun compile-ast ()
 	(let ((procs (compile-processes))
 			(consts (compile-consts)))
-		(warn "~a" consts)
 		(make-instance 'code :processes procs :consts `(,@consts (:return-derived)))))

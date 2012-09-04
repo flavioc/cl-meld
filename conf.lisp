@@ -4,5 +4,5 @@
 (defparameter *use-stratification* t)
 
 ;(defparameter *ordering-type* :random)
-(defparameter *ordering-type* :breadth)
-;(defparameter *ordering-type* :naive)
+;(defparameter *ordering-type* :breadth)
+(defparameter *ordering-type* :naive)

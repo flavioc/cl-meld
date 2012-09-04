@@ -7,6 +7,10 @@
 (defun priority-left (x) (second x))
 (defun priority-right (x) (third x))
 
+(defun make-global-priority (pred-name argument) `(:global-prio ,pred-name ,argument))
+(defun global-priority-p (x) (tagged-p x :global-prio))
+(defun global-priority-name (x) (second x))
+(defun global-priority-argument (x) (third x))
 
 (defun all-start-nodes (priorities)
 	(remove-duplicates (mapcar #'priority-left priorities) :test #'string-equal))
