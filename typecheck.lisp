@@ -114,7 +114,11 @@
                ((call-p expr)
                   (let ((extern (lookup-external-definition (call-name expr))))
                      (unless extern (error 'type-invalid-error :text (tostring "undefined call ~a" (call-name expr))))
-                     (loop for typ in (extern-types extern)
+                     (when (not (= (length (extern-types extern)) (length (call-args expr))))
+								(error 'type-invalid-error :text
+									(tostring "external call ~a has invalid number of arguments (should have ~a arguments)"
+										extern (length (extern-types extern)))))
+							(loop for typ in (extern-types extern)
                            for arg in (call-args expr)
                            do (get-type arg `(,typ)))
                      (merge-types forced-types `(,(extern-ret-type extern)))))
