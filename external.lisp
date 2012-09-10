@@ -34,3 +34,4 @@
 (define-external-function "str2float" :type-float '(:type-string))
 (define-external-function "str2int" :type-int '(:type-string))
 (define-external-function "nodelistremove" :type-list-addr '(:type-list-addr :type-addr))
+(define-external-function "wastetime" :type-int '(:type-int))
