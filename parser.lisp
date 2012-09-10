@@ -414,6 +414,7 @@
 	   (expr :bar expr #'(lambda (a b c) (declare (ignore b)) (make-cons a c))))
 
    (cmp
+		(:lparen cmp :rparen #'(lambda (l cmp r) (declare (ignore l r)) cmp))
       (expr :equal expr #'make-equal)
       (expr :not-equal expr #'make-not-equal)
       (expr :lesser expr #'make-lesser)
