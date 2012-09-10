@@ -163,9 +163,12 @@
 (defparameter *extern-id-mask* #b01111111)
 
 (defun iterate-options-byte (iter)
-	(if (iterate-random-p iter)
-		#b00000001
-		#b00000000))
+	(letret (opt #b00000000)
+		(when (iterate-random-p iter)
+			(setf opt (logior opt #b00000001)))
+		(when (iterate-to-delete-p iter)
+			(setf opt (logior opt #b00000010)))
+		(warn "~a" opt)))
 
 (defun output-instr (instr vec)
    (case (instr-type instr)
