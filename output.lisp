@@ -155,7 +155,7 @@
       (:type-list-int 0)
       (:type-list-float 1)
       (:type-list-addr 2)))
-                  
+
 (defparameter *value-mask* #b00111111)
 (defparameter *reg-mask* #b00011111)
 (defparameter *op-mask* #b00011111)
@@ -167,8 +167,7 @@
 		(when (iterate-random-p iter)
 			(setf opt (logior opt #b00000001)))
 		(when (iterate-to-delete-p iter)
-			(setf opt (logior opt #b00000010)))
-		(warn "~a" opt)))
+			(setf opt (logior opt #b00000010)))))
 
 (defun output-instr (instr vec)
    (case (instr-type instr)

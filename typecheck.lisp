@@ -446,12 +446,21 @@
 	(type-check-all-except-body body head :check-comprehensions check-comprehensions
 													  :check-agg-constructs check-agg-constructs
 													  :axiom-p axiom-p))
-
+																		
 (defun type-check-clause (head body clause axiom-p)
    (with-typecheck-context
       (variable-is-defined (first-host-node head))
 		(setf (clause-body clause)
-			(type-check-body-and-head body head :check-comprehensions t :check-agg-constructs t :axiom-p axiom-p))))
+			(type-check-body-and-head body head :check-comprehensions t :check-agg-constructs t :axiom-p axiom-p))
+		;; add :random to every subgoal with such variable
+		(when (clause-has-random-p clause)
+			(let ((var (clause-get-random-variable clause)))
+				(unless (variable-defined-p var)
+					(error 'type-invalid-error :text
+						(tostring "can't randomize variable ~a because such variable is not defined in the subgoal body" var)))
+				(do-subgoals body (:subgoal sub)
+					(when (subgoal-has-var-p sub var)
+						(subgoal-add-option sub :random)))))))
 
 (defun type-check-const (const)
 	(with-constant const (:name name :expr expr)

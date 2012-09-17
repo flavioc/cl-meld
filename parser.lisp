@@ -309,6 +309,12 @@
 	 (statement statements #'cons))
 
 	(statement
+		(:lsparen :colon :random variable :bar terms :rsparen :lolli terms :dot
+				#'(lambda (l colon random v b body r lolli head d)
+						(declare (ignore l colon b r random lolli d))
+						(let ((clause (make-clause body head)))
+							(clause-add-random clause v)
+							clause)))
 	   (terms :lolli terms :dot #'(lambda (body l head d) (declare (ignore l d)) (make-clause body head)))
 	   (terms :lolli :dot #'(lambda (body l d) (declare (ignore l d)) (make-clause body nil)))
 	   (:arrow terms :dot #'(lambda (x body y) (declare (ignore x y)) (make-clause body nil)))
@@ -327,10 +333,6 @@
 
 	(subgoal
 	   (inner-subgoal  #'identity)
-		(:colon subgoal-modifier subgoal #'(lambda (x mod sub)
-																	(declare (ignore x mod))
-																	(subgoal-add-option sub :random)
-																	sub))
 	   (:dollar inner-subgoal #'(lambda (d sub)
 	                                 (declare (ignore d))
 	                                 (subgoal-add-option sub :reuse)
@@ -344,9 +346,6 @@
 	    (const :lparen args :rparen #'(lambda (name x args y)
 	                                       (declare (ignore x y))
 	                                       (make-subgoal name args))))
-	 	
-	(subgoal-modifier
-		(:random #'identity))
 		
 	(comprehension
 	    (:lcparen variable-list :bar terms :bar terms :rcparen #'(lambda (l vl b1 left b2 right r) (declare (ignore l b1 b2 r))

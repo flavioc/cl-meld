@@ -329,7 +329,8 @@
                             (other-code `(,(make-move :tuple reg) ,@iterate-code)))
                         `(,(make-iterate next-sub-name
 											match-constraints other-code
-											(subgoal-has-option-p next-sub :random)
+											:random-p (subgoal-has-option-p next-sub :random)
+											:to-delete-p (subgoal-to-be-deleted-p next-sub def)
 											))))))))))
       
 (defun compile-constraint (inner-code constraint)
@@ -423,7 +424,7 @@
 	(do-constant-list *consts* (:name name :expr expr :operation append)
 		(with-compiled-expr (place code) expr
 			`(,@code ,(make-move place (make-vm-constant name))))))
-
+	
 (defun compile-ast ()
 	(let ((procs (compile-processes))
 			(consts (compile-consts)))

@@ -138,6 +138,14 @@
       (do-subgoals code (:name name)
          (when (string-equal name subgoal-name)
             (incf total)))))
+(defun subgoal-has-var-p (subgoal var)
+	(with-subgoal subgoal (:args args)
+		(dolist (arg args)
+			(when (var-eq-p arg var)
+				(return-from subgoal-has-var-p t))))
+	nil)
+				
+				
 (defun clause-body-number-of-occurrences (clause subgoal-name)
    (subgoal-number-of-occurrences (clause-body clause) subgoal-name))
 (defun clause-head-number-of-occurrences (clause subgoal-name)

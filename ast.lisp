@@ -110,6 +110,12 @@
    (find-if #L(string-equal (first !1) name) (clause-get-all-deletes clause)))
 (defun clause-add-delete (clause name args)
    (clause-add-tagged-option clause :delete name args))
+(defun clause-add-random (clause var)
+	(clause-add-tagged-option clause :random var))
+(defun clause-has-random-p (clause)
+	(clause-has-tagged-option-p clause :random))
+(defun clause-get-random-variable (clause)
+	(first (clause-get-tagged-option clause :random)))
    
 (defun delete-option-args (delete-opt) (second delete-opt))
 (defun delete-option-name (delete-opt) (first delete-opt))

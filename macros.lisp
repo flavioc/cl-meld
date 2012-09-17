@@ -225,7 +225,7 @@
 (define-with extern (name ret-type types))
 (define-loop extern with-extern do-externs (name ret-type types))
 
-(define-with clause (head body options))
+(define-with clause (head body options) :use-self-p t)
 (define-loop clause with-clause do-clauses (head body options))
 
 (define-with function (name args ret-type body))
