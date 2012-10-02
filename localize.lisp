@@ -287,7 +287,7 @@
          (unless (and (var-p first-arg)
                      (one-of-the-vars-p homes first-arg))
             (error 'localize-invalid-error
-                     :text (tostring "Variable was not found: ~a" first-arg)))))
+                     :text (tostring "Variable was not found: ~a ~a" first-arg clause)))))
 	(do-agg-constructs head (:body body)
 		(check-remote-args-in-constructs body host))
    (do-comprehensions head (:left left)
