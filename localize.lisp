@@ -160,9 +160,9 @@
    (let* ((reachable (get-reachable-nodes remaining to))
           (subgoals (select-subgoals-by-home (clause-body clause) reachable)))
       (unless subgoals
-         ;; from is the host node
+			;; all subgoals in host node
          (when (transform-remote-subgoals (clause-head clause) from)
-            (add-route-fact-to-invert (subgoal-name route-subgoal))
+				; every subgoal in head goes to 'from'
             (clause-add-option clause `(:route ,(var-name to))))
          (return-from do-localize-one nil))
       (let* ((body (clause-body clause))
