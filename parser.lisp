@@ -61,7 +61,7 @@
    ("\\belse\\b"                    (return (values :else $@)))
 	("\\bprio\\b"							(return (values :prio $@)))
 	("_"				                  (return (values :variable $@)))
- 	("[a-z]([a-z]|[A-Z]|[0-9]|\\-|\_)*"		   (return (values :const $@)))
+ 	("[a-z]([a-z]|[A-Z]|[0-9]|\\-|\_|\\?|\\-)*"		   (return (values :const $@)))
 	("'\\w+"		                     (return (values :const $@)))
 	("\\#.+"                         (return (values :file $@)))
 	("[A-Z]([A-Z]|[a-z]|[0-9])*"	   (return (values :variable $@))))
