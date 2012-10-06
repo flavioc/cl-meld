@@ -144,7 +144,13 @@
 			(when (var-eq-p arg var)
 				(return-from subgoal-has-var-p t))))
 	nil)
-				
+	
+(defun subgoals-in-list-have-var-p (ls var)
+	(do-subgoals ls (:args args)
+		(dolist (arg args)
+			(when (var-eq-p arg var)
+				(return-from subgoals-in-list-have-var-p t))))
+	nil)		
 				
 (defun clause-body-number-of-occurrences (clause subgoal-name)
    (subgoal-number-of-occurrences (clause-body clause) subgoal-name))
@@ -162,4 +168,6 @@
    t)
 
 (defun find-clauses-with-subgoal-in-body (subgoal-name)
-   (filter #L(clause-body-matches-subgoal-p !1 subgoal-name) *clauses*))
+   (filter #'(lambda (clause) (clause-body-matches-subgoal-p clause subgoal-name))
+				*clauses*))
+
