@@ -7,7 +7,7 @@
 
 (defmacro deftuple (name types &rest options)
    `(unless (base-tuple-defined-p ,(symbol-name name))
-      (push-end (make-definition ,(substitute #\_ #\- (string-downcase (symbol-name name))) ',types ',options) *base-tuples*)))
+      (push-end (make-definition ,(string-downcase (symbol-name name)) ',types ',options) *base-tuples*)))
       
 (defun add-base-tuples ()
    (let ((copy (mapcar #'copy-tree *base-tuples*)))
