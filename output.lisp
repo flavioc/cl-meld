@@ -490,7 +490,9 @@
 			 (id (lookup-tuple-id (global-priority-name found))))
 		(write-hexa stream (logand *tuple-id-mask* id))
 		(write-short-stream stream (global-priority-argument found))
-		))
+		(case (global-priority-asc-desc found)
+			(:asc (write-hexa stream #b00000001))
+			(:desc (write-hexa stream #b00000000)))))
 
 (defun any-global-priority-p ()
 	(let ((found (find-if #'global-priority-p *priorities*)))

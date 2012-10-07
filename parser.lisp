@@ -3,13 +3,15 @@
 
 (define-string-lexer meld-lexer
    ("[-+]?[0-9]+(\\.[0-9]+|[0-9]+)?" (return (values :number $@)))
-	("\"[^\"]*\""						(return (values :string $@)))
+	("\"[^\"]*\""							(return (values :string $@)))
 	("\\,"                           (return (values :comma $@)))
 	("\\["                           (return (values :lsparen $@)))
 	("\\]"                           (return (values :rsparen $@)))
 	("\\{"                           (return (values :lcparen $@)))
 	("\\}"                           (return (values :rcparen $@)))
    ("\\."                           (return (values :dot $@)))
+	("\\basc\\b"							(return (values :asc $@)))
+	("\\bdesc\\b"							(return (values :desc $@)))
    ("\\bimmediate\\b"               (return (values :immediate $@)))
  	("\\btype\\b"			            (return (values :type $@)))
  	("\\bextern\\b"                  (return (values :extern $@)))
@@ -189,7 +191,8 @@
 								:output :input :immediate :linear
 								:dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :fun :end :colon
-								:not-equal :if :then :else :prio :random))
+								:not-equal :if :then :else :prio :random
+								:min :asc :desc))
 
 	(program
 	  (includes definitions priorities externs consts funs statements #L(make-ast  !2 ; definitions
@@ -221,9 +224,13 @@
 		(priority priorities #'cons))
 		
 	(priority
-		(:prio :type const number :dot #'(lambda (p ty name arg d) (declare (ignore p ty d)) (make-global-priority name (int-val arg))))
+		(:prio :type const :div number asc-desc :dot #'(lambda (p ty name div arg ad dot) (declare (ignore p ty div dot)) (make-global-priority name (int-val arg) ad)))
 		(:prio const :lesser const :dot #'(lambda (p name1 l name2 d) (declare (ignore p l d)) (make-descending-priority name1 name2)))
 		(:prio const :greater const :dot #'(lambda (p name1 g name2 d) (declare (ignore p g d)) (make-ascending-priority name1 name2))))
+		
+	(asc-desc
+		(:asc (return-const :asc))
+		(:desc (return-const :desc)))
 		
    (consts
       ()
