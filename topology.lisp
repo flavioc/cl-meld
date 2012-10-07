@@ -189,4 +189,6 @@
       (do-axioms (:clause clause)
          (flip-nodes mapping clause))
 		(do-constant-list *consts* (:constant c)
-			(flip-nodes mapping c))))
+			(flip-nodes mapping c))
+		(do-rules (:clause clause)
+			(flip-nodes mapping clause))))
