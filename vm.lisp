@@ -103,13 +103,15 @@
 (defun vm-op-v2 (st) (sixth st))
 (defun vm-op-p (st) (tagged-p st :op))
 
-(defun make-iterate (name matches instrs &key (random-p nil) (to-delete-p nil))
-	`(:iterate ,name ,matches ,instrs ,random-p ,to-delete-p))
+(defun make-iterate (name matches instrs &key (random-p nil) (to-delete-p nil) (min-p nil) (min-arg nil))
+	`(:iterate ,name ,matches ,instrs ,random-p ,to-delete-p ,min-p ,min-arg))
 (defun iterate-name (i) (second i))
 (defun iterate-matches (i) (third i))
 (defun iterate-instrs (i) (fourth i))
 (defun iterate-random-p (i) (fifth i))
 (defun iterate-to-delete-p (i) (sixth i))
+(defun iterate-min-p (i) (seventh i))
+(defun iterate-min-arg (i) (nth 7 i))
 (defun match-left (m) (first m))
 (defun match-right (m) (second m))
 

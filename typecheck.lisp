@@ -415,7 +415,7 @@
             (unless (subsetp new-ones target-variables)
                (error 'type-invalid-error :text (tostring "Comprehension ~a is using more variables than it specifies" comp)))
             (unless (subsetp target-variables new-ones)
-               (error 'type-invalid-error :text (tostring "Comprehension ~a is not using enough variables" comp)))))))
+               (error 'type-invalid-error :text (tostring "Comprehension ~a is not using enough variables ~a ~a" comp target-variables new-ones)))))))
       
 (defun type-check-body (body)
 	(do-subgoals body (:name name :args args :options options)
@@ -460,7 +460,16 @@
 						(tostring "can't randomize variable ~a because such variable is not defined in the subgoal body" var)))
 				(do-subgoals body (:subgoal sub)
 					(when (subgoal-has-var-p sub var)
-						(subgoal-add-option sub :random)))))))
+						(subgoal-add-option sub :random)))))
+		;; add :min to every subgoal with such variable
+		(when (clause-has-min-p clause)
+			(let ((var (clause-get-min-variable clause)))
+				(unless (variable-defined-p var)
+					(error 'type-invalid-error :text
+						(tostring "can't minimize variable ~a because such variable is not defined in the subgoal body" var)))
+				(do-subgoals body (:subgoal sub)
+					(when (subgoal-has-var-p sub var)
+						(subgoal-add-min sub var)))))))
 
 (defun type-check-const (const)
 	(with-constant const (:name name :expr expr)

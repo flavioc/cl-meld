@@ -62,6 +62,7 @@
    ("\\bthen\\b"                    (return (values :then $@)))
    ("\\belse\\b"                    (return (values :else $@)))
 	("\\bprio\\b"							(return (values :prio $@)))
+	("\\bmin\\b"							(return (values :min $@)))
 	("_"				                  (return (values :variable $@)))
  	("[a-z]([a-z]|[A-Z]|[0-9]|\\-|\_|\\?|\\-)*"		   (return (values :const $@)))
 	("'\\w+"		                     (return (values :const $@)))
@@ -319,17 +320,31 @@
 	 (statement statements #'cons))
 
 	(statement
-		(:lsparen :colon :random variable :bar terms :rsparen :lolli terms :dot
-				#'(lambda (l colon random v b body r lolli head d)
-						(declare (ignore l colon b r random lolli d))
+		(:lsparen :colon subgoal-mod variable :bar terms :rsparen :lolli head :dot
+				#'(lambda (l colon mod v b body r lolli head d)
+						(declare (ignore l colon b r lolli d))
 						(let ((clause (make-clause body head)))
-							(clause-add-random clause v)
+							(case mod
+								(:random (clause-add-random clause v))
+								(:min (clause-add-min clause v)))
 							clause)))
-	   (terms :lolli terms :dot #'(lambda (body l head d) (declare (ignore l d)) (make-clause body head)))
+	   (terms :lolli head :dot #'(lambda (body l head d) (declare (ignore l d)) (make-clause body head)))
 	   (terms :lolli :dot #'(lambda (body l d) (declare (ignore l d)) (make-clause body nil)))
 	   (:arrow terms :dot #'(lambda (x body y) (declare (ignore x y)) (make-clause body nil)))
-	   (terms :dot #'(lambda (head d) (declare (ignore d)) (make-clause nil head)))
-		(terms :arrow terms :dot #'(lambda (conc y perm w) (declare (ignore y w)) (make-clause perm conc))))
+	   (head :dot #'(lambda (head d) (declare (ignore d)) (make-clause nil head)))
+		(head :arrow terms :dot #'(lambda (conc y perm w) (declare (ignore y w)) (make-clause perm conc))))
+		
+	(subgoal-mod
+		(:random (return-const :random))
+		(:min (return-const :min)))
+	
+	(head
+		(:number #'(lambda (str)
+						(let ((num (parse-integer str)))
+							(if (= num 1)
+								nil
+								(error 'parse-error :text (tostring "invalid head number ~a" str))))))
+		(terms #'identity))
 		
    (terms
       (term #'list)

@@ -330,8 +330,9 @@
                         `(,(make-iterate next-sub-name
 											match-constraints other-code
 											:random-p (subgoal-has-option-p next-sub :random)
-											:to-delete-p (subgoal-to-be-deleted-p next-sub def)
-											))))))))))
+											:min-p (subgoal-has-min-p next-sub)
+											:min-arg (subgoal-get-min-variable-position next-sub)
+											:to-delete-p (subgoal-to-be-deleted-p next-sub def)))))))))))
       
 (defun compile-constraint (inner-code constraint)
    (let ((c-expr (constraint-expr constraint)))
@@ -386,7 +387,10 @@
                `(,start-code ,@(compile-low-constraints low-constraints inner-code)))))))
 
 (defun get-my-subgoals (body name)
-   (filter #L(equal (subgoal-name !1) name) (get-subgoals body)))
+   (filter #'(lambda (sub)
+					(unless (subgoal-has-min-p sub)
+						(equal (subgoal-name sub) name)))
+			(get-subgoals body)))
 
 (defun compile-with-starting-subgoal (body head clause &optional subgoal)
    (with-compile-context

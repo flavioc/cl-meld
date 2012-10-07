@@ -234,6 +234,7 @@
                      (do-localize to target-clause new-edges new-remaining))))))))
 
 (defun check-subgoal-arguments (homes clause)
+	"Check that the clause only uses certain nodes in 'homes'"
    (do-subgoals clause (:args args :name name)
       (unless (some #'(lambda (h) (var-eq-p (first args) h)) homes)
          (error 'localize-invalid-error
