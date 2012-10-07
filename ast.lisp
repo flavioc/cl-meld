@@ -40,14 +40,18 @@
 	(consts
 		:initarg :consts
 		:initform (error "missing consts.")
-		:accessor consts)))
+		:accessor consts)
+	(args-needed
+		:initarg :args-needed
+		:initform (error "missing args-needed.")
+		:accessor args-needed)))
 
 (defun is-worker-clause-p (defs)
    #'(lambda (clause)
       (let ((first (find-if #'subgoal-p (clause-head clause))))
          (is-worker-definition-p (lookup-definition (subgoal-name first) defs)))))
 
-(defun make-ast (defs externs clauses axioms funs nodes priorities consts)
+(defun make-ast (defs externs clauses axioms funs nodes priorities consts args-needed)
    (multiple-value-bind (worker-clauses node-clauses) (split-mult-return (is-worker-clause-p defs) clauses)
       (multiple-value-bind (worker-axioms node-axioms) (split-mult-return (is-worker-clause-p defs) axioms)
          (make-instance 'ast
@@ -60,7 +64,8 @@
             :functions funs
             :nodes nodes
 				:priorities priorities
-				:consts consts))))
+				:consts consts
+				:args-needed args-needed))))
  
 (defun merge-asts (ast1 ast2)
    "Merges two ASTs together. Note that ast1 is modified."
@@ -74,7 +79,8 @@
          :functions (nconc (functions ast1) (functions ast2))
          :nodes (union (nodes ast1) (nodes ast2))
 			:priorities (union (priorities ast1) (priorities ast2))
-			:consts (append (consts ast1) (consts ast2))))
+			:consts (append (consts ast1) (consts ast2))
+			:args-needed (max (args-needed ast1) (args-needed ast2))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Clauses

@@ -114,6 +114,8 @@
       (when (string-equal other name)
          (return-from has-function-call-p f)))
    nil)
+
+(defvar *max-arg-needed* 0)
    
 (defun generate-part-expression (final-type body fun-args args)
    (let ((this-fun-arg (first fun-args))
@@ -202,7 +204,8 @@
 	                                                               !6 ; functions
 	                                                               (defined-nodes-list) ; nodes
 																						!3 ; priorities
-																						!5))) ; consts
+																						!5 ; consts
+																						*max-arg-needed*))) ;; args-needed
 
 	(includes
 	   ()
@@ -294,7 +297,7 @@
      (:lsparen :immediate :rsparen (return-const :immediate))
      (:lsparen :input const :rsparen #'(lambda (l i name r) (declare (ignore l i r)) (list :input name)))
      (:lsparen :output const :rsparen #'(lambda (l i name r) (declare (ignore l i r)) (list :output name))))
-    
+
 	(atype
 	 base-type
 	 (:type-list base-type #'(lambda (l ty)
@@ -404,7 +407,7 @@
 	                                                (make-if cmp e1 e2)))
 	   (:let variable :equal expr :in expr :end #'(lambda (l var eq expr i body e) (declare (ignore l eq i e)) (make-let var expr body)))
 	   (list-expr #'identity))
-	   
+
 	(list-expr
 	   (:lsparen sub-list :rsparen #'(lambda (a b c) (declare (ignore a c)) b))
 	   (:lsparen :rsparen #'(lambda (a b) (declare (ignore a b)) (make-nil)))
@@ -412,8 +415,10 @@
 	   
 	(arg
 		(:arg (lambda (x)
-			(make-argument (parse-integer (subseq x 4 5))))))
-		
+			(let ((num-arg (parse-integer (subseq x 4 5))))
+				(setf *max-arg-needed* (max num-arg *max-arg-needed*))
+				(make-argument num-arg)))))
+
 	(sub-list
 	   (expr #'(lambda (expr) (make-cons expr (make-nil))))
 	   (expr :comma sub-list #'(lambda (expr x sub) (declare (ignore x)) (make-cons expr sub)))
@@ -507,6 +512,7 @@
    "Parses a Meld file, including included files."
    (let* ((*included-files* nil)
           (*defined-functions* nil)
+			 (*max-arg-needed* 0)
           (ast (with-inner-parse-context
                   (parse-file-as-stream file))))
       (in-directory (pathname (directory-namestring (pathname file)))

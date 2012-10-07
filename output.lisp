@@ -501,6 +501,7 @@
 (defun do-output-code (stream)
    (write-hexa stream (length *definitions*))
    (write-nodes stream *nodes*)
+	(write-hexa stream (args-needed *ast*))
    (let* ((*output-string-constants* nil)
 			 (processes (output-processes))
           (descriptors (output-descriptors))
