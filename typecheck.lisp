@@ -480,8 +480,7 @@
 					(with-subgoal sub (:args args)
 						(let ((found (find-if #'(lambda (arg) (find-if #'(lambda (v) (var-eq-p v arg)) involved-variables)) (rest args))))
 							(when found
-								(subgoal-mark-as-blocked sub)))))
-				(warn "vars ~a" involved-variables)))))
+								(subgoal-mark-as-blocked sub)))))))))
 
 (defun type-check-const (const)
 	(with-constant const (:name name :expr expr)
