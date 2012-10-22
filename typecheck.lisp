@@ -463,13 +463,25 @@
 						(subgoal-add-option sub :random)))))
 		;; add :min to every subgoal with such variable
 		(when (clause-has-min-p clause)
-			(let ((var (clause-get-min-variable clause)))
+			(let ((var (clause-get-min-variable clause))
+					(involved-variables nil))
 				(unless (variable-defined-p var)
 					(error 'type-invalid-error :text
 						(tostring "can't minimize variable ~a because such variable is not defined in the subgoal body" var)))
 				(do-subgoals body (:subgoal sub)
 					(when (subgoal-has-var-p sub var)
-						(subgoal-add-min sub var)))))))
+						(subgoal-add-min sub var)
+						(with-subgoal sub (:args args)
+							(dolist (arg (rest args))
+								(unless (var-eq-p var arg)
+									(push arg involved-variables))))))
+				;; mark subgoals that use the same variables (involved-variables)
+				(do-subgoals body (:subgoal sub)
+					(with-subgoal sub (:args args)
+						(let ((found (find-if #'(lambda (arg) (find-if #'(lambda (v) (var-eq-p v arg)) involved-variables)) (rest args))))
+							(when found
+								(subgoal-mark-as-blocked sub)))))
+				(warn "vars ~a" involved-variables)))))
 
 (defun type-check-const (const)
 	(with-constant const (:name name :expr expr)

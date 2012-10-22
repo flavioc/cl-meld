@@ -307,13 +307,29 @@
 (defun remove-defined-assignments (assignments) (mapcar #L(remove-used-var (var-name (assignment-var !1))) assignments))
 
 (defun compile-head (body head clause subgoal delete-regs inside head-compiler)
-   (let ((assigns (filter #'assignment-p body)))
-      (always-ret (compile-assignments-and-head assigns #L(do-compile-head subgoal head clause delete-regs inside head-compiler))
-         (remove-defined-assignments assigns))))
+   (let* ((assigns (filter #'assignment-p body))
+          (head-code (compile-assignments-and-head assigns #L(do-compile-head subgoal head clause delete-regs inside head-compiler))))
+         (remove-defined-assignments assigns)
+         (if subgoal
+            `(,(make-vm-rule-done) ,@head-code)
+            head-code)))
+
+(defun select-next-subgoal-for-compilation (body)
+	"Selects next subgoal for compilation. We give preference to subgoals with modifiers (random/min/etc)."
+	(let ((no-args (find-if #'(lambda (sub) (and (subgoal-p sub) (null (subgoal-args sub)))) body)))
+		(if no-args
+			no-args
+			(let ((not-blocked (find-if #'(lambda (sub) (and (subgoal-p sub) (not (subgoal-is-blocked-p sub)))) body)))
+				(if not-blocked
+					not-blocked
+					(let ((with-mod (find-if #'(lambda (sub) (and (subgoal-p sub) (or (subgoal-has-random-p sub) (subgoal-has-min-p sub)))) body)))
+						(if with-mod
+							with-mod
+							(find-if #'subgoal-p body))))))))
                      
 (defun compile-iterate (body orig-body head clause subgoal delete-regs &key (inside nil) (head-compiler #'do-compile-head-code))
    (multiple-value-bind (constraints assignments) (get-compile-constraints-and-assignments body)
-      (let* ((next-sub (find-if #'subgoal-p body))
+      (let* ((next-sub (select-next-subgoal-for-compilation body))
              (rem-body (remove-unneeded-assignments (remove-tree-first next-sub (remove-all body constraints)) head)))
          (compile-constraints-and-assignments constraints assignments
             (if (not next-sub)
@@ -329,7 +345,7 @@
                             (other-code `(,(make-move :tuple reg) ,@iterate-code)))
                         `(,(make-iterate next-sub-name
 											match-constraints other-code
-											:random-p (subgoal-has-option-p next-sub :random)
+											:random-p (subgoal-has-random-p next-sub)
 											:min-p (subgoal-has-min-p next-sub)
 											:min-arg (subgoal-get-min-variable-position next-sub)
 											:to-delete-p (subgoal-to-be-deleted-p next-sub def)))))))))))
@@ -376,8 +392,8 @@
                            (make-vm-if reg old))))
                constraints :initial-value inner-code :from-end t)))
 
-(defun compile-initial-subgoal (body orig-body head clause subgoal)
-   (let ((without-subgoal (remove-tree subgoal body)))
+(defun compile-initial-subgoal-aux (body orig-body head clause subgoal)
+	(let ((without-subgoal (remove-tree subgoal body)))
       (if (null (subgoal-args subgoal))
          (compile-iterate without-subgoal orig-body head clause subgoal nil)
          (with-reg (sub-reg subgoal)
@@ -385,6 +401,20 @@
                   (low-constraints (add-subgoal subgoal sub-reg))
                   (inner-code (compile-iterate without-subgoal orig-body head clause subgoal nil)))
                `(,start-code ,@(compile-low-constraints low-constraints inner-code)))))))
+
+(defun get-first-min-subgoal (body)
+	(do-subgoals body (:subgoal sub)
+		(when (subgoal-has-min-p sub)
+			(return-from get-first-min-subgoal sub))))
+
+(defun compile-initial-subgoal (body orig-body head clause subgoal)
+	(cond
+		((and (not (null subgoal)) (subgoal-is-blocked-p subgoal))
+			(let* ((first-subgoal (get-first-min-subgoal body))
+					 (inner-code (compile-iterate body orig-body head clause nil nil)))
+			`(,(make-vm-save-original `(,@inner-code ,(make-return))))))
+		(t (compile-initial-subgoal-aux body orig-body head clause subgoal))))
+   
 
 (defun get-my-subgoals (body name)
    (filter #'(lambda (sub)
@@ -408,7 +438,8 @@
    (unless clauses (return-from compile-normal-process nil))
    (do-clauses clauses (:clause clause :operation append)
 		(let ((clause-code (compile-subgoal-clause name clause)))
-			clause-code)))
+			(assert (not (null (clause-get-id clause))))
+			`(,(make-vm-rule (clause-get-id clause)) ,@clause-code))))
       
 (defun compile-init-process ()
    (unless *axioms* (return-from compile-init-process nil))
@@ -416,7 +447,8 @@
       (compile-with-starting-subgoal body head clause)))
 
 (defun compile-processes ()
-   (par-collect-definitions (:definition def :name name)
+   ;(par-collect-definitions (:definition def :name name)
+	(do-definitions (:definition def :name name :operation collect)
       (if (is-worker-definition-p def)
          (make-process name `(,(make-return)))
          (if (is-init-p def)
@@ -428,8 +460,13 @@
 	(do-constant-list *consts* (:name name :expr expr :operation append)
 		(with-compiled-expr (place code) expr
 			`(,@code ,(make-move place (make-vm-constant name))))))
+
+(defun number-clauses ()
+	(do-rules (:clause clause :id id)
+		(clause-add-id clause id)))
 	
 (defun compile-ast ()
+	(number-clauses)
 	(let ((procs (compile-processes))
 			(consts (compile-consts)))
 		(make-instance 'code :processes procs :consts `(,@consts (:return-derived)))))

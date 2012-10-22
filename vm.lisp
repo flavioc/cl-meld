@@ -189,6 +189,17 @@
 (defun tuple-p (tp) (eq tp :tuple))
 (defun match-p (m) (eq m :match))
 
+(defun make-vm-rule (id) `(:rule ,id))
+(defun vm-rule-id (rule) (second rule))
+(defun vm-rule-p (rule) (tagged-p rule :rule))
+
+(defun make-vm-rule-done () `(:rule-done))
+
+(defun make-vm-save-original (code)
+	`(:save-original ,code))
+(defun vm-save-original-p (so) (tagged-p so :save-original))
+(defun vm-save-original-code (so) (second so))
+
 (defun print-place (place)
    (cond
       ((vm-int-p place) (tostring "~a" (vm-int-val place)))

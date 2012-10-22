@@ -128,6 +128,10 @@
 	(clause-has-tagged-option-p clause :random))
 (defun clause-get-random-variable (clause)
 	(first (clause-get-tagged-option clause :random)))
+(defun clause-add-id (clause id)
+	(clause-add-tagged-option clause :id id))
+(defun clause-get-id (clause)
+	(first (clause-get-tagged-option clause :id)))
    
 (defun delete-option-args (delete-opt) (second delete-opt))
 (defun delete-option-name (delete-opt) (first delete-opt))

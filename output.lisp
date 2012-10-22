@@ -180,6 +180,11 @@
       (:next (add-byte #x1 vec))
       (:return-linear (add-byte #b11010000 vec))
       (:return-derived (add-byte #b11110000 vec))
+		(:save-original
+			(write-jump vec 1
+				(add-byte #b00010010 vec)
+				(jumps-here vec)
+				(output-instrs (vm-save-original-code instr) vec)))
       (:reset-linear
          (write-jump vec 1
             (add-byte #b00001110 vec)
@@ -302,6 +307,12 @@
             (logand *value-mask* first-value)
             (logand *value-mask* second-value)
             (logand *reg-mask* (reg-to-byte (vm-colocated-dest instr)))))
+      (:rule
+         (add-byte #b00010000 vec)
+         (dolist (b (output-int (vm-rule-id instr)))
+            (add-byte b vec)))
+      (:rule-done
+         (add-byte #b00010001 vec))
       (:delete (let* ((filters (vm-delete-filter instr)))
                   (add-byte #b00001101 vec)
                   (add-byte (logand *tuple-id-mask* (lookup-tuple-id (vm-delete-name instr))) vec)
@@ -483,6 +494,11 @@
    (dolist (part (output-int int))
       (write-hexa stream part)))
 
+
+(defun write-string-stream (stream str)
+   (loop for x being the elements of str
+      do (write-hexa stream (char-code x))))
+
 (defun write-nodes (stream nodes)
    (when (zerop (number-of-nodes nodes))
       (format t "WARNING: there are no nodes defined in this program~%"))
@@ -504,11 +520,19 @@
 (defun any-global-priority-p ()
 	(let ((found (find-if #'global-priority-p *priorities*)))
 		(ensure-bool found)))
+
+(defun write-rules (stream)
+   (write-int-stream stream (length *clauses*))
+   (do-rules (:clause clause)
+      (let ((str (clause-to-string clause)))
+         (write-int-stream stream (length str))
+         (write-string-stream stream str))))
       
 (defun do-output-code (stream)
    (write-hexa stream (length *definitions*))
    (write-nodes stream *nodes*)
 	(write-hexa stream (args-needed *ast*))
+   (write-rules stream)
    (let* ((*output-string-constants* nil)
 			 (processes (output-processes))
           (descriptors (output-descriptors))

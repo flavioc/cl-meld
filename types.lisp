@@ -11,7 +11,7 @@
                                        (eq ,(format-symbol "KEYWORD" "TYPE-~A" (symbol-name x)) ty)))
                   types)))
 
-(deftype-p int addr worker bool float list-int list-float list-addr list-worker)
+(deftype-p int addr worker bool string float list-int list-float list-addr list-worker)
 
 (defun type-operands (op &optional forced-types)
    (cond
