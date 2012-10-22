@@ -418,8 +418,7 @@
 
 (defun get-my-subgoals (body name)
    (filter #'(lambda (sub)
-					(unless (subgoal-has-min-p sub)
-						(equal (subgoal-name sub) name)))
+						(string-equal (subgoal-name sub) name))
 			(get-subgoals body)))
 
 (defun compile-with-starting-subgoal (body head clause &optional subgoal)
