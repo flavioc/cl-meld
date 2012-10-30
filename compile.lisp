@@ -10,10 +10,16 @@
 (defparameter *vars-places* nil)
 (defparameter *used-regs* nil)
 
-(defmacro with-compile-context (&body body)
+(defmacro with-empty-compile-context (&body body)
+	"Initiates compile context."
    `(let ((*vars-places* (make-hash-table))
           (*used-regs* nil))
       ,@body))
+
+(defmacro with-compile-context (&body body)
+	`(let ((*vars-places* (copy-hash-table *vars-places*))
+			 (*used-regs* (copy-list *used-regs*)))
+		,@body))
 
 (defun alloc-new-reg (data) (alloc-reg *used-regs* data))
 (defmacro with-reg ((reg &optional data) &body body)
@@ -225,14 +231,18 @@
 	(case op
 		(:collect
 			`(,(make-move-nil acc)))
-		(:count
-			`(,(make-move (make-vm-int 0) acc)))
+		((:count :sum)
+			`(,(make-move (make-vm-float 0.0) acc)))
+		(:min
+			`(,(make-move (make-vm-int 100000) acc)))
 		(otherwise (error 'compile-invalid-error :text (tostring "agg-construct-start: op ~a not recognized" op)))))
 
 (defun agg-construct-end (op acc)
 	(case op
 		(:collect nil)
 		(:count nil)
+		(:sum nil)
+		(:min nil)
 		(otherwise (error 'compile-invalid-error :text (tostring "agg-construct-end: op ~a not recognized" op)))))
 		
 (defun agg-construct-step (op acc var)
@@ -240,8 +250,15 @@
 		(:collect
 			(let ((dest (lookup-used-var (var-name var))))
 				`(,(make-vm-cons dest acc acc (expr-type var)))))
+		(:sum
+			(let ((src (lookup-used-var (var-name var))))
+			`(,(make-vm-op acc acc :float-plus src))))
 		(:count
 			`(,(make-vm-op acc acc :int-plus (make-vm-int 1))))
+		(:min
+			(let ((src (lookup-used-var (var-name var))))
+				(with-reg (new)
+					`(,(make-vm-op new src :int-lesser acc) ,(make-vm-if new `(,(make-move src acc))))))) 
 		(otherwise (error 'compile-invalid-error
 								:text (tostring "agg-construct-step: op ~a not recognized" op)))))
 	
@@ -260,16 +277,13 @@
 					`(,@start ,(make-vm-reset-linear (append inner-code (append end (append head-code `(,(make-vm-reset-linear-end))))))))))))
             
 (defun do-compile-head-comprehensions (head clause def subgoal)
-   (let* ((code (do-comprehensions head (:left left :right right :operation append)
-                  (compile-iterate left left right nil nil nil))))
-      (cond
-         ((null code) nil)
-         (t
-            `(,(make-vm-reset-linear `(,@code ,(make-vm-reset-linear-end))))))))
+   (let* ((code (do-comprehensions head (:left left :right right :operation collect)
+                  (with-compile-context (make-vm-reset-linear `(,@(compile-iterate left left right nil nil nil) ,(make-vm-reset-linear-end)))))))
+		(remove-if #'null code))) ;; XXXX
 
 (defun do-compile-head-aggs (head clause def subgoal)
 	(let ((code-agg (do-agg-constructs head (:agg-construct c :operation append)
-				(compile-agg-construct c))))
+				(with-compile-context (compile-agg-construct c)))))
 		code-agg))
             
 (defun do-compile-head-code (head clause def subgoal)
@@ -422,7 +436,7 @@
 			(get-subgoals body)))
 
 (defun compile-with-starting-subgoal (body head clause &optional subgoal)
-   (with-compile-context
+   (with-empty-compile-context
       (multiple-value-bind (first-constraints first-assignments) (get-compile-constraints-and-assignments body)
          (let* ((remaining (remove-unneeded-assignments (remove-all body first-constraints) head))
                 (inner-code (compile-initial-subgoal remaining body head clause subgoal)))
