@@ -227,6 +227,8 @@
                `(,@extra-code ,(make-send tuple-reg send-to))))))
             res))))
 
+(defconstant +plus-infinity+ 2147483647)
+
 (defun agg-construct-start (op acc)
 	(case op
 		(:collect
@@ -234,7 +236,7 @@
 		((:count :sum)
 			`(,(make-move (make-vm-float 0.0) acc)))
 		(:min
-			`(,(make-move (make-vm-int 100000) acc)))
+			`(,(make-move (make-vm-int +plus-infinity+) acc)))
 		(otherwise (error 'compile-invalid-error :text (tostring "agg-construct-start: op ~a not recognized" op)))))
 
 (defun agg-construct-end (op acc)
