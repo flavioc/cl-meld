@@ -168,7 +168,8 @@
    (cond
       ((string-equal str "count") :count)
       ((string-equal str "sum") :sum)
-		((string-equal str "collect") :collect)))
+		((string-equal str "collect") :collect)
+		((string-equal str "min") :min)))
       
 (defun parse-agg-decl (str)
    (cond
@@ -381,14 +382,18 @@
 	   (variable :comma variable-list #'(lambda (v c l) (declare (ignore c)) (cons v l))))
 	
 	(aggregate-thing
-		(:lsparen const :to variable :bar variable-list :bar terms :bar terms :rsparen
+		(:lsparen aggregate-mod :to variable :bar variable-list :bar terms :bar terms :rsparen
 			#'(lambda (l aconstruct to var b1 vlist b2 body b3 head r)
 				(declare (ignore l r b1 b2 b3 r to))
 				(make-agg-construct (parse-agg-construct aconstruct) var vlist body head)))
-	   (:lsparen const :to variable :bar variable-list :bar terms :rsparen
+	   (:lsparen aggregate-mod :to variable :bar variable-list :bar terms :rsparen
 	         #'(lambda (l aconstruct to var b1 vlist b2 terms r) (declare (ignore l r b1 b2 to))
 	               (make-agg-construct (parse-agg-construct aconstruct) var vlist terms)))
 		)
+		
+	(aggregate-mod
+		(:min (return-const "min"))
+		(const #'identity))
 	                          
    (constraint
       (cmp #'(lambda (c) (make-constraint c))))
