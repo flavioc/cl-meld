@@ -281,7 +281,7 @@
 (defun do-compile-head-comprehensions (head clause def subgoal)
    (let* ((code (do-comprehensions head (:left left :right right :operation collect)
                   (with-compile-context (make-vm-reset-linear `(,@(compile-iterate left left right nil nil nil) ,(make-vm-reset-linear-end)))))))
-		(remove-if #'null code))) ;; XXXX
+		code))
 
 (defun do-compile-head-aggs (head clause def subgoal)
 	(let ((code-agg (do-agg-constructs head (:agg-construct c :operation append)

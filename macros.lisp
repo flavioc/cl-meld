@@ -152,25 +152,19 @@
                      ,@,@self)
                   ,@code-body))))))
                   
-(defmacro define-loop (name with-name list-name list-keywords &key filter)
+(defmacro define-loop (name with-name list-name list-keywords &key filter-p)
    (let* ((key-keys (loop for kw in list-keywords
                   append
                      (let ((key (format-keyword "~a" kw))
                            (part (rest ``(,,`,kw))))
                         `(,key ,@part))))
-            (base (cond
-                     (filter
-                        ``(when (,',filter ,el)
-                           (,',with-name ,el (,,@key-keys)
+            (base ``(,',with-name ,el (,,@key-keys)
                               ,@code-body)))
-                     (t
-                        ``(,',with-name ,el (,,@key-keys)
-                              ,@code-body)))))
    `(on-top-level
       (defmacro ,list-name (ls (&key (id nil) (,name nil) (operation 'do)
                   ,@(mapcar #'(lambda (kw) `(,kw nil)) list-keywords)) &body code-body)
           (with-gensyms (el)
-             `(loop-list (,el ,ls :id ,id :operation ,operation)
+             `(loop-list (,el ,,(if filter-p ``(filter ,',filter-p ,ls) ``,ls) :id ,id :operation ,operation)
                 (let (,@(build-bind ,name el))
                   ,,base)))))))
        
@@ -181,7 +175,7 @@
           (name-keyword (format-keyword "~a" name)))
    `(on-top-level
       (define-with ,name ,list-keywords)
-      (define-loop ,name ,with-name ,do-list-name ,list-keywords :filter ,filter-p)
+      (define-loop ,name ,with-name ,do-list-name ,list-keywords :filter-p ,filter-p)
       (defmacro ,do-filter-name (clause (&key (id nil) (,name nil) (operation 'do)
                ,@(mapcar #'(lambda (kw) `(,kw nil)) list-keywords)) &body code-body)
          (let ((arg-list `(,',name-keyword ,,name :operation ,operation :id ,id
@@ -281,12 +275,12 @@
       (do-worker-axioms (:head ,head :body ,body :clause ,clause :options ,options)
          ,@rest)))
 
-(define-term-construct subgoal subgoal-p (name args options))
-(define-term-construct comprehension comprehension-p (left right variables))
-(define-term-construct constraint constraint-p (expr))
-(define-term-construct assignment assignment-p (var expr))
-(define-term-construct agg-construct agg-construct-p (op to vlist body head))
-(define-term-construct constant constant-p (name expr type))
+(define-term-construct subgoal #'subgoal-p (name args options))
+(define-term-construct comprehension #'comprehension-p (left right variables))
+(define-term-construct constraint #'constraint-p (expr))
+(define-term-construct assignment #'assignment-p (var expr))
+(define-term-construct agg-construct #'agg-construct-p (op to vlist body head))
+(define-term-construct constant #'constant-p (name expr type))
 
 (define-with process (name instrs) :use-self-p t)
 (define-with get-constant (name))
