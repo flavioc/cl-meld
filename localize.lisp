@@ -4,10 +4,8 @@
    ((text :initarg :text :reader text)))
    
 (defvar *route-facts-to-invert* nil)
-(defvar *route-facts-lock* (make-lock))
 (defun add-route-fact-to-invert (fact)
-   (with-lock-held (*route-facts-lock*)
-      (push-dunion fact *route-facts-to-invert*)))
+   (push-dunion fact *route-facts-to-invert*))
 
 (defun get-first-arg (subgoal)
    (first (subgoal-args subgoal)))
