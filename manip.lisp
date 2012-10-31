@@ -13,8 +13,27 @@
 
 (define-makes :plus :minus :mul :mod :div
       :lesser :lesser-equal :greater :greater-equal
-      :equal :assign :not-equal)
+      :equal :assign :not-equal :or)
+
+(defmacro define-is-p (&rest symbs)
+   `(on-top-level
+      ,@(mapcar #'(lambda (sy)
+            `(defun ,(intern (concatenate 'string (symbol-name sy) "-P")) (val)
+                  (tagged-p val ,sy)))
+         symbs)))
+         
+(define-is-p :int :float :var :plus :minus :mul :div :mod
+            :equal :not-equal
+            :lesser :lesser-equal :greater :greater-equal
+            :convert-float :world :colocated
+            :constraint :extern :aggregate
+            :true :false :not :head
+            :tail :cons :call :test-nil :addr
+            :nil :host-id :or)
       
+(defun op-p (val)
+   (any (plus-p minus-p mul-p div-p mod-p not-equal-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p or-p) val))
+
 (defun make-call (name args) `(:call ,name ,args))
 (defun call-name (call) (second call))
 (defun call-args (call) (third call))
@@ -222,22 +241,6 @@
    (setf (second constraint) new-expr))
 (defsetf constraint-expr set-constraint-expr)
 
-(defmacro define-is-p (&rest symbs)
-   `(on-top-level
-      ,@(mapcar #'(lambda (sy)
-            `(defun ,(intern (concatenate 'string (symbol-name sy) "-P")) (val)
-                  (tagged-p val ,sy)))
-         symbs)))
-         
-(define-is-p :int :float :var :plus :minus :mul :div :mod
-            :equal :not-equal
-            :lesser :lesser-equal :greater :greater-equal
-            :convert-float :world :colocated
-            :constraint :extern :aggregate
-            :true :false :not :head
-            :tail :cons :call :test-nil :addr
-            :nil :host-id)
-
 (defun const-p (s)
    (or (int-p s) (float-p s) (call-p s)
       (cons-p s) (nil-p s) (addr-p s) (get-constant-p s)))
@@ -255,9 +258,6 @@
 (defun set-op-op2 (o expr)
    (setf (third o) expr))
 (defsetf op-op2 set-op-op2)
-
-(defun op-p (val)
-   (any (plus-p minus-p mul-p div-p mod-p not-equal-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p) val))
 
 (defun make-let (var expr body &optional type) `(:let ,var ,expr ,body ,type))
 (defun let-p (l) (tagged-p l :let))
@@ -485,4 +485,4 @@
    `(or ,@(mapcar #'(lambda (s) `(eq ,sym ,s)) symbols)))
    
 (defun eq-arith-p (sym) (eq-or sym :plus :minus :mul :div :mod))
-(defun eq-cmp-p (sym) (eq-or sym :equal :not-equal :lesser :lesser-equal :greater :greater-equal))
+(defun eq-cmp-p (sym) (eq-or sym :equal :not-equal :lesser :lesser-equal :greater :greater-equal :or))

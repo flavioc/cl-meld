@@ -36,6 +36,7 @@
 	("\\:"                           (return (values :colon $@)))
 	("\\("			                  (return (values :lparen $@)))
 	("\\)"			                  (return (values :rparen $@)))
+	("\\|\\|"								(return (values :or $@)))
 	("\\|"                           (return (values :bar $@)))
 	("\\bnil\\b"                     (return (values :nil $@)))
 	("/\\*.*\\*/"                    (return (values :comment)))
@@ -183,7 +184,7 @@
 (define-parser meld-parser
  	(:start-symbol program)
  	
- 	(:precedence ((:left :mul :div :mod) (:left :plus :minus)))
+ 	(:precedence ((:left :mul :div :mod) (:left :or :plus :minus)))
  	
 	(:terminals (:const :type :variable :number :string :lparen :rparen
 								:bar :arrow :dot :comma :type-int :type-addr
@@ -196,7 +197,7 @@
 								:dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :fun :end :colon
 								:not-equal :if :then :else :prio :random
-								:min :asc :desc))
+								:min :asc :desc :or))
 
 	(program
 	  (includes definitions priorities externs consts funs statements #L(make-ast  !2 ; definitions
@@ -445,13 +446,15 @@
 	   (expr :bar expr #'(lambda (a b c) (declare (ignore b)) (make-cons a c))))
 
    (cmp
+		(cmp :or cmp #'make-or)
 		(:lparen cmp :rparen #'(lambda (l cmp r) (declare (ignore l r)) cmp))
       (expr :equal expr #'make-equal)
       (expr :not-equal expr #'make-not-equal)
       (expr :lesser expr #'make-lesser)
       (expr :lesser-equal expr #'make-lesser-equal)
       (expr :greater expr #'make-greater)
-      (expr :greater-equal expr #'make-greater-equal))
+      (expr :greater-equal expr #'make-greater-equal)
+		)
 
 	(number
 		(:number #L(parse-number !1)))

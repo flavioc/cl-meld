@@ -87,8 +87,9 @@
       (:float-div #b10100)
       (:int-div #b10101)
       (:addr-not-equal #b10110)
-      (:addr-equal #b10111)
+		(:addr-equal #b10111)
 		(:addr-greater #b11000)
+		(:bool-or #b11001)
       (otherwise (error 'output-invalid-error :text (tostring "Unknown operation to convert ~a" op)))))
       
 (defun reg-to-byte (reg) (reg-num reg))

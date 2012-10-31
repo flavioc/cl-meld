@@ -5,13 +5,15 @@
 (defmacro do-type-conversion (op base-type)
    `(case ,op
       ,@(mapcar #L`(,(format-keyword "~a" !1) ,(format-keyword "~a-~a" base-type !1))
-                  '(equal not-equal lesser lesser-equal greater greater-equal plus mul div mod minus))))
+                  '(equal not-equal lesser lesser-equal greater greater-equal or plus mul div mod minus))))
 
 (defun set-type-to-op (typ-args typ-ret op)
    (declare (ignore typ-ret))
 	(assert (not (null typ-args)))
 	(assert (not (null op)))
    (case typ-args
+		(:type-bool (case op
+							(:or :bool-or)))
       (:type-addr (case op
                      (:equal :addr-equal)
 							(:not-equal :addr-not-equal)
