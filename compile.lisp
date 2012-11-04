@@ -462,12 +462,11 @@
       (compile-with-starting-subgoal body head clause)))
 
 (defun compile-processes ()
-   ;(par-collect-definitions (:definition def :name name)
 	(do-definitions (:definition def :name name :operation collect)
       (if (is-worker-definition-p def)
          (make-process name `(,(make-return)))
          (if (is-init-p def)
-            (make-process name `(,@(compile-init-process) ,(make-return)))
+            (make-process name `(,@(compile-init-process) ,(make-return-linear)))
             (make-process name `(,@(compile-normal-process name (find-clauses-with-subgoal-in-body name))
                                  ,(make-return)))))))
 
@@ -478,8 +477,35 @@
 
 (defun number-clauses ()
 	(do-rules (:clause clause :id id)
-		(clause-add-id clause id)))
-	
+		(clause-add-id clause (1+ id))))
+
+(defun rule-subgoal-ids (clause)
+	(with-clause clause (:body body)
+		(let ((ids nil))
+			(do-subgoals body (:name name)
+				(let ((id (lookup-def-id name)))
+					(push-dunion id ids)))
+			ids)))
+		
+(defun compile-ast-rules ()
+	(let ((init-rule (list (with-empty-compile-context
+										(with-reg (reg)
+											`(,(make-iterate "_init"
+													nil 
+													`(,(make-move :tuple reg)
+														,@(compile-init-process)
+														,(make-vm-remove reg)
+														,(make-return-derived))
+												:to-delete-p t)
+												,(make-return)))) (list (lookup-def-id "_init"))))
+			(other-rules (do-rules (:clause clause :id id :operation collect)
+								(with-clause clause (:body body :head head)
+		 							(list (with-empty-compile-context
+												`(,@(compile-iterate body body head clause nil nil) ,(make-return)))
+											(rule-subgoal-ids clause))))))
+		`(,init-rule ,@other-rules)))
+											
+
 (defun compile-ast ()
 	(number-clauses)
 	(let ((procs (compile-processes))

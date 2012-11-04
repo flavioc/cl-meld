@@ -4,6 +4,7 @@
 (defparameter *file* nil "Compiled file path.")
 (defparameter *ast* nil "Abstract Syntax Tree.")
 (defparameter *code* nil "Virtual Machine instructions.")
+(defparameter *code-rules* nil "Virtual Machine instructions for each rule.")
 
 (define-symbol-macro *definitions* (definitions *ast*))
 (define-symbol-macro *node-definitions* (remove-if #'is-worker-definition-p *definitions*))

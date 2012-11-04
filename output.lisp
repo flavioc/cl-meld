@@ -93,10 +93,6 @@
       (otherwise (error 'output-invalid-error :text (tostring "Unknown operation to convert ~a" op)))))
       
 (defun reg-to-byte (reg) (reg-num reg))
-
-(defun lookup-tuple-id (tuple)
-   (do-definitions (:id id :name name)
-      (if (string-equal name tuple) (return-from lookup-tuple-id id))))
       
 (defun lookup-extern-id (ast extern)
    (do-externs ast (:id id :name name)
@@ -204,7 +200,7 @@
                            (logand *value-mask* second-value)
                            (logand *value-mask* third-value)
                            (logand *op-mask* op))))
-      (:alloc (let ((tuple-id (lookup-tuple-id (vm-alloc-tuple instr)))
+      (:alloc (let ((tuple-id (lookup-def-id (vm-alloc-tuple instr)))
                     (reg (reg-to-byte (vm-alloc-reg instr))))
                   (add-byte #b01000000 vec)
                   (add-byte (logand *tuple-id-mask* tuple-id) vec)
@@ -230,7 +226,7 @@
                (output-instrs (vm-if-instrs instr) vec))))
       (:iterate (write-jump vec 4
                   (add-byte #b10100000 vec)
-                  (add-byte (lookup-tuple-id (iterate-name instr)) vec)
+                  (add-byte (lookup-def-id (iterate-name instr)) vec)
 						(multiple-value-bind (b1 b2) (iterate-options-bytes instr)
 							(add-byte b1 vec)
 							(add-byte b2 vec))
@@ -316,7 +312,7 @@
          (add-byte #b00010001 vec))
       (:delete (let* ((filters (vm-delete-filter instr)))
                   (add-byte #b00001101 vec)
-                  (add-byte (logand *tuple-id-mask* (lookup-tuple-id (vm-delete-name instr))) vec)
+                  (add-byte (logand *tuple-id-mask* (lookup-def-id (vm-delete-name instr))) vec)
                   (add-byte (length filters) vec)
                   (dolist (filter filters)
                      (let* ((ind (car filter))
@@ -454,7 +450,7 @@
                                  (multiple-value-bind (remote-pred use-home-p) (get-aggregate-remote def)
                                     (when remote-pred
                                        (add-byte (if use-home-p +agg-remote-aggregate-home-byte+ +agg-remote-aggregate-byte+) vec)
-                                       (add-byte (lookup-tuple-id remote-pred) vec))))
+                                       (add-byte (lookup-def-id remote-pred) vec))))
                               ((aggregate-mod-is-immediate-p aggmod)
                                  (printdbg "THIS PROGRAM HAS IMMEDIATE AGGREGATES!")
                                  (add-byte +agg-immediate-aggregate-byte+ vec))
@@ -495,7 +491,6 @@
    (dolist (part (output-int int))
       (write-hexa stream part)))
 
-
 (defun write-string-stream (stream str)
    (loop for x being the elements of str
       do (write-hexa stream (char-code x))))
@@ -511,7 +506,7 @@
 (defun output-global-priority (stream)
 	(write-hexa stream 1)
 	(let* ((found (find-if #'global-priority-p *priorities*))
-			 (id (lookup-tuple-id (global-priority-name found))))
+			 (id (lookup-def-id (global-priority-name found))))
 		(write-hexa stream (logand *tuple-id-mask* id))
 		(write-short-stream stream (global-priority-argument found))
 		(case (global-priority-asc-desc found)
@@ -523,7 +518,10 @@
 		(ensure-bool found)))
 
 (defun write-rules (stream)
-   (write-int-stream stream (length *clauses*))
+   (write-int-stream stream (1+ (length *clauses*)))
+	(let ((init-rule-str "init -o axioms"))
+		(write-int-stream stream (length init-rule-str))
+		(write-string-stream stream init-rule-str))
    (do-rules (:clause clause)
       (let ((str (clause-to-string clause)))
          (write-int-stream stream (length str))
@@ -559,7 +557,19 @@
 		(if (any-global-priority-p)
 			(output-global-priority stream)
 			(write-hexa stream 0))
-      (dolist (vec processes) (write-vec stream vec))))
+      (dolist (vec processes) (write-vec stream vec))
+		(write-int-stream stream (length *code-rules*))
+		(dolist (code-rule *code-rules*)
+		 (let* ((vec (create-bin-array))
+				 (code (first code-rule))
+				 (ids (second code-rule)))
+			(output-instrs code vec)
+			(write-int-stream stream (length vec))
+			(write-vec stream vec)
+			(write-int-stream stream (length ids))
+			(dolist (id ids)
+				(write-hexa stream id))
+			))))
    
 (defmacro with-output-file ((stream file) &body body)
    `(with-open-file (,stream ,file

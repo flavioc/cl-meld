@@ -458,6 +458,10 @@
 (defun lookup-definition (pred &optional (defs *definitions*))
    (find-if #L(string-equal pred (definition-name !1)) defs))
 
+(defun lookup-def-id (def-name)
+   (do-definitions (:id id :name name)
+      (if (string-equal name def-name) (return-from lookup-def-id id))))
+
 (defun lookup-extern (name)
    (find-if #L(string-equal name (extern-name !1)) *externs*))
 
