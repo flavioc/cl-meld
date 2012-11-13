@@ -1,6 +1,8 @@
 
+TARGET = /usr/local
+
 install:
-	mkdir -p /opt/local/bin
-	install --mode=555 compile-file /opt/local/bin/
-	install --mode=555 compile-directory /opt/local/bin/
-	install --mode=555 compile-from-directory /opt/local/bin/
+	mkdir -p $(TARGET)/bin
+	install --mode=555 compile-file $(TARGET)/bin/
+	install --mode=555 compile-directory $(TARGET)/bin/
+	install --mode=555 compile-from-directory $(TARGET)/bin/
