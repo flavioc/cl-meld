@@ -293,6 +293,7 @@
     (aggregate-decl atype aggregate-mods #'make-aggregate))
     
    (aggregate-decl
+		(:min (return-const :min))
       (const #L(parse-agg-decl !1)))
 
    (aggregate-mods
