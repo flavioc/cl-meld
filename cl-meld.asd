@@ -25,7 +25,8 @@
 								:depends-on ("package"
 												 "macros"
 												 "util"
-												 "conf"))
+												 "conf"
+												 "context"))
 					(:file "util"
 		 			         :depends-on ("package"
 												 "macros"))
@@ -94,7 +95,9 @@
 		 			                      "macros"
 		 			                      "localize"
 		 			                      "typecheck"
-		 			                      "conf"))
+		 			                      "conf"
+												 "priorities"
+												 "context"))
 		 			(:file "models/base"
 		 			         :depends-on ("manip"
 		 			                      "macros"
