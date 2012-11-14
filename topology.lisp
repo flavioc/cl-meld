@@ -174,6 +174,7 @@
          ;; Remove select_nodes definition
          ;; (setf *definitions* (remove-if #L(equal (definition-name !1) "select_nodes") *definitions*))
       (return-from do-topology-ordering mapping)))
+	(setf *nodes* (reverse *nodes*))
    (case *ordering-type*
       (:naive (naive-ordering *nodes*))
       (:random (random-ordering *nodes*))
@@ -186,6 +187,9 @@
    (let ((mapping (do-topology-ordering)))
       ;(print-mapping mapping)
       (setf *nodes* mapping)
+		;(loop for key being the hash-keys of mapping
+	   ;     using (hash-value value)
+	   ;     do (format t "The value associated with the key ~S is ~S~%" key value))
       (do-axioms (:clause clause)
          (flip-nodes mapping clause))
 		(do-constant-list *consts* (:constant c)
