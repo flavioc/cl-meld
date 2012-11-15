@@ -66,7 +66,15 @@
          (with-process (vm-find init-name) (:instrs instrs :process proc)
             (multiple-value-bind (hash to-keep) (select-node-init instrs)
                (let ((new-instr (make-vm-select-with-rules hash)))
-                  (setf (process-instrs proc) (cons new-instr to-keep))))))))
+                  (setf (process-instrs proc) (cons new-instr to-keep)))))))
+	; do the same for rule code
+	(let* ((init (first *code-rules*))
+			 (iterate (first (rule-code init)))
+			 (init-code (iterate-instrs iterate)))
+		(assert (not (null init-code)))
+		(multiple-value-bind (hash to-keep) (select-node-init init-code)
+			(let ((new-instr (make-vm-select-with-rules hash)))
+				(setf (iterate-instrs iterate) (cons new-instr to-keep))))))
                   
 (defmacro iterate-code ((&key instrs proc) &body body)
    (with-gensyms (name)

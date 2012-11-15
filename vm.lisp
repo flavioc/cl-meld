@@ -112,6 +112,11 @@
 (defun iterate-instrs (i) (fourth i))
 (defun iterate-random-p (i) (fifth i))
 (defun iterate-to-delete-p (i) (sixth i))
+
+(defun set-iterate-instrs (i instrs)
+	(setf (fourth i) instrs))
+(defsetf iterate-instrs set-iterate-instrs) 
+
 (defun iterate-min-p (i) (seventh i))
 (defun iterate-min-arg (i) (nth 7 i))
 (defun match-left (m) (first m))
@@ -307,3 +312,16 @@
    (do-processes (:name name :process proc)
       (when (equal name-find name)
          (return-from vm-find proc))))
+
+(defclass rule-code ()
+	((rule-code
+		:initarg :rule-code
+		:initform (error "missing code.")
+		:accessor rule-code)
+	 (subgoal-ids
+		:initarg :subgoal-ids
+		:initform (error "missing subgoal ids.")
+		:accessor subgoal-ids)))
+		
+(defun make-rule-code (code subgoals)
+	(make-instance 'rule-code :rule-code code :subgoal-ids subgoals))

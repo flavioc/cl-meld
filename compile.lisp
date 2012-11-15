@@ -305,7 +305,7 @@
 
 ; head-compiler is isually do-compile-head-code
 (defun do-compile-head (subgoal head clause delete-regs inside head-compiler)
-   (let* ((def (lookup-definition (subgoal-name subgoal)))
+   (let* ((def (if (subgoal-p subgoal) (lookup-definition (subgoal-name subgoal)) nil))
           (head-code (funcall head-compiler head clause def subgoal))
           (linear-code (compile-linear-deletes-and-returns subgoal def delete-regs inside))
           (delete-code (compile-inner-delete clause)))
@@ -488,7 +488,7 @@
 			ids)))
 		
 (defun compile-ast-rules ()
-	(let ((init-rule (list (with-empty-compile-context
+	(let ((init-rule (make-rule-code (with-empty-compile-context
 										(with-reg (reg)
 											`(,(make-iterate "_init"
 													nil 
@@ -500,8 +500,8 @@
 												,(make-return)))) (list (lookup-def-id "_init"))))
 			(other-rules (do-rules (:clause clause :id id :operation collect)
 								(with-clause clause (:body body :head head)
-		 							(list (with-empty-compile-context
-												`(,@(compile-iterate body body head clause nil nil) ,(make-return)))
+		 							(make-rule-code (with-empty-compile-context
+												`(,(make-vm-rule id) ,@(compile-iterate body body head clause t nil) ,(make-return)))
 											(rule-subgoal-ids clause))))))
 		`(,init-rule ,@other-rules)))
 											

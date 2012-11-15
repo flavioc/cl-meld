@@ -57,3 +57,4 @@ account the dependencies between predicates."
 			(do-subgoals aggbody (:name name1)
 				(do-subgoals body (:name name2)
 					(push-end (make-descending-priority name1 name2) *priorities*))))))
+					
