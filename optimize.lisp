@@ -69,7 +69,7 @@
                   (setf (process-instrs proc) (cons new-instr to-keep)))))))
 	; do the same for rule code
 	(let* ((init (first *code-rules*))
-			 (iterate (first (rule-code init)))
+			 (iterate (second (rule-code init)))
 			 (init-code (iterate-instrs iterate)))
 		(assert (not (null init-code)))
 		(multiple-value-bind (hash to-keep) (select-node-init init-code)

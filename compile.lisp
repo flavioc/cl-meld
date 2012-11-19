@@ -486,14 +486,16 @@
 				(let ((id (lookup-def-id name)))
 					(push-dunion id ids)))
 			ids)))
-		
+
 (defun compile-ast-rules ()
 	(let ((init-rule (make-rule-code (with-empty-compile-context
 										(with-reg (reg)
-											`(,(make-iterate "_init"
+											`(,(make-vm-rule 0)
+											  	,(make-iterate "_init"
 													nil 
-													`(,(make-move :tuple reg)
-														,@(compile-init-process)
+													`(,@(compile-init-process)	
+														,(make-vm-rule-done)
+														,(make-move :tuple reg)
 														,(make-vm-remove reg)
 														,(make-return-derived))
 												:to-delete-p t)
@@ -501,7 +503,7 @@
 			(other-rules (do-rules (:clause clause :id id :operation collect)
 								(with-clause clause (:body body :head head)
 		 							(make-rule-code (with-empty-compile-context
-												`(,(make-vm-rule id) ,@(compile-iterate body body head clause t nil) ,(make-return)))
+												`(,(make-vm-rule (1+ id)) ,@(compile-iterate body body head clause t nil) ,(make-return)))
 											(rule-subgoal-ids clause))))))
 		`(,init-rule ,@other-rules)))
 											

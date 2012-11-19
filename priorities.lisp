@@ -48,6 +48,7 @@ account the dependencies between predicates."
 								
 (defun find-priorities ()
 	"Takes the *ast* code and finds new priorities from the comprehensions and aggregates."
+   (return-from find-priorities nil)
 	(do-rules (:head head :body body)
 		(do-comprehensions head (:left left)
 			(do-subgoals left (:name name1)
