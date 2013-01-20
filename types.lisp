@@ -3,7 +3,7 @@
 (defparameter *number-types* '(:type-int :type-float))
 (defparameter *list-number-types* '(:type-list-int :type-list-float))
 (defparameter *list-types* `(,@*list-number-types* :type-list-addr :type-list-worker))
-(defparameter *all-types* `(,@*number-types* :type-bool :type-addr :type-worker ,@*list-types*))
+(defparameter *all-types* `(,@*number-types* :type-bool :type-addr :type-worker :type-string ,@*list-types*))
 
 (defmacro deftype-p (&rest types)
    `(on-top-level

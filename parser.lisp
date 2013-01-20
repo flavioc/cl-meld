@@ -12,6 +12,7 @@
    ("\\."                           (return (values :dot $@)))
 	("\\basc\\b"							(return (values :asc $@)))
 	("\\bdesc\\b"							(return (values :desc $@)))
+	("\\bexists\\b"						(return (values :exists $@)))
    ("\\bimmediate\\b"               (return (values :immediate $@)))
  	("\\btype\\b"			            (return (values :type $@)))
  	("\\bextern\\b"                  (return (values :extern $@)))
@@ -62,7 +63,7 @@
 	("\\bif\\b"                      (return (values :if $@)))
    ("\\bthen\\b"                    (return (values :then $@)))
    ("\\belse\\b"                    (return (values :else $@)))
-	("\\bprio\\b"							(return (values :prio $@)))
+	("\\bpriority\\b"							(return (values :prio $@)))
 	("\\bmin\\b"							(return (values :min $@)))
 	("_"				                  (return (values :variable $@)))
  	("[a-z]([a-z]|[A-Z]|[0-9]|\\-|\_|\\?|\\-)*"		   (return (values :const $@)))
@@ -160,10 +161,8 @@
 (defun may-be-worker-types-p (types)
    (and types
         (type-worker-p (first types))))
-(defun parser-make-definition (name types &optional option)
-   (let* ((initial-options (if option (list option)))
-          (all-options (append initial-options (if (may-be-worker-types-p types) '(:worker)))))
-      (make-definition name types all-options)))
+(defun parser-make-definition (name types &optional options)
+	(make-definition name types options))
 
 (defun parse-agg-construct (str)
    (cond
@@ -197,7 +196,8 @@
 								:dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :fun :end :colon
 								:not-equal :if :then :else :prio :random
-								:min :asc :desc :or))
+								:min :asc :desc :or
+								:exists))
 
 	(program
 	  (includes definitions priorities externs consts funs statements #L(make-ast  !2 ; definitions
@@ -222,15 +222,14 @@
 	 (definition definitions #'cons))
 
    (definition
-      (:type predicate-option const type-args-part #L(parser-make-definition !3 !4 !2))
-      (:type const type-args-part #L(parser-make-definition !2 !3)))
+      (:type predicate-options const type-args-part #L(parser-make-definition !3 !4 !2)))
 
 	(priorities
 		()
 		(priority priorities #'cons))
 		
 	(priority
-		(:prio :type const :div number asc-desc :dot #'(lambda (p ty name div arg ad dot) (declare (ignore p ty div dot)) (make-global-priority name (int-val arg) ad)))
+		(:prio const :div number asc-desc :dot #'(lambda (p name div arg ad dot) (declare (ignore p div dot)) (make-global-priority name (int-val arg) ad)))
 		(:prio const :lesser const :dot #'(lambda (p name1 l name2 d) (declare (ignore p l d)) (make-descending-priority name1 name2)))
 		(:prio const :greater const :dot #'(lambda (p name1 g name2 d) (declare (ignore p g d)) (make-ascending-priority name1 name2))))
 		
@@ -275,7 +274,10 @@
       (:extern atype const :lparen type-args :rparen :dot #'(lambda (e ret-type name l args r d)
    	                                                         (declare (ignore e l r d))
    	                                                         (make-extern name ret-type args))))
-						
+	(predicate-options
+		()
+		(predicate-option predicate-options #'cons))
+		
 	(predicate-option
 	   (:route (return-const :route))
 	   (:action (return-const :action))
@@ -354,11 +356,16 @@
       (term :comma terms #'(lambda (el x ls) (declare (ignore x)) (cons el ls))))
       
    (term
+		(exists #'identity)
       (comprehension #'identity)
       (subgoal #'identity)
       (constraint #'identity)
       (aggregate-thing #'identity))
 
+	(exists
+		(:exists variable-list :dot :lparen terms :rparen #'(lambda (e var-list d l terms r)
+													(declare (ignore e d l r))
+													(make-exist var-list terms))))
 	(subgoal
 	   (inner-subgoal  #'identity)
 	   (:dollar inner-subgoal #'(lambda (d sub)

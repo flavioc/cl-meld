@@ -287,13 +287,30 @@
 	(let ((code-agg (do-agg-constructs head (:agg-construct c :operation append)
 				(with-compile-context (compile-agg-construct c)))))
 		code-agg))
-            
+		
+(defun do-compile-one-exists (vars exists-body clause)
+	(cond
+		((null vars) (do-compile-head-subgoals exists-body clause))
+		(t
+			(let ((var (first vars))
+					(other-vars (rest vars)))
+				(with-reg (reg-var)
+					(add-used-var (var-name var) reg-var)
+						`(,(make-vm-new-node reg-var) ,@(do-compile-one-exists other-vars exists-body clause)))))))
+		
+(defun do-compile-head-exists (head clause def subgoal)
+	(let ((code (do-exists head (:var-list vars :body body :operation append)
+						(with-compile-context
+							(do-compile-one-exists vars body clause)))))
+		code))
+
 (defun do-compile-head-code (head clause def subgoal)
    (let ((subgoals-code (do-compile-head-subgoals head clause))
          (comprehensions-code (do-compile-head-comprehensions head clause def subgoal))
-			(agg-code (do-compile-head-aggs head clause def subgoal)))
-      (append subgoals-code (append comprehensions-code agg-code))))
-      
+			(agg-code (do-compile-head-aggs head clause def subgoal))
+			(exists-code (do-compile-head-exists head clause def subgoal)))
+		`(,@subgoals-code ,@comprehensions-code ,@agg-code ,@exists-code)))
+		
 (defun subgoal-to-be-deleted-p (subgoal def)
    (and (is-linear-p def) (not (subgoal-has-option-p subgoal :reuse))))
         

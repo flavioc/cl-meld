@@ -416,6 +416,14 @@
                (error 'type-invalid-error :text (tostring "Comprehension ~a is using more variables than it specifies" comp)))
             (unless (subsetp target-variables new-ones)
                (error 'type-invalid-error :text (tostring "Comprehension ~a is not using enough variables ~a ~a" comp target-variables new-ones)))))))
+
+(defun do-type-check-exists (vars body)
+	(extend-typecheck-context
+		(dolist (var vars)
+			(force-constraint (var-name var) '(:type-addr))
+      	(variable-is-defined var))
+		(do-subgoals body (:name name :args args :options options)
+			(do-type-check-subgoal name args options :body-p nil))))
       
 (defun type-check-body (body)
 	(do-subgoals body (:name name :args args :options options)
@@ -428,7 +436,7 @@
 	(do-constraints body (:expr expr)
       (do-type-check-constraints expr)))
 
-(defun type-check-all-except-body (body head &key check-comprehensions check-agg-constructs axiom-p)
+(defun type-check-all-except-body (body head &key check-comprehensions check-agg-constructs check-exists axiom-p)
 	(do-subgoals head (:name name :args args :options options)
       (do-type-check-subgoal name args options :axiom-p axiom-p))
    (when check-comprehensions
@@ -437,21 +445,25 @@
 	(when check-agg-constructs
 		(do-agg-constructs head (:agg-construct c)
 			(do-type-check-agg-construct c nil)))
+	(when check-exists
+		(do-exists head (:var-list vars :body body)
+			(do-type-check-exists vars body)))
 	(let ((new-body (remove-unneeded-assignments body head)))
    	(do-type-check-assignments new-body	#'single-typed-var-p)
 		new-body))
 		
-(defun type-check-body-and-head (body head &key check-comprehensions check-agg-constructs axiom-p)
+(defun type-check-body-and-head (body head &key check-comprehensions check-agg-constructs check-exists axiom-p)
 	(type-check-body body)
 	(type-check-all-except-body body head :check-comprehensions check-comprehensions
 													  :check-agg-constructs check-agg-constructs
+													  :check-exists check-exists
 													  :axiom-p axiom-p))
 																		
 (defun type-check-clause (head body clause axiom-p)
    (with-typecheck-context
       (variable-is-defined (first-host-node head))
 		(setf (clause-body clause)
-			(type-check-body-and-head body head :check-comprehensions t :check-agg-constructs t :axiom-p axiom-p))
+			(type-check-body-and-head body head :check-comprehensions t :check-agg-constructs t :check-exists t :axiom-p axiom-p))
 		;; add :random to every subgoal with such variable
 		(when (clause-has-random-p clause)
 			(let ((var (clause-get-random-variable clause)))

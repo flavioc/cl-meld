@@ -8,7 +8,8 @@
       ((host-id-p val) (tostring "host-id"))
       ((world-p val) (tostring "world"))
       ((addr-p val) (tostring "@~a" (addr-num val)))
-      ((convert-float-p val)
+      ((string-constant-p val) (tostring "\"~a\"" (string-constant-val val))) 
+		((convert-float-p val)
          (tostring "float(~a)" (print-val (convert-float-expr val))))
       ((cons-p val)
          (tostring "cons(~a,~a)" (print-val (cons-head val)) (print-val (cons-tail val))))
@@ -73,11 +74,14 @@
          (t (incf *current-print-level*)))))
       
 (defun print-subgoals (stream subgoals)
-   (do-subgoals subgoals (:name name :args args)
+   (do-subgoals subgoals (:name name :args args :subgoal sub)
       (with-definition (lookup-definition name) (:definition def)
          (check-print-level stream)
          (format stream "~a~A" (if (is-linear-p def) "" "!") name)
-         (print-args stream args))))
+         (print-args stream args)
+			(when (subgoal-is-remote-p sub)
+				(format stream "@~a" (subgoal-get-remote-dest sub)))
+			)))
       
 (defun print-constraints (stream subgoals)
    (do-constraints subgoals (:expr expr :id id)
@@ -136,6 +140,8 @@
          (print-subgoal-body stream body)
          (format stream " -o ")
          (with-comma-context
+				(when (null head)
+					(format stream "1"))
             (print-subgoals stream head)
             (do-comprehensions head (:right right :left left :variables vars)
                (check-print-level stream)
@@ -162,6 +168,14 @@
                   (with-comma-context
                    (print-subgoals stream head))
                   (format stream "]")))
+				(do-exists head (:var-list vars :body body)
+					(check-print-level stream)
+					(format stream "exists ")
+					(print-var-list stream vars)
+					(format stream ". (")
+					(with-comma-context
+						(print-subgoals stream body))
+					(format stream ")"))
             (format stream ".")))))
 
 (defun clause-to-string (clause)

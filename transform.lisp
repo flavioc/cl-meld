@@ -82,6 +82,8 @@
       ((op-p expr)
          (transform-part-expression (op-op1 expr))
          (transform-part-expression (op-op2 expr)))
+		((exist-p expr)
+			(transform-part-expression (exist-body expr)))
       ((list-of-lists-p expr)
          (loop-cons-car (e expr)
             (transform-part-expression e)))

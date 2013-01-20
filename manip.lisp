@@ -390,7 +390,19 @@
 (defun set-agg-construct-vlist (c new)
 	(setf (fourth c) new))
 (defsetf agg-construct-vlist set-agg-construct-vlist)
-   
+
+;;;; EXISTS
+
+(defun make-exist (vars body)
+	`(:exists ,vars ,body))
+(defun exist-p (ex) (tagged-p ex :exists))
+(defun exist-var-list (ex) (second ex))
+(defun exist-body (ex) (third ex))
+
+(defun set-exist-body (ex new-body)
+	(setf (third ex) new-body))
+(defsetf exist-body set-exist-body)
+
 ;;;; SUBGOALS
 
 (defun make-subgoal (name args &optional options)

@@ -39,3 +39,7 @@
 (define-external-function "float2int" :type-int '(:type-float))
 (define-external-function "int2str" :type-string '(:type-int))
 (define-external-function "float2str" :type-string '(:type-float))
+(define-external-function "intlistsub" :type-list-int '(:type-list-int :type-int :type-int))
+(define-external-function "intlistappend" :type-list-int '(:type-list-int :type-list-int))
+(define-external-function "str2intlist" :type-list-int '(:type-string))
+(define-external-function "filecountwords" :type-int '(:type-string :type-int))

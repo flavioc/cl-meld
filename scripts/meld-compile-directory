@@ -17,4 +17,4 @@ for file in $PWD/$DIR/*.meld; do
 	base=`basename $file .meld`
 	ARG="$ARG $file $PWD/$TARGET/$base"
 done
-compile-file $ARG
+meld-compile-file $ARG

@@ -310,6 +310,9 @@
             (add-byte b vec)))
       (:rule-done
          (add-byte #b00010001 vec))
+		(:new-node
+			(add-byte #b00010011 vec)
+			(add-byte (logand *reg-mask* (reg-num (vm-new-node-reg instr))) vec))
       (:delete (let* ((filters (vm-delete-filter instr)))
                   (add-byte #b00001101 vec)
                   (add-byte (logand *tuple-id-mask* (lookup-def-id (vm-delete-name instr))) vec)

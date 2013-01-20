@@ -277,6 +277,7 @@
 
 (define-term-construct subgoal #'subgoal-p (name args options))
 (define-term-construct comprehension #'comprehension-p (left right variables))
+(define-term-construct exist #'exist-p (var-list body))
 (define-term-construct constraint #'constraint-p (expr))
 (define-term-construct assignment #'assignment-p (var expr))
 (define-term-construct agg-construct #'agg-construct-p (op to vlist body head))

@@ -202,6 +202,10 @@
 
 (defun make-vm-rule-done () `(:rule-done))
 
+(defun make-vm-new-node (reg) `(:new-node ,reg))
+(defun vm-new-node-p (nn) (tagged-p nn :new-node))
+(defun vm-new-node-reg (nn) (second nn))
+
 (defun make-vm-save-original (code)
 	`(:save-original ,code))
 (defun vm-save-original-p (so) (tagged-p so :save-original))

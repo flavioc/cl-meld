@@ -85,11 +85,21 @@
    (remove-if (match-paths sources #'second)
               (remove-if (match-paths sources #'first) paths)))
 (defun host-node (head) (get-first-arg (first head)))
+
+(defun find-all-addrs-in-subgoal (subgoal)
+	(warn "~a" subgoal)
+	(with-subgoal subgoal (:name name :args args)
+		(let ((types (lookup-definition-types name)))
+			(loop for typ in (rest types)
+					for arg in (rest args)
+					when (type-addr-p typ)
+					collect (list (first args) arg)))))
                   
 (defun get-reachable-nodes (paths-sub start-node)
-   (let ((paths (mapcar #L(list (get-first-arg !1)
-                                (get-second-arg !1)) paths-sub))
+	(warn "paths-sub ~a" paths-sub) 
+   (let ((paths (mappend #L(find-all-addrs-in-subgoal !1) paths-sub))
           (rm `(,start-node)))
+		(warn "paths ~a" paths)
       (loop while paths
             for expand = (expand-sources rm paths)
             do (unless expand
@@ -152,6 +162,9 @@
                (if (var-eq-p first-arg host)
                   (setf all-transformed nil)
                   (subgoal-add-option sub `(:route ,(var-name first-arg)))))))
+		(do-exists head (:var-list vars :body body)
+			(unless (transform-remote-subgoals body host)
+				(setf all-transformed nil)))
       all-transformed))
 
 (defun do-localize-one (clause from to route-subgoal remaining &optional (order 'forward))
@@ -281,17 +294,23 @@
                (t (error 'localize-invalid-error
                         	:text (tostring "Variable is not host: ~a" first-arg))))))))
 
-(defun localize-check-head (head clause homes host)
-   (do-subgoals head (:args args)
+(defun localize-check-head-by-homes (head homes)
+	(do-subgoals head (:args args)
       (let ((first-arg (first args)))
+			(warn "~a" homes)
          (unless (and (var-p first-arg)
                      (one-of-the-vars-p homes first-arg))
             (error 'localize-invalid-error
-                     :text (tostring "Variable was not found: ~a ~a" first-arg clause)))))
+                     :text (tostring "Variable was not found: ~a" first-arg))))))
+
+(defun localize-check-head (head clause homes host)
+	(localize-check-head-by-homes head homes)
 	(do-agg-constructs head (:body body)
 		(check-remote-args-in-constructs body host))
    (do-comprehensions head (:left left)
-		(check-remote-args-in-constructs left host)))
+		(check-remote-args-in-constructs left host))
+	(do-exists head (:var-list vars :body body)
+		(localize-check-head-by-homes body (append vars homes))))
 
 (defun remove-home-argument-clause (clause)
    (let ((host (clause-host-node clause)))
