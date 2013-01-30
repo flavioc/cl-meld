@@ -43,3 +43,7 @@
 (define-external-function "intlistappend" :type-list-int '(:type-list-int :type-list-int))
 (define-external-function "str2intlist" :type-list-int '(:type-string))
 (define-external-function "filecountwords" :type-int '(:type-string :type-int))
+(define-external-function "residual" :type-float '(:type-list-float :type-list-float))
+(define-external-function "nodelistlength" :type-int '(:type-list-addr))
+(define-external-function "nodelistcount" :type-int '(:type-list-addr :type-addr))
+(define-external-function "nodelistappend" :type-list-addr '(:type-list-addr :type-list-addr))
