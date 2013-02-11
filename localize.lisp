@@ -87,7 +87,6 @@
 (defun host-node (head) (get-first-arg (first head)))
 
 (defun find-all-addrs-in-subgoal (subgoal)
-	(warn "~a" subgoal)
 	(with-subgoal subgoal (:name name :args args)
 		(let ((types (lookup-definition-types name)))
 			(loop for typ in (rest types)
@@ -96,10 +95,8 @@
 					collect (list (first args) arg)))))
                   
 (defun get-reachable-nodes (paths-sub start-node)
-	(warn "paths-sub ~a" paths-sub) 
    (let ((paths (mappend #L(find-all-addrs-in-subgoal !1) paths-sub))
           (rm `(,start-node)))
-		(warn "paths ~a" paths)
       (loop while paths
             for expand = (expand-sources rm paths)
             do (unless expand
@@ -297,7 +294,6 @@
 (defun localize-check-head-by-homes (head homes)
 	(do-subgoals head (:args args)
       (let ((first-arg (first args)))
-			(warn "~a" homes)
          (unless (and (var-p first-arg)
                      (one-of-the-vars-p homes first-arg))
             (error 'localize-invalid-error
