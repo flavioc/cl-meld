@@ -487,13 +487,16 @@
 (defmacro with-inner-parse-context (&body body)
    `(let ((*found-nodes* (make-hash-table)))
       ,@body))
+
+(defun strip-comments-from-line (line)
+	(ppcre:regex-replace "//.+" line ""))
       
 (defun read-source-line (stream)
    (multiple-value-bind (line missing-newline-p) (read-line stream nil nil)
       (unless missing-newline-p
          (if (string-equal line "")
             (read-source-line stream)
-            line))))
+            (strip-comments-from-line line)))))
 
 (defun simple-stream-lexer (read-source-line string-lexer &key (stream *standard-input*))
   (let (eof line-lexer (update t))
