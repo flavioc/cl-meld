@@ -498,6 +498,10 @@
    (loop for x being the elements of str
       do (write-hexa stream (char-code x))))
 
+(defun write-float-stream (stream flt)
+	(dolist (part (output-float flt))
+		(write-hexa stream part)))
+
 (defun write-nodes (stream nodes)
    (when (zerop (number-of-nodes nodes))
       (format t "WARNING: there are no nodes defined in this program~%"))
@@ -519,7 +523,18 @@
 (defun any-global-priority-p ()
 	(let ((found (find-if #'global-priority-p *priorities*)))
 		(ensure-bool found)))
-
+		
+(defun get-initial-priority ()
+	(let ((found (find-if #'initial-priority-p *priorities*)))
+		(when found
+			(initial-priority-value found))))
+			
+(defun output-initial-priority (stream)
+	(write-hexa stream 2)
+	(let ((prio (get-initial-priority)))
+		(assert (not (null prio)))
+		(write-float-stream stream prio)))
+			
 (defun write-rules (stream)
    (write-int-stream stream (1+ (length *clauses*)))
 	(let ((init-rule-str "init -o axioms"))
@@ -557,9 +572,12 @@
             do (write-int-stream stream (length vec-proc)) ; write code size first
             do (write-vec stream vec-desc))
 		; output global priority predicate, if any
-		(if (any-global-priority-p)
-			(output-global-priority stream)
-			(write-hexa stream 0))
+		(cond
+			((any-global-priority-p)
+				(output-global-priority stream))
+			((get-initial-priority)
+				(output-initial-priority stream))
+			(t (write-hexa stream 0)))
       (dolist (vec processes) (write-vec stream vec))
 		(write-int-stream stream (length *code-rules*))
 		(dolist (code-rule *code-rules*)

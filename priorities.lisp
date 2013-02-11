@@ -13,6 +13,10 @@
 (defun global-priority-argument (x) (third x))
 (defun global-priority-asc-desc (x) (fourth x))
 
+(defun make-initial-priority (num) `(:initial-prio ,num))
+(defun initial-priority-value (p) (second p))
+(defun initial-priority-p (p) (tagged-p p :initial-prio))
+
 (defun all-start-nodes (priorities)
 	(remove-duplicates (mapcar #'priority-left priorities) :test #'string-equal))
 (defun all-end-nodes (priorities)
