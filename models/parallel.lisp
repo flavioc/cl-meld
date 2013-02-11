@@ -6,3 +6,4 @@
 (deftuple setedgelabel (:type-addr :type-addr :type-string) :action :linear)
 (deftuple write-string (:type-addr :type-string) :action :linear)
 (deftuple add-priority (:type-addr :type-float) :action :linear)
+(deftuple schedule-next (:type-addr) :action :linear)                                                 
