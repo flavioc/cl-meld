@@ -478,13 +478,22 @@
    (do-axioms (:body body :head head :clause clause :operation :append)
       (compile-with-starting-subgoal body head clause)))
 
+
+(defun rule-is-persistent-p (clause)
+	(with-clause clause (:body body)
+		(do-subgoals body (:name name)
+			(let ((def (lookup-definition name)))
+				(when (is-linear-p def)
+					(return-from rule-is-persistent-p nil))))
+		t))
+
 (defun compile-processes ()
 	(do-definitions (:definition def :name name :operation collect)
       (if (is-worker-definition-p def)
          (make-process name `(,(make-return)))
          (if (is-init-p def)
             (make-process name `(,@(compile-init-process) ,(make-return-linear)))
-            (make-process name `(,@(compile-normal-process name (find-clauses-with-subgoal-in-body name))
+            (make-process name `(,@(compile-normal-process name (filter #'rule-is-persistent-p (find-clauses-with-subgoal-in-body name)))
                                  ,(make-return)))))))
 
 (defun compile-consts ()
@@ -516,12 +525,13 @@
 														,(make-vm-remove reg)
 														,(make-return-derived))
 												:to-delete-p t)
-												,(make-return)))) (list (lookup-def-id "_init"))))
+												,(make-return)))) (list (lookup-def-id "_init")) nil))
 			(other-rules (do-rules (:clause clause :id id :operation collect)
 								(with-clause clause (:body body :head head)
 		 							(make-rule-code (with-empty-compile-context
 												`(,(make-vm-rule (1+ id)) ,@(compile-iterate body body head clause t nil) ,(make-return)))
-											(rule-subgoal-ids clause))))))
+											(rule-subgoal-ids clause)
+											(rule-is-persistent-p clause))))))
 		`(,init-rule ,@other-rules)))
 											
 

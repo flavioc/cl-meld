@@ -325,7 +325,11 @@
 	 (subgoal-ids
 		:initarg :subgoal-ids
 		:initform (error "missing subgoal ids.")
-		:accessor subgoal-ids)))
+		:accessor subgoal-ids)
+	 (persistent-p
+		:initarg :persistent-p
+		:initform (error "missing persistent-p.")
+		:accessor persistent-p)))
 		
-(defun make-rule-code (code subgoals)
-	(make-instance 'rule-code :rule-code code :subgoal-ids subgoals))
+(defun make-rule-code (code subgoals is-persistent)
+	(make-instance 'rule-code :rule-code code :subgoal-ids subgoals :persistent-p is-persistent))

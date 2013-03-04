@@ -50,3 +50,4 @@
 (define-external-function "nodepriority" :type-float '(:type-addr))
 (define-external-function "nodelistreverse" :type-list-addr '(:type-list-addr))
 (define-external-function "nodelistlast" :type-addr '(:type-list-addr))
+(define-external-function "cpu-id" :type-int '(:type-addr))

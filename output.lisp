@@ -33,6 +33,7 @@
 		((vm-string-constant-p val)
 			(let* ((str (vm-string-constant-val val))
 					 (code (push-string-constant str)))
+				(warn "~a" code)
 				(list #b000110 (output-int code))))
       ((vm-addr-p val) (list  #b000101 (output-int (vm-addr-num val))))
       ((vm-host-id-p val) (list #b000011))
@@ -514,15 +515,18 @@
       (write-int-stream stream fake-id)
       (write-int-stream stream real-id)))
 
+(defun write-priority-order (stream order)
+	(case order
+		(:asc (write-hexa stream #b00000001))
+		(:desc (write-hexa stream #b00000000))))
+
 (defun output-global-priority (stream)
 	(write-hexa stream 1)
 	(let* ((found (find-if #'global-priority-p *priorities*))
 			 (id (lookup-def-id (global-priority-name found))))
 		(write-hexa stream (logand *tuple-id-mask* id))
 		(write-short-stream stream (global-priority-argument found))
-		(case (global-priority-asc-desc found)
-			(:asc (write-hexa stream #b00000001))
-			(:desc (write-hexa stream #b00000000)))))
+		(write-priority-order stream (global-priority-asc-desc found))))
 
 (defun any-global-priority-p ()
 	(let ((found (find-if #'global-priority-p *priorities*)))
@@ -534,7 +538,15 @@
 			(initial-priority-value found))))
 			
 (defun output-initial-priority (stream)
+	"Writes priority information."
 	(write-hexa stream 2)
+	(write-hexa stream 1) ; float
+	(let ((order (find-if #'priority-order-p *priorities*)))
+		(cond
+			(order
+				(write-priority-order stream (priority-order order)))
+			(t
+				(write-priority-order stream :desc))))
 	(let ((prio (get-initial-priority)))
 		(assert (not (null prio)))
 		(write-float-stream stream prio)))

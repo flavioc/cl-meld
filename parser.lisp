@@ -11,8 +11,10 @@
 	("\\}"                           (return (values :rcparen $@)))
    ("\\."                           (return (values :dot $@)))
 	("@initial"								(return (values :initial-priority $@)))
-	("\\basc\\b"							(return (values :asc $@)))
-	("\\bdesc\\b"							(return (values :desc $@)))
+	("@asc"							(return (values :asc $@)))
+	("@desc"							(return (values :desc $@)))
+	("@type"							(return (values :priority-type $@)))
+	("@order"						(return (values :priority-order $@)))
 	("\\bexists\\b"						(return (values :exists $@)))
    ("\\bimmediate\\b"               (return (values :immediate $@)))
  	("\\btype\\b"			            (return (values :type $@)))
@@ -203,7 +205,7 @@
 								:bang :to :let :in :fun :end :colon
 								:not-equal :if :then :else :prio :random
 								:min :asc :desc :or
-								:exists :initial-priority))
+								:exists :initial-priority :priority-type :priority-order))
 
 	(program
 	  (includes definitions priorities externs consts funs statements #L(make-ast  !2 ; definitions
@@ -236,6 +238,7 @@
 	
 	(priority
 		(:prio :initial-priority :number :dot #'(lambda (p i n dot) (declare (ignore p i dot)) (make-initial-priority (parse-base-number n))))
+		(:prio :priority-order asc-desc :dot #'(lambda (p o ad dot) (declare (ignore p o dot)) (make-priority-order ad)))
 		(:prio const :div number asc-desc :dot #'(lambda (p name div arg ad dot) (declare (ignore p div dot)) (make-global-priority name (int-val arg) ad)))
 		(:prio const :lesser const :dot #'(lambda (p name1 l name2 d) (declare (ignore p l d)) (make-descending-priority name1 name2)))
 		(:prio const :greater const :dot #'(lambda (p name1 g name2 d) (declare (ignore p g d)) (make-ascending-priority name1 name2))))

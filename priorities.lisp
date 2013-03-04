@@ -17,6 +17,10 @@
 (defun initial-priority-value (p) (second p))
 (defun initial-priority-p (p) (tagged-p p :initial-prio))
 
+(defun make-priority-order (asc-desc) `(:priority-order ,asc-desc))
+(defun priority-order (x) (second x))
+(defun priority-order-p (x) (tagged-p x :priority-order))
+
 (defun all-start-nodes (priorities)
 	(remove-duplicates (mapcar #'priority-left priorities) :test #'string-equal))
 (defun all-end-nodes (priorities)
