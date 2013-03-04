@@ -6,9 +6,13 @@
 
 (defparameter *output-string-constants* nil)
 (defun push-string-constant (str)
-	"Adds string constant to database and returns the string integer code."
-	(push-end str *output-string-constants*)
-	(1- (length *output-string-constants*)))
+	"Adds string constant to database if not found and returns the string integer code."
+	(let ((pos (position str *output-string-constants* :test #'string-equal)))
+		(if pos
+			pos
+			(progn
+				(push-end str *output-string-constants*)
+				(1- (length *output-string-constants*))))))
 
 (defmacro with-memory-stream (s &body body)
    `(let ((,s (make-in-memory-output-stream)))
@@ -544,7 +548,15 @@
       (let ((str (clause-to-string clause)))
          (write-int-stream stream (length str))
          (write-string-stream stream str))))
-      
+
+(defun output-all-rules ()
+	(loop for code-rule in *code-rules*
+		collect
+   		(let ((vec (create-bin-array))
+			 		(code (rule-code code-rule)))
+				(output-instrs code vec)
+				vec)))
+			
 (defun do-output-code (stream)
    (write-hexa stream (length *definitions*))
    (write-nodes stream *nodes*)
@@ -553,6 +565,7 @@
    (let* ((*output-string-constants* nil)
 			 (processes (output-processes))
           (descriptors (output-descriptors))
+			 (rules (output-all-rules))
 			 (consts (output-consts)))
 		;; output strings
 		(write-int-stream stream (length *output-string-constants*))
@@ -580,13 +593,17 @@
 			(t (write-hexa stream 0)))
       (dolist (vec processes) (write-vec stream vec))
 		(write-int-stream stream (length *code-rules*))
-		(dolist (code-rule *code-rules*)
-		 (let* ((vec (create-bin-array))
-				 (code (rule-code code-rule))
-				 (ids (subgoal-ids code-rule)))
-			(output-instrs code vec)
+		(dolist2 (vec rules) (code-rule *code-rules*)
+		 (let* ((ids (subgoal-ids code-rule))
+				 (pers-p (persistent-p code-rule)))
 			(write-int-stream stream (length vec))
+			
 			(write-vec stream vec)
+			
+			(if pers-p
+				(write-hexa stream 1)
+				(write-hexa stream 0))
+			
 			(write-int-stream stream (length ids))
 			(dolist (id ids)
 				(write-hexa stream id))
