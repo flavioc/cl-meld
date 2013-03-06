@@ -33,7 +33,6 @@
 		((vm-string-constant-p val)
 			(let* ((str (vm-string-constant-val val))
 					 (code (push-string-constant str)))
-				(warn "~a" code)
 				(list #b000110 (output-int code))))
       ((vm-addr-p val) (list  #b000101 (output-int (vm-addr-num val))))
       ((vm-host-id-p val) (list #b000011))
@@ -392,6 +391,8 @@
          (setf prop (logior prop #b00001000)))
       (when (is-action-p def)
          (setf prop (logior prop #b00010000)))
+		(when (is-reused-p def)
+			(setf prop (logior prop #b00100000)))
       prop))
 
 (defparameter *max-tuple-name* 32)

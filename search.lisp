@@ -4,6 +4,8 @@
 (defun get-assignments (body) (filter #'assignment-p body))
 (defun get-assignment-vars (assignments) (mapcar #'assignment-var assignments))
 (defun get-subgoals (code) (filter #'subgoal-p code))
+(defun get-comprehensions (code) (filter #'comprehension-p code))
+(defun get-agg-constructs (code) (filter #'agg-construct-p code))
 (defun get-constraints (code) (remove-if-not #'constraint-p code))
 
 (defun iterate-expr (fn expr)

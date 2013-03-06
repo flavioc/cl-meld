@@ -94,6 +94,9 @@
 (defun set-clause-body (clause new-body)
    (setf (second clause) new-body))
 (defsetf clause-body set-clause-body)
+(defun set-clause-head (clause new-head)
+	(setf (third clause) new-head))
+(defsetf clause-head set-clause-head)
 
 (defun clause-options (clause) (fourth clause))
 (defun clause-add-option (clause opt) (push opt (fourth clause))) 
