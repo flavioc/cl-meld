@@ -534,7 +534,7 @@
       (if (is-worker-definition-p def)
          (make-process name `(,(make-return)))
          (if (is-init-p def)
-            (make-process name `(,@(compile-init-process) ,(make-return-linear)))
+            (make-process name `(,(make-return-linear)))
             (make-process name `(,@(compile-normal-process name (filter #'rule-is-persistent-p (find-clauses-with-subgoal-in-body name)))
                                  ,(make-return)))))))
 
