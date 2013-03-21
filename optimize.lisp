@@ -149,7 +149,8 @@
 (defun optimize-code ()
    (unless *use-optimizations*
       (return-from optimize-code nil))
-   (optimize-init)
+	(when (> (hash-table-count *nodes*) 0)
+   	(optimize-init))
    (optimize-returns)
 	; this is buggy when we have subgoals with simple conditions
 	; (optimize-multiple-move-0s)
