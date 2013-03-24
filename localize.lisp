@@ -42,10 +42,12 @@
 (defun create-inverse-non-fact-route (route new-name new-definition)
    (let* ((typs (definition-arg-types (definition-types new-definition)))
           (args (generate-args (length typs) typs))
+			 (sub 	(make-subgoal new-name
+                           (swap-first-two-args args)))
           (new-clause (make-clause `(,(make-subgoal route args))
-                  `(,(make-subgoal new-name
-                                   (swap-first-two-args args)))
+                  `(,sub)
                   `(:route ,(var-name (second args))))))
+		(subgoal-add-route sub (var-name (second args)))
       (push new-clause *clauses*)))
 
 (defun add-inverse-route-facts (route new-name)
@@ -67,9 +69,10 @@
       (let* ((new-name (generate-inverse-name route))
              (new-definition (create-inverse-non-fact-route-definition route new-name)))
          (if (is-fact-p route)
-            (let ((new-ones (add-inverse-route-facts route new-name)))
-               (when new-ones
-                  (setf *axioms* (append new-ones *axioms*))))
+				(let ((new-ones (add-inverse-route-facts route new-name)))
+					(if new-ones
+                 	(setf *axioms* (append new-ones *axioms*))
+						(create-inverse-non-fact-route route new-name new-definition)))
             (create-inverse-non-fact-route route new-name new-definition)))))
          
 (defun select-valid-constraints (body vars)
@@ -152,13 +155,13 @@
          (let ((first-arg (first args)))
             (if (var-eq-p first-arg host)
                (setf all-transformed nil)
-               (subgoal-add-option sub `(:route ,(var-name first-arg))))))
+					(subgoal-add-route sub (var-name first-arg)))))
       (do-comprehensions head (:right right :comprehension comp)
          (do-subgoals right (:args args :subgoal sub)
             (let ((first-arg (first args)))
                (if (var-eq-p first-arg host)
                   (setf all-transformed nil)
-                  (subgoal-add-option sub `(:route ,(var-name first-arg)))))))
+						(subgoal-add-route sub (var-name first-arg))))))
 		(do-exists head (:var-list vars :body body)
 			(unless (transform-remote-subgoals body host)
 				(setf all-transformed nil)))

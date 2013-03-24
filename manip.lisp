@@ -436,6 +436,8 @@
    (setf (fourth subgoal) (cons opt (fourth subgoal))))
 (defun subgoal-add-tagged-option (subgoal opt arg)
 	(subgoal-add-option subgoal `(,opt ,arg)))
+(defun subgoal-add-route (sub route)
+	(subgoal-add-option sub `(:route ,route)))
 	
 (defun subgoal-get-tagged-option (subgoal opt)
    (let ((res (find-if #L(tagged-p !1 opt) (subgoal-options subgoal))))
