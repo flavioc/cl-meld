@@ -529,5 +529,8 @@
       (transform-clause-constants clause))
    (do-all-rules (:head head :body body :clause clause)
       (type-check-clause head body clause nil))
+	(do-const-axioms (:subgoal sub)
+		(with-subgoal sub (:name name :args args :options opts)
+			(do-type-check-subgoal name args opts :axiom-p t)))
    (do-all-axioms (:head head :body body :clause clause)
       (type-check-clause head body clause t)))

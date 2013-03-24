@@ -258,6 +258,12 @@
    `(do-clauses *axioms* (:head ,head :body ,body :clause ,clause
                            :options ,options :id ,id :operation ,operation)
       ,@rest))
+
+(defmacro do-const-axioms ((&key subgoal) &body rest)
+	(with-gensyms (head)
+		`(do-clauses *const-axioms* (:head ,head)
+			(do-subgoals ,head (:subgoal ,subgoal)
+				,@rest))))
       
 (defmacro do-worker-axioms ((&key head body clause options id (operation 'do)) &body rest)
    `(do-clauses *worker-axioms* (:head ,head :body ,body :clause ,clause

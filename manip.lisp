@@ -246,8 +246,12 @@
 (defsetf constraint-expr set-constraint-expr)
 
 (defun const-p (s)
-   (or (int-p s) (float-p s) (call-p s)
-      (cons-p s) (nil-p s) (addr-p s) (get-constant-p s)))
+   (or (int-p s) (float-p s)
+		(and (cons-p s) (const-p (cons-head s)) (const-p (cons-tail s)))
+		(nil-p s)
+		(string-constant-p s)
+		(addr-p s)
+		(get-constant-p s)))
             
 (defun make-op (op op1 op2)
    `(,op ,op1 ,op2))
@@ -466,6 +470,10 @@
 						(incf pos)))))))
 (defun subgoal-is-remote-p (subgoal)
    (subgoal-get-remote-dest subgoal))
+(defun subgoal-is-const-p (subgoal)
+	(with-subgoal subgoal (:args args)
+		; we want to ignore constants in this case (faster loading)
+		(every #L(and (const-p !1) (not (get-constant-p !1))) args)))
 
 (defun lookup-definition-types (pred)
    (when-let ((def (lookup-definition pred)))

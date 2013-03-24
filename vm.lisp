@@ -169,7 +169,13 @@
    `(loop for (,n ,instrs) in (cdr ,vsn)
           ,operation ,@body))
 (defun vm-select-node-push (vsn n instrs)
+	"For select-node instruction 'vsn' add node n with instructions 'instrs'."
    (setf (cdr vsn) (cons `(,n (,@instrs ,(make-return-select))) (cdr vsn))))
+(defun vm-select-node-empty-p (vsn)
+	(null (cdr vsn)))
+
+(defun make-vm-new-axioms (subgoals) `(:new-axioms ,subgoals))
+(defun vm-new-axioms-subgoals (na) (second na))
    
 (defun make-vm-colocated (h1 h2 dest) (list :colocated h1 h2 dest))
 (defun vm-colocated-first (c) (second c))
@@ -227,7 +233,7 @@
                (reg-num (reg-dot-reg place)))
             (reg-dot-field place)))
       ((tuple-p place) "tuple")))
-      
+
 (defmacro generate-print-op (basic-typs basic-ops &body body)
    `(on-top-level
       (defun print-op (op)

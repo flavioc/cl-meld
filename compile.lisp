@@ -473,10 +473,29 @@
 			(assert (not (null (clause-get-id clause))))
 			`(,(make-vm-rule (clause-get-id clause)) ,@clause-code))))
       
+(defun compile-const-axioms ()
+	"Take all constant axioms in the program and map them to an hash table (per node).
+	Then, create a SELECT NODE instruction and add NEW-AXIOM with each set of node axioms."
+	(let ((hash (make-hash-table)))
+		(do-const-axioms (:subgoal sub)
+			(with-subgoal sub (:args args)
+				(let* ((fst (first args))
+					    (node (addr-num fst)))
+					(setf (subgoal-args sub) (rest args)) ; remove home argument
+					(push sub (gethash node hash)))))
+		(let ((vm (make-vm-select-node)))
+			(loop for key being the hash-keys of hash
+					using (hash-value value)
+					do (let ((ax (make-vm-new-axioms value)))
+							(vm-select-node-push vm key (list ax))))
+			(list vm))))
+	
 (defun compile-init-process ()
-   (unless *axioms* (return-from compile-init-process nil))
-   (do-axioms (:body body :head head :clause clause :operation :append)
-      (compile-with-starting-subgoal body head clause)))
+	(let ((const-axiom-code (compile-const-axioms)))
+		;; handle other axioms (non-constant)
+   	(append const-axiom-code
+			(do-axioms (:body body :head head :clause clause :operation :append)
+      		(compile-with-starting-subgoal body head clause)))))
 
 (defun find-same-subgoal (ls sub)
 	(with-subgoal sub (:name name :args args)

@@ -112,7 +112,8 @@
 		 			                      "topology"
 		 			                      "localize"
 		 			                      "stratification"
-		 			                      "external"))
+		 			                      "external"
+												 "models/base"))
 		 			(:file "optimize"
 		 			         :depends-on ("manip"
 		 			                      "util"

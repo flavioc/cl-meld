@@ -41,6 +41,10 @@
 		:initarg :consts
 		:initform (error "missing consts.")
 		:accessor consts)
+	(const-axioms
+		:initarg :const-axioms
+		:initform (error "missing const axioms.")
+		:accessor const-axioms)
 	(args-needed
 		:initarg :args-needed
 		:initform (error "missing args-needed.")
@@ -54,18 +58,20 @@
 (defun make-ast (defs externs clauses axioms funs nodes priorities consts args-needed)
    (multiple-value-bind (worker-clauses node-clauses) (split-mult-return (is-worker-clause-p defs) clauses)
       (multiple-value-bind (worker-axioms node-axioms) (split-mult-return (is-worker-clause-p defs) axioms)
-         (make-instance 'ast
-            :definitions defs
-            :externs externs
-            :clauses node-clauses
-            :worker-clauses worker-clauses
-            :axioms node-axioms
-            :worker-axioms worker-axioms
-            :functions funs
-            :nodes nodes
-				:priorities priorities
-				:consts consts
-				:args-needed args-needed))))
+         (multiple-value-bind (const-axioms normal-axioms) (split-mult-return #'is-constant-axiom-p node-axioms)
+				(make-instance 'ast
+	            :definitions defs
+	            :externs externs
+	            :clauses node-clauses
+	            :worker-clauses worker-clauses
+	            :axioms normal-axioms
+					:const-axioms const-axioms ;; these axioms will not localized
+	            :worker-axioms worker-axioms
+	            :functions funs
+	            :nodes nodes
+					:priorities priorities
+					:consts consts
+					:args-needed args-needed)))))
  
 (defun merge-asts (ast1 ast2)
    "Merges two ASTs together. Note that ast1 is modified."
@@ -76,6 +82,7 @@
          :worker-clauses (nconc (worker-clauses ast1) (worker-clauses ast2))
          :axioms (nconc (axioms ast1) (axioms ast2))
          :worker-axioms (nconc (worker-axioms ast1) (worker-axioms ast2))
+			:const-axioms (nconc (const-axioms ast1) (const-axioms ast2))
          :functions (nconc (functions ast1) (functions ast2))
          :nodes (union (nodes ast1) (nodes ast2))
 			:priorities (union (priorities ast1) (priorities ast2))
@@ -142,6 +149,10 @@
 (defun is-axiom-p (clause)
    (and (null (find-if #'subgoal-p (clause-body clause)))
          (null (find-if #'agg-construct-p (clause-body clause)))))
+
+(defun is-constant-axiom-p (clause)
+	(and (null (clause-body clause))
+		(every #'subgoal-is-const-p (get-subgoals (clause-head clause)))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; CONSTS

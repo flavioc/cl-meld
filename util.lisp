@@ -109,13 +109,16 @@
 
 (defun intersection-all (lists)
    "Returns the intersection of all sub-lists in 'lists'."
-   (reduce #'intersection (rest lists) :initial-value (first lists))) 
+   (reduce #'intersection (rest lists) :initial-value (first lists)))
 
 (defun split (fn l)
-   (let ((l1 (filter fn l)))
-      (if l1
-         (cons l1 (remove-if fn l))
-         (cons nil l))))
+	(let (y n)
+		(loop for el in l
+				do
+					(if (funcall fn el)
+						(push el y)
+						(push el n)))
+		(cons (reverse y) (reverse n))))
 
 (defun split-mult-return (fn l)
    (destructuring-bind (filtered . removed) (split fn l)

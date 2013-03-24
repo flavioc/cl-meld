@@ -158,7 +158,7 @@
                         this-arg
                         (generate-part-expression final-type new-body rest-fun-args rest-args)
                         final-type))))))))
-   
+
 (defun generate-expression-by-function-call (fun args)
    (with-function fun (:args fun-args :ret-type ret-type :body body :name name)
       (unless (= (length args) (length fun-args))

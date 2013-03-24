@@ -116,7 +116,10 @@
       (add-byte (logior fs val-byte) vec)
       (dolist (by val-bytes)
          (add-byte by vec))))
-      
+(defun output-list-bytes (vec ls)
+	(dolist (b ls)
+      (add-byte b vec)))
+
 (defun output-matches (matches vec)
    (cond
       ((null matches)
@@ -157,6 +160,19 @@
       (:type-list-float 1)
       (:type-list-addr 2)))
 
+(defun output-axiom-argument (arg vec subgoal)
+	(cond
+		((addr-p arg) (output-list-bytes vec (output-int (addr-num arg))))
+		((int-p arg) (output-list-bytes vec (output-int (int-val arg))))
+		((float-p arg) (output-list-bytes vec (output-float (float-val arg))))
+		((string-constant-p arg) (output-list-bytes vec (output-int (push-string-constant (string-constant-val arg)))))
+		((nil-p arg) (add-byte #b0 vec))
+		((cons-p arg)
+			(add-byte #b1 vec)
+			(output-axiom-argument (cons-head arg) vec subgoal)
+			(output-axiom-argument (cons-tail arg) vec subgoal))
+		(t (error 'output-invalid-error :text (tostring "don't know how to output this subgoal: ~a" subgoal)))))
+
 (defparameter *value-mask* #b00111111)
 (defparameter *reg-mask* #b00011111)
 (defparameter *op-mask* #b00011111)
@@ -181,6 +197,15 @@
       (:next (add-byte #x1 vec))
       (:return-linear (add-byte #b11010000 vec))
       (:return-derived (add-byte #b11110000 vec))
+		(:new-axioms
+			(write-jump vec 1
+				(add-byte #b00010100 vec)
+				(jumps-here vec)
+				(let ((axioms (vm-new-axioms-subgoals instr)))
+					(do-subgoals axioms (:name name :args args :subgoal axiom)
+						(add-byte (logand *tuple-id-mask* (lookup-def-id name)) vec)
+						(dolist (arg args)
+							(output-axiom-argument arg vec axiom))))))
 		(:save-original
 			(write-jump vec 1
 				(add-byte #b00010010 vec)
@@ -273,7 +298,10 @@
                         #b00001001
                         (logand *value-mask* first-value)
                         (logand *value-mask* second-value)))
-      (:select-node (let* ((total-nodes (number-of-nodes *nodes*))
+      (:select-node
+							(when (vm-select-node-empty-p instr)
+								(return-from output-instr nil))
+							(let* ((total-nodes (number-of-nodes *nodes*))
                            (size-header (* 2 +code-offset-size+))
                            (hash (make-hash-table))
                            (end-hash (make-hash-table)))
@@ -310,8 +338,7 @@
             (logand *reg-mask* (reg-to-byte (vm-colocated-dest instr)))))
       (:rule
          (add-byte #b00010000 vec)
-         (dolist (b (output-int (vm-rule-id instr)))
-            (add-byte b vec)))
+			(output-list-bytes vec (output-int (vm-rule-id instr))))
       (:rule-done
          (add-byte #b00010001 vec))
 		(:new-node
@@ -569,9 +596,15 @@
 			 		(code (rule-code code-rule)))
 				(output-instrs code vec)
 				vec)))
-			
+				
+(defparameter +meld-magic+ '(#x6d #x65 #x6c #x64 #x20 #x66 #x69 #x6c))
+
 (defun do-output-code (stream)
-   (write-hexa stream (length *definitions*))
+   (dolist (magic +meld-magic+)
+		(write-hexa stream magic))
+	(write-int-stream stream *major-version*)
+	(write-int-stream stream *minor-version*)
+	(write-hexa stream (length *definitions*))
    (write-nodes stream *nodes*)
 	(write-hexa stream (args-needed *ast*))
    (write-rules stream)
