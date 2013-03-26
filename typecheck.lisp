@@ -235,47 +235,55 @@
                (variable-is-defined arg))))))
 
 (defun do-type-check-agg-construct (c in-body-p)
-   (with-agg-construct c (:body body :head head :to to :op op)
+   (with-agg-construct c (:body body :head head :specs specs)
       (let ((old-defined *defined*)
             (types nil))
          (extend-typecheck-context
 				(transform-agg-constructs-constants c)
 				(type-check-body body)
-				(case op
-					(:collect
-						(let* ((vtype (get-var-constraint (var-name to)))
-								 (vtype-list (mapcar #'list-type vtype)))
-							(assert (= 1 (length vtype)))
-							(set-type to vtype-list)
-							(set-var-constraint (var-name to) vtype-list)))
-					(:count
-						(variable-is-defined to)
-						(set-type to '(:type-int))
-						(set-var-constraint (var-name to) '(:type-int)))		
-					)
+				(do-agg-specs specs (:op op :var to)
+					(case op
+						(:min
+							(let* ((vtype (get-var-constraint (var-name to))))
+								(assert (= 1 (length vtype)))
+								(set-type to vtype)
+								(set-var-constraint (var-name to) vtype)))
+						(:collect
+							(let* ((vtype (get-var-constraint (var-name to)))
+								 	(vtype-list (mapcar #'list-type vtype)))
+								(assert (= 1 (length vtype)))
+								(set-type to vtype-list)
+								(set-var-constraint (var-name to) vtype-list)))
+						(:count
+							(variable-is-defined to)
+							(set-type to '(:type-int))
+							(set-var-constraint (var-name to) '(:type-int)))		
+						))
 				(setf (agg-construct-body c)
 					(type-check-all-except-body body head :check-comprehensions nil :check-agg-constructs nil :axiom-p nil))
-            (let ((new-ones *defined-in-context*)
+				(let ((new-ones *defined-in-context*)
 						(target-variables (mapcar #'var-name (agg-construct-vlist c))))
-               (when (or (eq op :sum)
-								 (eq op :collect)
-								 (eq op :count))
-                  (push (var-name to) target-variables))
+               (do-agg-specs specs (:op op :var to)
+						(when (or (eq op :sum)
+								 	(eq op :collect)
+								 	(eq op :count)
+								 	(eq op :min))
+                  	(push (var-name to) target-variables)))
                (unless (subsetp new-ones target-variables)
                   (error 'type-invalid-error :text (tostring "Aggregate ~a is using more variables than it specifies ~a -> ~a" c new-ones target-variables)))
                (unless (subsetp target-variables new-ones)
-                  (error 'type-invalid-error :text (tostring "Aggregate ~a is not using enough variables ~a ~a" c target-variables new-ones))))
-               (setf types (get-var-constraint (var-name to))))
-         (when in-body-p
-				(case op
-            	(:count
-               	(force-constraint (var-name to) '(:type-int))
-               	(variable-is-defined to))
-            	(:sum
-               	(get-type to types)
-               	(variable-is-defined to))
-            	(otherwise
-               	(error 'type-invalid-error :text (tostring "Unrecognized aggregate operator ~a" op))))))))
+                  (error 'type-invalid-error :text (tostring "Aggregate ~a is not using enough variables ~a ~a" c target-variables new-ones))))))))
+               ;(setf types (get-var-constraint (var-name to))))
+         ;(when in-body-p
+		;		(case op
+       ;     	(:count
+        ;       	(force-constraint (var-name to) '(:type-int))
+        ;       	(variable-is-defined to))
+        ;    	(:sum
+        ;       	(get-type to types)
+        ;       	(variable-is-defined to))
+        ;    	(otherwise
+        ;       	(error 'type-invalid-error :text (tostring "Unrecognized aggregate operator ~a" op))))))))
 
 (defun do-type-check-constraints (expr)
    ;; LET has problems with this

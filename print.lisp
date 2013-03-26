@@ -155,11 +155,14 @@
                   (with-comma-context
                      (print-subgoals stream right))
                   (format stream "}")))
-            (do-agg-constructs head (:body body :head head :vlist vars :to to :op op)
+            (do-agg-constructs head (:body body :head head :vlist vars :specs specs)
                (check-print-level stream)
                (with-comma-context
-                  (format stream "[ ~A => ~a | " op (print-val to))
-                  (print-var-list stream vars)
+						(format stream "[ ")
+						(do-agg-specs specs (:var to :op op)
+                  	(format stream "~A => ~a, " op (print-val to)))
+                  (format stream " | ")
+						(print-var-list stream vars)
                   (format stream " | ")
                   (check-print-level stream)
                   (with-comma-context

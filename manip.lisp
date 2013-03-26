@@ -383,20 +383,24 @@
 
 ;;;; AGGREGATES
 
-(defun make-agg-construct (op to vlist body &optional head)
-   `(:agg-construct ,op ,to ,vlist ,body ,head))
+(defun make-agg-spec (op var) `(:agg-spec ,op ,var))
+(defun agg-spec-p (x) (tagged-p x :agg-spec))
+(defun agg-spec-op (x) (second x))
+(defun agg-spec-var (x) (third x))
+
+(defun make-agg-construct (spec vlist body &optional head)
+   `(:agg-construct ,spec ,vlist ,body ,head))
 (defun agg-construct-p (x) (tagged-p x :agg-construct))
-(defun agg-construct-op (a) (second a))
-(defun agg-construct-to (a) (third a))
-(defun agg-construct-vlist (a) (fourth a))
-(defun agg-construct-body (a) (fifth a))
-(defun agg-construct-head (a) (sixth a))
+(defun agg-construct-specs (a) (second a))
+(defun agg-construct-vlist (a) (third a))
+(defun agg-construct-body (a) (fourth a))
+(defun agg-construct-head (a) (fifth a))
 
 (defun set-agg-construct-body (c body)
-	(setf (fifth c) body))
+	(setf (fourth c) body))
 (defsetf agg-construct-body set-agg-construct-body)
 (defun set-agg-construct-vlist (c new)
-	(setf (fourth c) new))
+	(setf (fifth c) new))
 (defsetf agg-construct-vlist set-agg-construct-vlist)
 
 ;;;; EXISTS

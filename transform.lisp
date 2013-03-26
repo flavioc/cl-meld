@@ -52,7 +52,8 @@
       ((agg-construct-p expr)
          (with-agg-construct expr (:body body :head head)
             (transform-part-expression body)
-				(transform-part-expression head)))
+				(transform-part-expression head)
+				))
       ((constraint-p expr) (transform-part-expression (constraint-expr expr)))
       ((assignment-p expr)
          (transform-part-expression (assignment-var expr) t)
@@ -192,11 +193,13 @@
       (t (error 'expr-invalid-error
                :text (tostring "map-expr: Invalid expression: ~a" expr)))))
 
-(defun transform-drop-subgoal-first-arg (clause)
-   (assert (clause-p clause))
+(defun transform-drop-subgoal-first-arg (clause host)
+   (declare (ignore host))
+	(assert (clause-p clause))
 	(transform-expr #'subgoal-p
                         #'(lambda (x)
-                           (setf (subgoal-args x) (rest (subgoal-args x)))
+									; For some reason, cl-yacc may share subgoal structures
+									(setf (subgoal-args x) (rest (subgoal-args x)))
                            (values nil :stop))
                   clause))
 

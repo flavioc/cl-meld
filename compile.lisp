@@ -265,19 +265,36 @@
 								:text (tostring "agg-construct-step: op ~a not recognized" op)))))
 	
 (defun compile-agg-construct (c)
-	(with-reg (acc)
-		(with-agg-construct c (:body body :head head :to var :op op)
-			(let* ((start (agg-construct-start op acc))
-				  	 (inner-code (compile-iterate body body nil nil nil nil
-						:head-compiler #'(lambda (h c d s)
-												(declare (ignore h c d s))
-												(agg-construct-step op acc var))))
-					(end (agg-construct-end op acc)))
-				(add-used-var (var-name var) acc)
-				(let ((head-code (do-compile-head-code head nil nil nil)))
-					(remove-used-var (var-name var))
-					`(,@start ,(make-vm-reset-linear (append inner-code (append end (append head-code `(,(make-vm-reset-linear-end))))))))))))
-            
+	(with-agg-construct c (:specs specs)
+		(compile-agg-construct-specs c specs nil nil nil)))
+
+(defun compile-agg-construct-specs (c specs end steps vars-regs)
+	(cond
+		((null specs)
+			(let ((inner-code (compile-iterate (agg-construct-body c) (agg-construct-body c) nil nil nil nil
+									:head-compiler #'(lambda (h c d s)
+																(declare (ignore h c d s))
+																(loop for var-reg in vars-regs
+																	append (agg-construct-step (third var-reg) (second var-reg) (first var-reg)))))))
+				(dolist (var-reg vars-regs)
+					(add-used-var (var-name (first var-reg)) (second var-reg)))
+				(let ((head-code (do-compile-head-code (agg-construct-head c) nil nil nil)))
+					(dolist (var-reg vars-regs)
+						(remove-used-var (var-name (first var-reg))))
+					`(,(make-vm-reset-linear (append inner-code (append end (append head-code `(,(make-vm-reset-linear-end))))))))))
+		(t
+			(let ((first-spec (first specs))
+					 (rest-specs (rest specs)))
+				(with-reg (acc)
+					(with-agg-spec first-spec (:var var :op op)
+						(let ((spec-end (agg-construct-end op acc))
+								(spec-steps (agg-construct-step op acc var)))
+							(let ((inner-code (compile-agg-construct-specs c rest-specs
+										(append end spec-end)
+										(append steps spec-steps)
+										(cons (list var acc op) vars-regs))))
+								`(,@(agg-construct-start op acc) ,@inner-code)))))))))
+
 (defun do-compile-head-comprehensions (head clause def subgoal)
    (let* ((code (do-comprehensions head (:left left :right right :operation collect)
                   (with-compile-context (make-vm-reset-linear `(,@(compile-iterate left left right nil nil nil) ,(make-vm-reset-linear-end)))))))

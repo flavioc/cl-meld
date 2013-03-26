@@ -304,7 +304,7 @@
 
 (defun localize-check-head (head clause homes host)
 	(localize-check-head-by-homes head homes)
-	(do-agg-constructs head (:body body)
+	(do-agg-constructs head (:body body :agg-construct c)
 		(check-remote-args-in-constructs body host))
    (do-comprehensions head (:left left)
 		(check-remote-args-in-constructs left host))
@@ -313,7 +313,7 @@
 
 (defun remove-home-argument-clause (clause)
    (let ((host (clause-host-node clause)))
-      (transform-drop-subgoal-first-arg clause)
+      (transform-drop-subgoal-first-arg clause host)
       (transform-variable-to-host-id clause host)))
          
 (defun remove-home-argument ()

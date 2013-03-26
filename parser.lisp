@@ -401,15 +401,26 @@
 	   (variable :comma variable-list #'(lambda (v c l) (declare (ignore c)) (cons v l))))
 	
 	(aggregate-thing
-		(:lsparen aggregate-mod :to variable :bar variable-list :bar terms :bar terms :rsparen
-			#'(lambda (l aconstruct to var b1 vlist b2 body b3 head r)
-				(declare (ignore l r b1 b2 b3 r to))
-				(make-agg-construct (parse-agg-construct aconstruct) var vlist body head)))
-	   (:lsparen aggregate-mod :to variable :bar variable-list :bar terms :rsparen
-	         #'(lambda (l aconstruct to var b1 vlist b2 terms r) (declare (ignore l r b1 b2 to))
-	               (make-agg-construct (parse-agg-construct aconstruct) var vlist terms)))
+		(:lsparen multiple-aggregate-spec :bar terms :bar terms :rsparen
+			#'(lambda (l specs b1 body b2 head r)
+					(declare (ignore l b1 b2 r))
+					(make-agg-construct specs nil body head)))
+		(:lsparen multiple-aggregate-spec :bar variable-list :bar terms :bar terms :rsparen
+			#'(lambda (l specs b1 vlist b2 body b3 head r)
+				(declare (ignore l r b1 b2 b3 r))
+				(make-agg-construct specs vlist body head)))
+	   (:lsparen multiple-aggregate-spec :bar variable-list :bar terms :rsparen
+	         #'(lambda (l specs b1 vlist b2 terms r) (declare (ignore l r b1 b2))
+	               (make-agg-construct specs vlist terms)))
 		)
 		
+	(multiple-aggregate-spec
+		(aggregate-spec #L(list !1))
+		(aggregate-spec :comma multiple-aggregate-spec #L(cons !1 !3)))
+		
+	(aggregate-spec
+		(aggregate-mod :to variable #L(make-agg-spec (parse-agg-construct !1) !3)))
+	
 	(aggregate-mod
 		(:min (return-const "min"))
 		(const #'identity))
