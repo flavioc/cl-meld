@@ -207,8 +207,12 @@
                   (:persistent
                      (error 'type-invalid-error :text (tostring "Only persistent facts may use !: ~a" name)))
 						(:random)
+						(:delay)
                   (otherwise
-                     (error 'type-invalid-error :text (tostring "Unrecognized option ~a for subgoal ~a" opt name))))))
+							(cond
+								((listp opt))
+								(t
+                     		(error 'type-invalid-error :text (tostring "Unrecognized option ~a for subgoal ~a" opt name))))))))
          (t ;; persistent fact
             (let ((has-persistent-p nil))
                (dolist (opt options)
@@ -218,8 +222,12 @@
                      (:persistent
                         (setf has-persistent-p t))
 							(:random)
-                     (otherwise
-                        (error 'type-invalid-error :text (tostring "Unrecognized option ~a for subgoal ~a" opt name)))))
+							(:delay)
+							(otherwise
+								(cond
+									((listp opt))
+									(t
+                        		(error 'type-invalid-error :text (tostring "Unrecognized option ~a for subgoal ~a" opt name)))))))
                (unless has-persistent-p
                   (warn (tostring "Subgoal ~a needs to have a !" name))))))
       (dolist2 (arg args) (forced-type (definition-arg-types definition))

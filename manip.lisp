@@ -480,6 +480,13 @@
 	(with-subgoal subgoal (:args args)
 		; we want to ignore constants in this case (faster loading)
 		(every #L(and (const-p !1) (not (get-constant-p !1))) args)))
+(defun subgoal-add-delay (subgoal delay)
+	(assert (and (numberp delay) (> delay 0)))
+	(subgoal-add-tagged-option subgoal :delay delay))
+(defun subgoal-has-delay-p (subgoal)
+	(subgoal-get-tagged-option subgoal :delay))
+(defun subgoal-delay-value (subgoal)
+	(first (subgoal-get-tagged-option subgoal :delay)))
 
 (defun lookup-definition-types (pred)
    (when-let ((def (lookup-definition pred)))

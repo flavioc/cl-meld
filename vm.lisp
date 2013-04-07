@@ -159,6 +159,11 @@
 (defun send-from (send) (second send))
 (defun send-to (send) (third send))
 
+(defun make-vm-send-delay (from to delay) `(:send-delay ,from ,to ,delay))
+(defun vm-send-delay-from (send) (second send))
+(defun vm-send-delay-to (send) (third send))
+(defun vm-send-delay-time (send) (fourth send))
+
 (defun make-vm-call (name dest args) `(:call ,name ,dest ,args))
 (defun vm-call-name (call) (second call))
 (defun vm-call-dest (call) (third call))

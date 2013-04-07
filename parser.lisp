@@ -11,10 +11,11 @@
 	("\\}"                           (return (values :rcparen $@)))
    ("\\."                           (return (values :dot $@)))
 	("@initial"								(return (values :initial-priority $@)))
-	("@asc"							(return (values :asc $@)))
-	("@desc"							(return (values :desc $@)))
-	("@type"							(return (values :priority-type $@)))
-	("@order"						(return (values :priority-order $@)))
+	("@asc"									(return (values :asc $@)))
+	("@desc"									(return (values :desc $@)))
+	("@type"									(return (values :priority-type $@)))
+	("@order"								(return (values :priority-order $@)))
+	("@\\+[0-9]+s"							(return (values :delay $@)))
 	("\\bexists\\b"						(return (values :exists $@)))
    ("\\bimmediate\\b"               (return (values :immediate $@)))
  	("\\btype\\b"			            (return (values :type $@)))
@@ -88,6 +89,11 @@
    (if (find #\. str)
       (make-float (read-from-string str))
       (make-int (parse-integer str))))
+
+(defun parse-delay (str)
+	(let* ((remain1 (subseq str 2))
+			 (remain (subseq remain1 0 (1- (length remain1)))))
+		(parse-integer remain)))
 
 (defun make-const-definition (name expr) `(:const ,name ,expr))
 (defun const-definition-p (const) (tagged-p const :const))
@@ -205,7 +211,8 @@
 								:bang :to :let :in :fun :end :colon
 								:not-equal :if :then :else :prio :random
 								:min :asc :desc :or
-								:exists :initial-priority :priority-type :priority-order))
+								:exists :initial-priority :priority-type :priority-order
+								:delay))
 
 	(program
 	  (includes definitions priorities externs consts funs statements #L(make-ast  !2 ; definitions
@@ -390,7 +397,12 @@
 	 (inner-subgoal
 	    (const :lparen args :rparen #'(lambda (name x args y)
 	                                       (declare (ignore x y))
-	                                       (make-subgoal name args))))
+	                                       (make-subgoal name args)))
+		 (const :lparen args :rparen :delay #'(lambda (name x args y delay)
+																(declare (ignore x y))
+																(let ((sub (make-subgoal name args)))
+																	(subgoal-add-delay sub (parse-delay delay))
+																	sub))))
 		
 	(comprehension
 	    (:lcparen variable-list :bar terms :bar terms :rcparen #'(lambda (l vl b1 left b2 right r) (declare (ignore l b1 b2 r))

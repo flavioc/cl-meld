@@ -206,6 +206,11 @@
 						(add-byte (logand *tuple-id-mask* (lookup-def-id name)) vec)
 						(dolist (arg args)
 							(output-axiom-argument arg vec axiom))))))
+		(:send-delay
+			(add-byte #b00010101 vec)
+			(add-byte (logand *reg-mask* (reg-to-byte (vm-send-delay-from instr))) vec)
+         (add-byte (logand *reg-mask* (reg-to-byte (vm-send-delay-to instr))) vec)
+			(add-byte (vm-send-delay-time instr) vec))
 		(:save-original
 			(write-jump vec 1
 				(add-byte #b00010010 vec)

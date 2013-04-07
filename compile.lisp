@@ -224,7 +224,9 @@
                   for i upto (length args)
                   append (compile-head-move arg i tuple-reg))
             ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub tuple-reg)
-               `(,@extra-code ,(make-send tuple-reg send-to))))))
+               `(,@extra-code ,(if (and (subgoal-has-delay-p sub) (reg-eq-p send-to tuple-reg))
+												(make-vm-send-delay tuple-reg send-to (subgoal-delay-value sub))
+												(make-send tuple-reg send-to)))))))
             res))))
 
 (defconstant +plus-infinity+ 2147483647)
