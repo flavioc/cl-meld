@@ -217,11 +217,6 @@
 (defun vm-new-node-p (nn) (tagged-p nn :new-node))
 (defun vm-new-node-reg (nn) (second nn))
 
-(defun make-vm-save-original (code)
-	`(:save-original ,code))
-(defun vm-save-original-p (so) (tagged-p so :save-original))
-(defun vm-save-original-code (so) (second so))
-
 (defun print-place (place)
    (cond
       ((vm-int-p place) (tostring "~a" (vm-int-val place)))

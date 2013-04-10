@@ -460,13 +460,7 @@
 			(return-from get-first-min-subgoal sub))))
 
 (defun compile-initial-subgoal (body orig-body head clause subgoal)
-	(cond
-		((and (not (null subgoal)) (subgoal-is-blocked-p subgoal))
-			(let* ((first-subgoal (get-first-min-subgoal body))
-					 (inner-code (compile-iterate body orig-body head clause nil nil)))
-			`(,(make-vm-save-original `(,@inner-code ,(make-return))))))
-		(t (compile-initial-subgoal-aux body orig-body head clause subgoal))))
-   
+	(compile-initial-subgoal-aux body orig-body head clause subgoal))
 
 (defun get-my-subgoals (body name)
    (filter #'(lambda (sub)
