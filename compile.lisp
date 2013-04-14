@@ -224,7 +224,7 @@
                   for i upto (length args)
                   append (compile-head-move arg i tuple-reg))
             ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub tuple-reg)
-               `(,@extra-code ,(if (and (subgoal-has-delay-p sub) (reg-eq-p send-to tuple-reg))
+               `(,@extra-code ,(if (subgoal-has-delay-p sub)
 												(make-vm-send-delay tuple-reg send-to (subgoal-delay-value sub))
 												(make-send tuple-reg send-to)))))))
             res))))
@@ -511,11 +511,14 @@
       		(compile-with-starting-subgoal body head clause)))))
 
 (defun find-same-subgoal (ls sub)
+	(when (subgoal-is-remote-p sub)
+		(return-from find-same-subgoal nil))
 	(with-subgoal sub (:name name :args args)
-		(do-subgoals ls (:name other :args args-other :subgoal sub)
+		(do-subgoals ls (:name other :args args-other :subgoal sub-other)
 			(when (and (string-equal name other)
-							(equal args args-other))
-				(return-from find-same-subgoal sub))))
+							(equal args args-other)
+							(not (subgoal-is-remote-p sub-other)))
+				(return-from find-same-subgoal sub-other))))
 	nil)
 	
 (defun find-persistent-rule (clause)
@@ -597,7 +600,7 @@
 											`(,(make-vm-rule 0)
 											  	,(make-iterate "_init"
 													nil 
-													`(,@(compile-init-process)	
+													`(,@(compile-init-process)
 														,(make-vm-rule-done)
 														,(make-move :tuple reg)
 														,(make-vm-remove reg)

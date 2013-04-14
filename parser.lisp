@@ -75,7 +75,7 @@
 	("[A-Z]([A-Z]|\_)+"					(return (values :const $@)))
 	("'\\w+"		                     (return (values :const $@)))
 	("\\#.+"                         (return (values :file $@)))
-	("[A-Z]([a-z]|[0-9]|\_)*"	   	(return (values :variable $@))))
+	("[A-Z]([a-z]|[0-9]|[A-Z]|\_)*"	   	(return (values :variable $@))))
 
 (defun make-var-parser (var)
    (if (equal var "_")
@@ -128,8 +128,8 @@
 (defun defined-nodes-list ()
    (loop for k being the hash-keys in *found-nodes* collect k))
 
-(defvar *included-files* nil)
-(defun add-included-file (file) (push (subseq file 1) *included-files*))
+(defvar *included-asts* nil)
+(defun add-included-ast (ast) (push ast *included-asts*))
 
 (defvar *defined-functions* nil)
 (defun add-defined-function (fun) (push fun *defined-functions*))
@@ -238,7 +238,11 @@
 	   (include includes #'(lambda (a b) (declare (ignore a b)))))
 
 	(include
-	   (:include :file #'(lambda (i f) (declare (ignore i)) (add-included-file f))))
+	   (:include :file #'(lambda (i f)
+									(declare (ignore i))
+									(let* ((filename (subseq f 1))
+										    (inner-ast (parse-meld-file-rec filename)))
+										(add-included-ast inner-ast)))))
 
 	(definitions
 	 ()
@@ -468,7 +472,9 @@
 	               ((has-function-call-p name)
 	                  (generate-expression-by-function-call it args))
 	               (t (make-call name args)))))
-	   (const #L(make-get-constant !1))
+	   (const #L(if (has-const-def-p !1)
+						(make-get-constant !1)
+						(make-var-parser !1)))
 	   (:local :number #L(let ((val (parse-integer !2))) (add-found-node val) (make-addr val)))
 		number
 	   (:lparen expr :rparen #'(lambda (l expr r) (declare (ignore l r)) expr))
@@ -574,7 +580,8 @@
       (let* ((lexer (simple-stream-lexer #'read-source-line
                                   #'meld-lexer
                                   :stream input-stream)))
-         (parse-with-lexer lexer meld-parser))))
+		(in-directory (pathname (directory-namestring (pathname file)))
+         (parse-with-lexer lexer meld-parser)))))
    
 (defun parse-string (str)
    "Parses a string of Meld code."
@@ -592,15 +599,13 @@
 
 (defun parse-meld-file-rec (file)
    "Parses a Meld file, including included files."
-   (let* ((*included-files* nil)
+   (let* ((*included-asts* nil)
           (*defined-functions* nil)
 			 (*max-arg-needed* 0)
           (ast (with-inner-parse-context
                   (parse-file-as-stream file))))
-      (in-directory (pathname (directory-namestring (pathname file)))
-         (let ((other-asts (mapcar #L(parse-meld-file-rec !1) *included-files*)))
-            (reduce #'merge-asts other-asts
-                     :initial-value ast)))))
+       (reduce #'merge-asts *included-asts*
+                  :initial-value ast)))
 
 (defun parse-meld-file (file)
    (with-parse-context

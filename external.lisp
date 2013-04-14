@@ -51,3 +51,4 @@
 (define-external-function "nodelistreverse" :type-list-addr '(:type-list-addr))
 (define-external-function "nodelistlast" :type-addr '(:type-list-addr))
 (define-external-function "cpu-id" :type-int '(:type-addr))
+(define-external-function "node2int" :type-int '(:type-addr))
