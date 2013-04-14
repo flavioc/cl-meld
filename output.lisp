@@ -210,7 +210,7 @@
 			(add-byte #b00010101 vec)
 			(add-byte (logand *reg-mask* (reg-to-byte (vm-send-delay-from instr))) vec)
          (add-byte (logand *reg-mask* (reg-to-byte (vm-send-delay-to instr))) vec)
-			(add-byte (vm-send-delay-time instr) vec))
+			(output-list-bytes vec (output-int (vm-send-delay-time instr))))
       (:reset-linear
          (write-jump vec 1
             (add-byte #b00001110 vec)

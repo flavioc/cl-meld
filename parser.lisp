@@ -15,7 +15,8 @@
 	("@desc"									(return (values :desc $@)))
 	("@type"									(return (values :priority-type $@)))
 	("@order"								(return (values :priority-order $@)))
-	("@\\+[0-9]+s"							(return (values :delay $@)))
+	("@\\+[0-9]+s"							(return (values :delay-seconds $@)))
+	("@\\+[0-9]+ms"						(return (values :delay-ms $@)))
 	("\\bexists\\b"						(return (values :exists $@)))
    ("\\bimmediate\\b"               (return (values :immediate $@)))
  	("\\btype\\b"			            (return (values :type $@)))
@@ -90,9 +91,13 @@
       (make-float (read-from-string str))
       (make-int (parse-integer str))))
 
-(defun parse-delay (str)
+(defun parse-delay-seconds (str)
 	(let* ((remain1 (subseq str 2))
 			 (remain (subseq remain1 0 (1- (length remain1)))))
+		(* 1000 (parse-integer remain))))
+(defun parse-delay-ms (str)
+	(let* ((remain1 (subseq str 2))
+			 (remain (subseq remain1 0 (- (length remain1) 2))))
 		(parse-integer remain)))
 
 (defun make-const-definition (name expr) `(:const ,name ,expr))
@@ -212,7 +217,7 @@
 								:not-equal :if :then :else :prio :random
 								:min :asc :desc :or
 								:exists :initial-priority :priority-type :priority-order
-								:delay))
+								:delay-seconds :delay-ms))
 
 	(program
 	  (includes definitions priorities externs consts funs statements #L(make-ast  !2 ; definitions
@@ -398,11 +403,15 @@
 	    (const :lparen args :rparen #'(lambda (name x args y)
 	                                       (declare (ignore x y))
 	                                       (make-subgoal name args)))
-		 (const :lparen args :rparen :delay #'(lambda (name x args y delay)
+		 (const :lparen args :rparen tuple-delay #'(lambda (name x args y delay)
 																(declare (ignore x y))
 																(let ((sub (make-subgoal name args)))
-																	(subgoal-add-delay sub (parse-delay delay))
+																	(subgoal-add-delay sub delay)
 																	sub))))
+	
+	(tuple-delay
+		(:delay-seconds #L(parse-delay-seconds !1))
+		(:delay-ms #L(parse-delay-ms !1)))
 		
 	(comprehension
 	    (:lcparen variable-list :bar terms :bar terms :rcparen #'(lambda (l vl b1 left b2 right r) (declare (ignore l b1 b2 r))
