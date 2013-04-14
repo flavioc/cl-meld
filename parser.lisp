@@ -72,9 +72,10 @@
 	("\\bmin\\b"							(return (values :min $@)))
 	("_"				                  (return (values :variable $@)))
  	("[a-z]([a-z]|[A-Z]|[0-9]|\\-|\_|\\?|\\-)*"		   (return (values :const $@)))
+	("[A-Z]([A-Z]|\_)+"					(return (values :const $@)))
 	("'\\w+"		                     (return (values :const $@)))
 	("\\#.+"                         (return (values :file $@)))
-	("[A-Z]([A-Z]|[a-z]|[0-9])*"	   (return (values :variable $@))))
+	("[A-Z]([a-z]|[0-9]|\_)*"	   	(return (values :variable $@))))
 
 (defun make-var-parser (var)
    (if (equal var "_")
@@ -110,6 +111,8 @@
 	(let ((x (find-if #L(equal (const-definition-name !1) name) *parsed-consts*)))
 		(assert x)
 		(const-definition-expr x)))
+(defun has-const-def-p (name)
+	(find-if #L(string-equal (const-definition-name !1) name) *parsed-consts*))
    
 (defmacro return-const (const)
    `#'(lambda (&rest x) (declare (ignore x)) ,const))
@@ -264,11 +267,14 @@
       (const-definition consts #'cons))
 
 	(const-definition
-	   (:const-decl const :equal expr :dot #'(lambda (a name e expr dot)
+	   (:const-decl const-name :equal expr :dot #'(lambda (a name e expr dot)
    	                                             (declare (ignore a e dot))
    	                                             (push (make-const-definition name expr) *parsed-consts*)
 																	(make-constant name expr))))
 
+	(const-name
+		const)
+		
    (funs
       ()
       (fun funs #'cons))
@@ -583,7 +589,7 @@
              
 (define-condition file-not-found-error (error)
    ((text :initarg :text :reader text)))
-             
+
 (defun parse-meld-file-rec (file)
    "Parses a Meld file, including included files."
    (let* ((*included-files* nil)
