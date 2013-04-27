@@ -265,8 +265,7 @@
 						(:count
 							(variable-is-defined to)
 							(set-type to '(:type-int))
-							(set-var-constraint (var-name to) '(:type-int)))		
-						))
+							(set-var-constraint (var-name to) '(:type-int)))))
 				(setf (agg-construct-body c)
 					(type-check-all-except-body body head :check-comprehensions nil :check-agg-constructs nil :axiom-p nil))
 				(let ((new-ones *defined-in-context*)
@@ -365,7 +364,7 @@
 
 (defun transform-constant-to-constraint (arg &optional only-addr-p)
    (cond
-		((const-p arg)
+		((or (const-p arg) (cons-p arg))
           (let ((new-var (generate-random-var)))
              (if (and (not only-addr-p) (cons-p arg))
 					(multiple-value-bind (new-constraints new-vars)
