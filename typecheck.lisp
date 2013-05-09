@@ -208,6 +208,7 @@
                      (error 'type-invalid-error :text (tostring "Only persistent facts may use !: ~a" name)))
 						(:random)
 						(:delay)
+						(:linear)
                   (otherwise
 							(cond
 								((listp opt))
@@ -217,6 +218,7 @@
             (let ((has-persistent-p nil))
                (dolist (opt options)
                   (case opt
+							(:linear (error 'type-invalid-error :text (tostring "Only linear facts may use ?: ~a" name)))
                      (:reuse
                         (error 'type-invalid-error :text (tostring "Reuse option $ may only be used with linear facts: ~a" name)))
                      (:persistent
