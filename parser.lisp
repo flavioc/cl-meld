@@ -51,41 +51,52 @@
 	("'\\w+"		                     (return (values :const $@)))
 	("\\#.+"                         (return (values :file $@)))
 	("[A-Z]([a-z]|[0-9]|[A-Z]|\_)*"	(return (values :variable $@))))
+	
+(defparameter *line-number* 0)
+
+(define-condition parse-failure-error (error)
+   ((text :initarg :text :reader text) (line :initarg :line :reader line)))
+
+(defmacro lex-const (const &rest pairs)
+	`(cond
+		,@(loop for (str key) in pairs
+				collect `((string-equal ,const ,str) (values ,key ,const *line-number*)))
+		(t (values :const ,const))))
 				
 (defun meld-lexer (str)
 	(let ((lexer (meld-lexer1 str)))
+		(incf *line-number*)
 		(lambda ()
 			(multiple-value-bind (typ rest) (funcall lexer)
 				(if (eq typ :const)
-					(cond
-						((string-equal rest "type") (values :type rest))
-						((string-equal rest "exists") (values :exists rest))
-						((string-equal rest "immediate") (values :immediate rest))
-						((string-equal rest "extern") (values :extern rest))
-						((string-equal rest "const") (values :const-decl rest))
-						((string-equal rest "int") (values :type-int rest))
-						((string-equal rest "float") (values :type-float rest))
-						((string-equal rest "node") (values :type-addr rest))
-						((string-equal rest "string") (values :type-string rest))
-						((string-equal rest "list") (values :type-list rest))
-						((string-equal rest "worker") (values :type-worker rest))
-						((string-equal rest "include") (values :include rest))
-						((string-equal rest "random") (values :random rest))
-						((string-equal rest "route") (values :route rest))
-						((string-equal rest "action") (values :action rest))
-						((string-equal rest "linear") (values :linear rest))
-						((string-equal rest "let") (values :let rest))
-						((string-equal rest "in") (values :in rest))
-						((string-equal rest "end") (values :end rest))
-						((string-equal rest "if") (values :if rest))
-						((string-equal rest "then") (values :then rest))
-						((string-equal rest "fun") (values :fun rest))
-						((string-equal rest "else") (values :else rest))
-						((string-equal rest "min") (values :min rest))
-						((string-equal rest "priority") (values :prio rest))
-						((string-equal rest "nil") (values :nil rest))
-						(t (values typ rest)))
-					(values typ rest))))))
+					(lex-const rest ("type" :type)
+								 		("exists" :exists)
+										("immediate" :immediate)
+										("extern" :extern)
+										("const" :const-decl)
+										("int" :type-int)
+										("float" :type-float)
+										("node" :type-addr)
+										("string" :type-string)
+										("list" :type-list)
+										("worker" :type-worker)
+										("include" :include)
+										("random" :random)
+										("route" :route)
+										("action" :action)
+										("linear" :linear)
+										("let" :let)
+										("in" :in)
+										("end" :end)
+										("if" :if)
+										("then" :then)
+										("fun" :fun)
+										("else" :else)
+										("min" :min)
+										("priority" :prio)
+										("nil" :nil))
+					(values typ rest *line-number*))))))
+					
 (defun make-var-parser (var)
    (if (equal var "_")
 	   (generate-random-var)
@@ -185,7 +196,7 @@
 (defun generate-expression-by-function-call (fun args)
    (with-function fun (:args fun-args :ret-type ret-type :body body :name name)
       (unless (= (length args) (length fun-args))
-         (error 'parse-error :text (tostring "function call to ~a has invalid number of arguments" name)))
+         (error (make-condition 'parse-failure-error :text (tostring "function call to ~a has invalid number of arguments" name) :line *line-number*)))
       (generate-part-expression ret-type body fun-args args)
       ))
 
@@ -209,7 +220,7 @@
       ((string-equal str "max") :max)
       ((string-equal str "first") :first)
       (t
-         (error 'parse-error :text (tostring "aggregate declaration not recognized ~a" str)))))
+         (error (make-condition 'parse-failure-error :text (tostring "aggregate declaration not recognized ~a" str) :line *line-number*)))))
 
 (define-parser meld-parser
  	(:start-symbol program)
@@ -389,7 +400,7 @@
 						(let ((num (parse-integer str)))
 							(if (= num 1)
 								nil
-								(error 'parse-error :text (tostring "invalid head number ~a" str))))))
+								(error (make-condition 'parse-failure-error :text (tostring "invalid head number ~a" str) :line *line-number*))))))
 		(terms #'identity))
 		
    (terms
@@ -545,7 +556,8 @@
       ,@body))
       
 (defmacro with-inner-parse-context (&body body)
-   `(let ((*found-nodes* (make-hash-table)))
+   `(let ((*found-nodes* (make-hash-table))
+			 (*line-number* 0))
       ,@body))
 
 (defun strip-comments-from-line (line)
@@ -554,9 +566,7 @@
 (defun read-source-line (stream)
    (multiple-value-bind (line missing-newline-p) (read-line stream nil nil)
       (unless missing-newline-p
-         (if (string-equal line "")
-            (read-source-line stream)
-            (strip-comments-from-line line)))))
+         (strip-comments-from-line line))))
 
 (defun simple-stream-lexer (read-source-line string-lexer &key (stream *standard-input*))
   (let (eof line-lexer (update t))
@@ -594,7 +604,13 @@
                                   #'meld-lexer
                                   :stream input-stream)))
 		(in-directory (pathname (directory-namestring (pathname file)))
-         (parse-with-lexer lexer meld-parser)))))
+         (handler-case (parse-with-lexer lexer meld-parser)
+				(yacc-parse-error (c) (error (make-condition 'parse-failure-error
+					:text (tostring "unexpected terminal ~S (value ~S)"
+												(yacc-parse-error-terminal c)
+												(yacc-parse-error-value c))
+				:line *line-number*))))
+				))))
    
 (defun parse-string (str)
    "Parses a string of Meld code."

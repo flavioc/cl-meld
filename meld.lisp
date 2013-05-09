@@ -36,7 +36,7 @@
    (format t "==> Compiling file ~a~%      to ~a.m~%" file out)
    (handler-case (do-meld-compile file out)
       (file-not-found-error (c) (format t "File not found: ~a~%" (text c)))
-      (yacc-parse-error (c) (format t "Parse error: ~a~%" c))
+      (parse-failure-error (c) (format t "Parse error at line ~a: ~a~%" (line c) (text c)))
       (expr-invalid-error (c) (format t "Expression error: ~a~%" (text c)))
       (type-invalid-error (c) (format t "Type error: ~a~%" (text c)))
       (localize-invalid-error (c) (format t "Localization error: ~a~%" (text c)))
