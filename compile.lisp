@@ -527,7 +527,8 @@
 	(with-clause clause (:body body :head head)
 		(let ((tmp-head (get-subgoals head))
 				(mark-subgoals nil)
-				(to-remove nil))
+				(to-remove nil)
+				(linear-fail nil))
 			(do-subgoals body (:name name :subgoal sub)
 				(let ((def (lookup-definition name)))
 					(when (is-linear-p def)
@@ -535,19 +536,22 @@
 							((subgoal-has-option-p sub :reuse) )
 							(t
 								(let ((found (find-same-subgoal tmp-head sub)))
-									(when found
-										(push sub mark-subgoals)
-										(push found to-remove)
-										(setf tmp-head (remove found tmp-head)))))))))
+									(cond
+										(found
+											(push sub mark-subgoals)
+											(push found to-remove)
+											(setf tmp-head (remove found tmp-head)))
+										(t (setf linear-fail t)))))))))
 			(dolist (sub to-remove)
 				(setf (clause-head clause) (delete sub (clause-head clause))))
 			(dolist (sub mark-subgoals)
 				(subgoal-add-option sub :reuse))
-			(do-subgoals body (:name name :subgoal sub)
-				(when (subgoal-has-option-p sub :reuse)
-					(let ((def (lookup-definition name)))
-						(unless (is-reused-p def)
-							(definition-set-reused def))))))))
+			(unless linear-fail
+				(do-subgoals body (:name name :subgoal sub)
+					(when (subgoal-has-option-p sub :reuse)
+						(let ((def (lookup-definition name)))
+							(unless (is-reused-p def)
+								(definition-set-reused def)))))))))
 
 (defun rule-is-persistent-p (clause)
 	"Returns T if we just use persistent facts in the rule and if any linear

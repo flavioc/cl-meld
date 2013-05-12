@@ -72,12 +72,23 @@
             (setf *current-print-level* 0)
             (format ,stream "~a~a~a~a" #\Newline #\Tab #\Tab #\Tab))
          (t (incf *current-print-level*)))))
+
+(defun print-subgoal-modifier (sub def)
+	(cond
+		((is-linear-p def)
+			(if (subgoal-has-option-p sub :reuse)
+				"!"
+				(if (subgoal-has-option-p sub :linear)
+					"?"
+					"")))
+		(t
+			"!")))
       
 (defun print-subgoals (stream subgoals)
    (do-subgoals subgoals (:name name :args args :subgoal sub)
       (with-definition (lookup-definition name) (:definition def)
          (check-print-level stream)
-         (format stream "~a~A" (if (is-linear-p def) "" "!") name)
+         (format stream "~a~A" (print-subgoal-modifier sub def) name)
          (print-args stream args)
 			(when (subgoal-is-remote-p sub)
 				(format stream "@~a" (subgoal-get-remote-dest sub)))
