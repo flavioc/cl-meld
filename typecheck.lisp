@@ -521,9 +521,17 @@
 				(get-type expr res))
 			(setf (constant-type const) (first res)))))
 
+(defun check-repeated-definitions ()
+	(do-definitions (:name name1 :definition def1)
+		(do-definitions (:name name2 :definition def2)
+			(unless (eq def1 def2)
+				(if (string-equal name1 name2)
+					(error 'type-invalid-error :text (tostring "multiple definitions of ~a: ~a ~a" name1 def1 def2)))))))
+					
 (defun type-check ()
 	(do-definitions (:name name :types typs)
       (check-home-argument name typs))
+	(check-repeated-definitions)
 	(dolist (const *consts*)
 		(type-check-const const))
 	(do-externs *externs* (:name name :ret-type ret-type :types types)
