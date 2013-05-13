@@ -31,7 +31,7 @@
 	("\\)"			                  (return (values :rparen $@)))
 	("\\|\\|"								(return (values :or $@)))
 	("\\|"                           (return (values :bar $@)))
-	("/\\*.*\\*/"                    (return (values :comment)))
+	("\\/\\*.*\\*\\/"                (return (values :comment)))
 	("\\<-"                          (return (values :input $@)))
 	("\\->"                          (return (values :output $@)))
 	("\\+"                           (return (values :plus $@)))
