@@ -100,7 +100,9 @@
 (defun make-var-parser (var)
    (if (equal var "_")
 	   (generate-random-var)
-	   (make-var var)))
+		(if (upper-case-p (char var 0))
+	   	(make-var var)
+			(error (make-condition 'parse-failure-error :text (tostring "aggregate declaration not recognized ~a" str) :line *line-number*)))))
 	
 (defun parse-base-number (str)
 	(if (find #\. str)
