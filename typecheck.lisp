@@ -91,7 +91,11 @@
    (labels ((do-get-type (expr forced-types)
             (cond
 					((string-constant-p expr) (merge-types forced-types '(:type-string)))
-               ((var-p expr) (force-constraint (var-name expr) forced-types))
+               ((var-p expr)
+						(when (not (variable-defined-p expr))
+							(error 'type-invalid-error :text
+								(tostring "variable ~a is not defined" (var-name expr))))
+						(force-constraint (var-name expr) forced-types))
                ((int-p expr) (merge-types forced-types '(:type-int :type-float)))
                ((float-p expr) (merge-types forced-types '(:type-float)))
                ((addr-p expr) (merge-types forced-types '(:type-addr)))
@@ -236,13 +240,13 @@
 			(assert arg)
          (when (and body-p (not (var-p arg)))
             (error 'type-invalid-error :text (tostring "only variables at body: ~a (~a)" name arg)))
-         (unless (one-elem-p (get-type arg `(,forced-type)))
-            (error 'type-invalid-error :text "type error"))
          (when (var-p arg)
             (if (and (not body-p) (not (variable-defined-p arg)))
                (error 'type-invalid-error :text (tostring "undefined variable: ~a" arg)))
             (if body-p
-               (variable-is-defined arg))))))
+               (variable-is-defined arg)))
+			(unless (one-elem-p (get-type arg `(,forced-type)))
+            (error 'type-invalid-error :text "type error")))))
 
 (defun do-type-check-agg-construct (c in-body-p)
    (with-agg-construct c (:body body :head head :specs specs)

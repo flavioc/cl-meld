@@ -47,7 +47,6 @@
 	("\\="                           (return (values :equal $@)))
 	("\_"				            		(return (values :variable $@)))
  	("[a-z]([a-z]|[A-Z]|[0-9]|\\-|\_|\\?|\\-)*"		   (return (values :const $@)))
-	("[A-Z]([A-Z]|\_)+"					(return (values :const $@)))
 	("'\\w+"		                     (return (values :const $@)))
 	("\\#.+"                         (return (values :file $@)))
 	("[A-Z]([a-z]|[0-9]|[A-Z]|\_)*"	(return (values :variable $@))))
@@ -100,10 +99,8 @@
 (defun make-var-parser (var)
    (if (equal var "_")
 	   (generate-random-var)
-		(if (upper-case-p (char var 0))
-	   	(make-var var)
-			(error (make-condition 'parse-failure-error :text (tostring "aggregate declaration not recognized ~a" str) :line *line-number*)))))
-	
+		(make-var var)))
+			
 (defun parse-base-number (str)
 	(if (find #\. str)
 		(read-from-string str)
@@ -500,7 +497,7 @@
 	               (t (make-call name args)))))
 	   (const #L(if (has-const-def-p !1)
 						(make-get-constant !1)
-						(make-var-parser !1)))
+						(error (make-condition 'parse-failure-error :text (tostring "aggregate declaration not recognized ~a" str) :line *line-number*))))
 	   (:local :number #L(let ((val (parse-integer !2))) (add-found-node val) (make-addr val)))
 		number
 	   (:lparen expr :rparen #'(lambda (l expr r) (declare (ignore l r)) expr))
