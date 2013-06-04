@@ -548,6 +548,10 @@
 		(:asc (write-hexa stream #b00000001))
 		(:desc (write-hexa stream #b00000000))))
 
+;;
+;; the following 3 functions output the main byte-code options
+;;
+
 (defun output-global-priority (stream)
 	(write-hexa stream 1)
 	(let* ((found (find-if #'global-priority-p *priorities*))
@@ -555,16 +559,8 @@
 		(write-hexa stream (logand *tuple-id-mask* id))
 		(write-short-stream stream (global-priority-argument found))
 		(write-priority-order stream (global-priority-asc-desc found))))
-
-(defun any-global-priority-p ()
-	(let ((found (find-if #'global-priority-p *priorities*)))
-		(ensure-bool found)))
 		
-(defun get-initial-priority ()
-	(let ((found (find-if #'initial-priority-p *priorities*)))
-		(when found
-			(initial-priority-value found))))
-			
+
 (defun output-initial-priority (stream)
 	"Writes priority information."
 	(write-hexa stream 2)
@@ -578,6 +574,18 @@
 	(let ((prio (get-initial-priority)))
 		(assert (not (null prio)))
 		(write-float-stream stream prio)))
+		
+(defun output-data-file-info (stream)
+	(write-hexa stream 3))
+
+(defun any-global-priority-p ()
+	(let ((found (find-if #'global-priority-p *priorities*)))
+		(ensure-bool found)))
+		
+(defun get-initial-priority ()
+	(let ((found (find-if #'initial-priority-p *priorities*)))
+		(when found
+			(initial-priority-value found))))
 			
 (defun write-rules (stream)
    (write-int-stream stream (1+ (length *clauses*)))
@@ -599,13 +607,78 @@
 				
 (defparameter +meld-magic+ '(#x6d #x65 #x6c #x64 #x20 #x66 #x69 #x6c))
 
-(defun do-output-code (stream)
-   (dolist (magic +meld-magic+)
+(defun do-output-header (stream)
+	(dolist (magic +meld-magic+)
 		(write-hexa stream magic))
 	(write-int-stream stream *major-version*)
 	(write-int-stream stream *minor-version*)
 	(write-hexa stream (length *definitions*))
-   (write-nodes stream *nodes*)
+   (write-nodes stream *nodes*))
+
+(defun do-output-descriptors (stream descriptors processes)
+	(loop for vec-desc in descriptors
+         for vec-proc in processes
+         do (write-int-stream stream (length vec-proc)) ; write code size first
+         do (write-vec stream vec-desc)))
+
+(defun do-output-string-constants (stream)
+	(write-int-stream stream (length *output-string-constants*))
+	(loop for str in *output-string-constants*
+			for i from 0
+			do (write-int-stream stream (length str))
+			do (write-vec stream (output-string str))))
+			
+(defun do-output-consts (stream consts)
+	(write-int-stream stream (length *consts*))
+	(do-constant-list *consts* (:type typ)
+		(write-hexa stream (type-to-byte typ)))
+	(write-int-stream stream (length consts))
+	(write-vec stream consts))
+	
+(defun do-output-rules (stream rules)
+	(write-int-stream stream (length *code-rules*))
+	(dolist2 (vec rules) (code-rule *code-rules*)
+	 (let* ((ids (subgoal-ids code-rule))
+			 (pers-p (persistent-p code-rule)))
+		(write-int-stream stream (length vec))
+		
+		(write-vec stream vec)
+		
+		(if pers-p
+			(write-hexa stream 1)
+			(write-hexa stream 0))
+		
+		(write-int-stream stream (length ids))
+		(dolist (id ids)
+			(write-hexa stream id))
+		)))
+
+(defun do-output-data (stream)
+	(do-output-header stream)
+	(when (> (args-needed *ast*) 0)
+		(error 'output-invalid-error :text (tostring "Data files cannot have arguments")))
+	(when (> (length *consts*) 0)
+		(error 'output-invalid-error :text (tostring "Cannot have constants in data files")))
+	(write-hexa stream 0) ;; 0 args needed
+	(write-rules stream)
+	(let* ((*output-string-constants* nil)
+			 (descriptors (output-descriptors))
+			 (processes (loop for desc in descriptors
+								collect (list)))
+			 (rules (output-all-rules))
+			 (consts (output-consts)))
+		(do-output-string-constants stream)
+		(do-output-consts stream consts)
+		(do-output-descriptors stream descriptors processes)
+		(output-data-file-info stream)
+		;; write init-code
+		(when (> (length rules) 1)
+			(warn "Too many rules in data file"))
+		(do-output-rules stream rules)
+	))
+	
+(defun do-output-code (stream)
+   (do-output-header stream)
 	(write-hexa stream (args-needed *ast*))
    (write-rules stream)
    (let* ((*output-string-constants* nil)
@@ -614,22 +687,11 @@
 			 (rules (output-all-rules))
 			 (consts (output-consts)))
 		;; output strings
-		(write-int-stream stream (length *output-string-constants*))
-		(loop for str in *output-string-constants*
-				for i from 0
-				do (write-int-stream stream (length str))
-				do (write-vec stream (output-string str)))
+		(do-output-string-constants stream)
 		; output constant code
-		(write-int-stream stream (length *consts*))
-		(do-constant-list *consts* (:type typ)
-			(write-hexa stream (type-to-byte typ)))
-		(write-int-stream stream (length consts))
-		(write-vec stream consts)
+		(do-output-consts stream consts)
 		; output predicate descriptions
-      (loop for vec-desc in descriptors
-            for vec-proc in processes
-            do (write-int-stream stream (length vec-proc)) ; write code size first
-            do (write-vec stream vec-desc))
+      (do-output-descriptors stream descriptors processes)
 		; output global priority predicate, if any
 		(cond
 			((any-global-priority-p)
@@ -638,22 +700,7 @@
 				(output-initial-priority stream))
 			(t (write-hexa stream 0)))
       (dolist (vec processes) (write-vec stream vec))
-		(write-int-stream stream (length *code-rules*))
-		(dolist2 (vec rules) (code-rule *code-rules*)
-		 (let* ((ids (subgoal-ids code-rule))
-				 (pers-p (persistent-p code-rule)))
-			(write-int-stream stream (length vec))
-			
-			(write-vec stream vec)
-			
-			(if pers-p
-				(write-hexa stream 1)
-				(write-hexa stream 0))
-			
-			(write-int-stream stream (length ids))
-			(dolist (id ids)
-				(write-hexa stream id))
-			))))
+		(do-output-rules stream rules)))
    
 (defmacro with-output-file ((stream file) &body body)
    `(with-open-file (,stream ,file
@@ -677,3 +724,13 @@
       (when write-code
          (with-output-file (stream (concatenate 'string file ".m.code"))
             (format stream "~a" (print-vm))))))
+
+(defun output-data-file (file)
+	(let ((*total-written* 0)
+			(byte-file (concatenate 'string file ".md")))
+		(with-open-file (stream byte-file
+								:direction :output
+								:if-exists :supersede
+								:if-does-not-exist :create
+								:element-type '(unsigned-byte 8))
+			(do-output-data stream))))

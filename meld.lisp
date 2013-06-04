@@ -18,7 +18,7 @@
       (printdbg "Stratification done."))
    *ast*)
                      
-(defun do-meld-compile (file out)
+(defun do-meld-compile (file out &optional (is-data-p nil))
    (localize-code file)
    (printdbg "Compiling AST into VM instructions...")
    (let ((compiled (compile-ast))
@@ -28,13 +28,15 @@
       (printdbg "All compiled. Now optimizing result...")
       (optimize-code)
       (printdbg "Optimized. Now writing results to ~a" out)
-      (output-code out)
+		(if is-data-p
+			(output-data-file out)
+      	(output-code out))
       (printdbg "All done."))
    t)
 
-(defun meld-compile (file out)
+(defun meld-compile (file out &optional (is-data-p nil))
    (format t "==> Compiling file ~a~%      to ~a.m~%" file out)
-   (handler-case (do-meld-compile file out)
+   (handler-case (do-meld-compile file out is-data-p)
       (file-not-found-error (c) (format t "File not found: ~a~%" (text c)))
       (parse-failure-error (c) (format t "Parse error at line ~a: ~a~%" (line c) (text c)))
       (expr-invalid-error (c) (format t "Expression error: ~a~%" (text c)))
