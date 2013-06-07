@@ -447,9 +447,13 @@
 		(:delay-ms #L(parse-delay-ms !1)))
 		
 	(comprehension
-	    (:lcparen variable-list :bar terms :bar terms :rcparen #'(lambda (l vl b1 left b2 right r) (declare (ignore l b1 b2 r))
+	    (:lcparen variable-list :bar terms :bar comprehension-terms :rcparen #'(lambda (l vl b1 left b2 right r) (declare (ignore l b1 b2 r))
                                               (make-comprehension left right vl))))
-                                                                              
+   
+	(comprehension-terms
+		()
+		(terms #'identity))
+	                                      
 	(variable-list
 		(variable #'list)
 	   (variable :comma variable-list #'(lambda (v c l) (declare (ignore c)) (cons v l))))
