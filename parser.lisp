@@ -2,7 +2,7 @@
 (in-package :cl-meld)
 
 (define-string-lexer meld-lexer1
-   ("[-+]?[0-9]+(\\.[0-9]+|[0-9]+)?" (return (values :number $@)))
+   ("[-]?[0-9]+(\\.[0-9]+|[0-9]+)?" (return (values :number $@)))
 	("\"[^\"]*\""							(return (values :string $@)))
 	("\\,"                           (return (values :comma $@)))
 	("\\["                           (return (values :lsparen $@)))
@@ -151,12 +151,12 @@
 (defun add-included-ast (ast) (push ast *included-asts*))
 
 (defvar *defined-functions* nil)
-(defun add-defined-function (fun) (push fun *defined-functions*))
+(defun add-defined-function (fun-name) (push fun-name *defined-functions*))
 
 (defun has-function-call-p (name)
-   (do-functions *defined-functions* (:name other :function f)
-      (when (string-equal other name)
-         (return-from has-function-call-p f)))
+	(dolist (fun-name *defined-functions*)
+      (when (string-equal fun-name name)
+         (return-from has-function-call-p t)))
    nil)
 
 (defvar *max-arg-needed* 0)
@@ -303,12 +303,13 @@
       (fun funs #'cons))
       
    (fun
-      (:fun const :lparen fun-args :rparen :colon atype :equal expr :dot
-            #'(lambda (f name l args r c ret-type eq body d)
-               (declare (ignore f l r c eq d))
-                  (let ((fun (make-function name args ret-type body)))
-                     (add-defined-function fun)
-                     fun))))
+      (fun-name :lparen fun-args :rparen :colon atype :equal expr :dot
+            #'(lambda (name l args r c ret-type eq body d)
+               (declare (ignore l r c eq d))
+                  (make-function name args ret-type body))))
+
+	(fun-name
+		(:fun const #'(lambda (f name) (declare (ignore f)) (add-defined-function name) name)))
                   
    (fun-args
       (fun-arg #'list)
@@ -497,7 +498,8 @@
 	   (const :lparen args :rparen #'(lambda (name l args r) (declare (ignore l r))
 	            (acond
 	               ((has-function-call-p name)
-	                  (generate-expression-by-function-call it args))
+							(make-callf name args))
+	                  ;(generate-expression-by-function-call it args))
 	               (t (make-call name args)))))
 	   (const #L(if (has-const-def-p !1)
 						(make-get-constant !1)

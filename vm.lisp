@@ -43,6 +43,9 @@
 (defun make-return-select () '(:return-select))
 (defun make-return-derived () '(:return-derived))
 
+(defun make-vm-push () `(:push))
+(defun make-vm-pop () `(:pop))
+
 (defun instr-is-return-p (instr)
    (case (instr-type instr)
       ((:return :return-linear :return-select :return-derived) t)
@@ -54,6 +57,13 @@
 (defun reg-p (r) (tagged-p r :reg))
 (defun reg-num (r) (second r))
 (defun reg-eq-p (a b) (and (reg-p a) (reg-p b) (= (reg-num a) (reg-num b))))
+
+(defun make-vm-stack (off) `(:stack ,off))
+(defun vm-stack-p (x) (tagged-p x :stack))
+(defun vm-stack-offset (x) (second x))
+
+(defun make-vm-pcounter () `(:pc-counter))
+(defun vm-pcounter-p (x) (tagged-p x :pc-counter))
 
 (defun make-reg-dot (reg field) `(:reg-dot ,reg ,field))
 (defun reg-dot-reg (reg-dot) (second reg-dot))
@@ -164,10 +174,18 @@
 (defun vm-send-delay-to (send) (third send))
 (defun vm-send-delay-time (send) (fourth send))
 
+(defun make-vm-callf (name) `(:callf ,name))
+(defun vm-callf-name (call) (second call))
+
 (defun make-vm-call (name dest args) `(:call ,name ,dest ,args))
 (defun vm-call-name (call) (second call))
 (defun vm-call-dest (call) (third call))
 (defun vm-call-args (call) (fourth call))
+
+(defun make-vm-push-registers () `(:push-registers))
+(defun make-vm-pop-registers () `(:pop-registers))
+(defun make-vm-funcall (name) `(:callf ,name))
+(defun vm-funcall-name (call) (second call))
 
 (defun make-vm-select-node () (list :select-node))
 (defmacro vm-select-node-iterate (vsn (n instrs &optional (operation 'do)) &body body)
@@ -313,6 +331,10 @@
       :initarg :processes
       :initform (error "missing processes.")
       :accessor processes)
+	 (functions
+		:initarg :functions
+		:initform (error "missing functions.")
+		:accessor functions)
     (consts
 		:initarg :consts
 		:initform (error "missing const code.")

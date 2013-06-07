@@ -36,7 +36,7 @@
       ((get-constant-p val)
          (with-constant (lookup-const (get-constant-name val)) (:expr expr)
             (print-val expr)))
-      ((call-p val)
+      ((or (call-p val) (callf-p val))
          (let ((args (loop for arg in (call-args val)
                            collect (print-val arg)))
                (start (tostring "~a(" (call-name val))))

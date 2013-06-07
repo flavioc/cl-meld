@@ -28,7 +28,7 @@
             :convert-float :world :colocated
             :constraint :extern :aggregate
             :true :false :not :head
-            :tail :cons :call :test-nil :addr
+            :tail :cons :call :callf :test-nil :addr
             :nil :host-id :or)
       
 (defun op-p (val)
@@ -37,6 +37,14 @@
 (defun make-call (name args) `(:call ,name ,args))
 (defun call-name (call) (second call))
 (defun call-args (call) (third call))
+
+(defun make-callf (name args) `(:callf ,name ,args))
+(defun callf-name (call) (second call))
+(defun callf-args (call) (third call))
+
+(defun lookup-function (name)
+	(let ((fun (find-if #'(lambda (x) (string-equal (callf-name x) name)) *functions*)))
+		fun))
 
 (defun make-function (name args ret-type body)
    `(:function ,name ,args ,ret-type ,body))

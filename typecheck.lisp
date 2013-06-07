@@ -48,7 +48,7 @@
                (not-p expr) (test-nil-p expr) (addr-p expr) (convert-float-p expr)
 					(get-constant-p expr))
             (setf (cddr expr) typ))
-         ((or (call-p expr) (op-p expr) (cons-p expr) (colocated-p expr)) (setf (cdddr expr) typ))
+         ((or (call-p expr) (op-p expr) (callf-p expr) (cons-p expr) (colocated-p expr)) (setf (cdddr expr) typ))
          ((or (let-p expr) (if-p expr)) (setf (cddddr expr) typ))
 			((or (argument-p expr))) ; do nothing
          (t (error 'type-invalid-error :text (tostring "set-type: Unknown expression ~a" expr))))))
@@ -115,6 +115,19 @@
                         (error 'type-invalid-error :text
                               (tostring "expressions ~a and ~a must have equal types" (if-e1 expr) (if-e2 expr))))
                      t1))
+					((callf-p expr)
+						(let ((fun (lookup-function (callf-name expr))))
+							(unless fun (error 'type-invalid-error :text (tostring "undefined call ~a" (callf-name expr))))
+							(when (not (= (length (function-args expr)) (length (callf-args fun))))
+								(error 'type-invalid-error :text
+										(tostring "function call ~a has invalid number of arguments (should have ~a arguments)"
+											expr (length (function-args fun)))))
+							(loop for var in (function-args fun)
+									for arg in (callf-args expr)
+									do (progn
+										(warn "checking ~a" arg)
+										(get-type arg `(,(var-type var)))))
+							(merge-types forced-types `(,(function-ret-type fun)))))
                ((call-p expr)
                   (let ((extern (lookup-external-definition (call-name expr))))
                      (unless extern (error 'type-invalid-error :text (tostring "undefined call ~a" (call-name expr))))
@@ -524,6 +537,14 @@
 			(unless (same-types-p first-types res)
 				(get-type expr res))
 			(setf (constant-type const) (first res)))))
+			
+(defun type-check-function (fun)
+	(with-typecheck-context
+		(with-function fun (:name name :args args :ret-type ret-type :body body)
+			(dolist (arg args)
+				(variable-is-defined arg)
+				(set-var-constraint (var-name arg) `(,(var-type arg))))
+			(get-type body `(,ret-type)))))
 
 (defun check-repeated-definitions ()
 	(do-definitions (:name name1 :definition def1)
@@ -538,6 +559,8 @@
 	(check-repeated-definitions)
 	(dolist (const *consts*)
 		(type-check-const const))
+	(dolist (fun *functions*)
+		(type-check-function fun))
 	(do-externs *externs* (:name name :ret-type ret-type :types types)
 		(let ((extern (lookup-external-definition name)))
 			(unless extern

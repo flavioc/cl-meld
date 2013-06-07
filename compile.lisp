@@ -50,7 +50,8 @@
 (defmacro return-expr (place &optional code) `(values ,place ,code *used-regs*))
 
 (defmacro with-compiled-expr ((place code &key (force-dest nil)) expr &body body)
-   `(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr ,force-dest) ,@body))
+   `(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr ,force-dest)
+		,@body))
    
 (defmacro with-dest-or-new-reg ((dest) &body body)
    `(if (null ,dest)
@@ -79,6 +80,14 @@
             (compile-call name (rest args) `(,@regs ,arg-place) `(,@code ,@arg-code))
             (return-expr place code)))))
 
+(defun compile-callf-args (args args-code n)
+	(if (null args)
+		args-code
+		(with-compiled-expr (arg-place arg-code :force-dest (make-reg n)) (first args)
+			(if (not (equal arg-place (make-reg n)))
+				(setf arg-code `(,@arg-code ,(make-move arg-place (make-reg n)))))
+			(compile-callf-args (rest args) `(,@args-code ,@arg-code) (1+ n)))))
+
 (defun compile-expr (expr &optional dest)
    (cond
       ((int-p expr) ;; Int expression in the previous phases maybe coerced into a float
@@ -96,6 +105,18 @@
 		((var-p expr) (return-expr (lookup-used-var (var-name expr))))
       ((call-p expr)
          (compile-call (call-name expr) (call-args expr) nil nil))
+		((callf-p expr)
+			(with-dest-or-new-reg (dest)
+				(return-expr dest `(,(make-vm-push) ;; for pcounter
+											,(make-vm-push) ;; for return value
+											,(make-vm-push-registers)
+											,@(compile-callf-args (callf-args expr) (list) 0)
+											,(make-move (make-vm-pcounter) (make-vm-stack (1+ *num-regs*)))
+											,(make-vm-callf (callf-name expr))
+											,(make-vm-pop-registers)
+											,(make-move (make-vm-stack 0) dest)
+											,(make-vm-pop)
+											,(make-vm-pop)))))
       ((convert-float-p expr)
          (with-compiled-expr (place code) (convert-float-expr expr)
             (with-dest-or-new-reg (dest)
@@ -581,6 +602,20 @@
 	(do-constant-list *consts* (:name name :expr expr :operation append)
 		(with-compiled-expr (place code) expr
 			`(,@code ,(make-move place (make-vm-constant name))))))
+			
+(defun compile-function-arguments (body args n)
+	(if (null args)
+		(multiple-value-bind (dest body) (compile-expr body (make-vm-stack 32))
+			`(,@body ,(make-move (make-vm-stack (1+ *num-regs*)) (make-vm-pcounter))))
+		(progn
+			(with-reg (r)
+				(add-used-var (var-name (first args)) r)
+				(compile-function-arguments body (rest args) (1+ n))))))
+
+(defun compile-functions ()
+	(do-functions *functions* (:name name :args args :ret-type ret-type :body body :operation collect)
+		(with-empty-compile-context
+			(compile-function-arguments body args 0))))
 
 (defun number-clauses ()
 	(do-rules (:clause clause :id id)
@@ -624,5 +659,6 @@
 	(number-clauses)
 	(find-persistent-rules)
 	(let ((procs (compile-processes))
-			(consts (compile-consts)))
-		(make-instance 'code :processes procs :consts `(,@consts (:return-derived)))))
+			(consts (compile-consts))
+			(functions (compile-functions)))
+		(make-instance 'code :processes procs :consts `(,@consts (:return-derived)) :functions functions)))

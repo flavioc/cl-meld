@@ -39,6 +39,8 @@
       ((vm-nil-p val) (list #b000100))
       ((vm-world-p val) (output-value (make-vm-int (number-of-nodes *nodes*))))
       ((tuple-p val) (list #b011111))
+		((vm-pcounter-p val) (list #b001010))
+		((vm-stack-p val) (list #b001001 (list (vm-stack-offset val))))
       ((reg-p val) (list (logior #b100000 (logand #b011111 (reg-num val)))))
       ((reg-dot-p val) (list #b000010 (list (reg-dot-field val) (reg-num (reg-dot-reg val)))))
 		((vm-argument-p val) (list #b00000111 (list (vm-argument-id val))))
@@ -105,7 +107,12 @@
 (defun lookup-const-id (const)
 	(do-constant-list *consts* (:name name :id id)
 		(if (string-equal name const) (return-from lookup-const-id id))))
-      
+		
+(defun lookup-function-id (name)
+	(do-functions *functions* (:name fun-name :id id)
+		(if (string-equal name fun-name)
+			(return-from lookup-function-id id))))
+
 (defun output-match (match vec fs)
    (let* ((val (output-value (match-right match)))
           (val-byte (first val))
@@ -218,6 +225,14 @@
             (output-instrs (vm-reset-linear-instrs instr) vec)))
 		(:end-linear
 			(add-byte #b00001111 vec))
+		(:push
+			(add-byte #b00010110 vec))
+		(:pop
+			(add-byte #b00010111 vec))
+		(:push-registers
+			(add-byte #b00011000 vec))
+		(:pop-registers
+			(add-byte #b00011001 vec))
       (:remove
             (let ((reg (vm-remove-reg instr)))
                (add-byte #b10000000 vec)
@@ -237,6 +252,8 @@
       (:send (add-byte #b00001000 vec)
              (add-byte (logand *reg-mask* (reg-to-byte (send-from instr))) vec)
              (add-byte (logand *reg-mask* (reg-to-byte (send-to instr))) vec))
+		(:callf (add-byte #b00011010 vec)
+				  (add-byte (lookup-function-id (vm-callf-name instr)) vec))
       (:call (let ((extern-id (lookup-external-function-id (vm-call-name instr)))
                    (args (vm-call-args instr)))
                (add-byte #b00100000 vec)
@@ -263,7 +280,8 @@
                   (output-matches (iterate-matches instr) vec)
                   (output-instrs (iterate-instrs instr) vec)
                   (add-byte #b00000001 vec)))
-      (:move (do-vm-values vec ((move-from instr) (move-to instr))
+      (:move
+				(do-vm-values vec ((move-from instr) (move-to instr))
                 #b00110000
                 (logand *value-mask* first-value)
                 (logand *value-mask* second-value)))
@@ -363,7 +381,6 @@
                              
 (defun output-processes ()
    (do-processes (:name name :instrs instrs :operation collect)
-      (printdbg "Processing predicate ~a..." name)
       (letret (vec (create-bin-array))
          (output-instrs instrs vec))))
 
@@ -508,7 +525,13 @@
 (defun output-consts ()
 	(letret (vec (create-bin-array))
 		(output-instrs *consts-code* vec)))
-            
+
+(defun output-functions ()
+	(printdbg "Processing functions")
+	(loop for code in *function-code*
+		collect (letret (vec (create-bin-array))
+						(output-instrs code vec))))
+   
 (defparameter *total-written* 0)
 
 (defun write-hexa (stream int) (incf *total-written*) (write-byte int stream))
@@ -652,6 +675,12 @@
 		(dolist (id ids)
 			(write-hexa stream id))
 		)))
+		
+(defun do-output-functions (stream functions)
+	(write-int-stream stream (length functions))
+	(dolist (fun functions)
+		(write-int-stream stream (length fun))
+		(write-vec stream fun)))
 
 (defun do-output-data (stream)
 	(do-output-header stream)
@@ -659,6 +688,8 @@
 		(error 'output-invalid-error :text (tostring "Data files cannot have arguments")))
 	(when (> (length *consts*) 0)
 		(error 'output-invalid-error :text (tostring "Cannot have constants in data files")))
+	(when (> (length *functions*) 0)
+		(error 'output-invalid-error :text (tostring "Cannot have functions in data files")))
 	(write-hexa stream 0) ;; 0 args needed
 	(write-rules stream)
 	(let* ((*output-string-constants* nil)
@@ -666,9 +697,11 @@
 			 (processes (loop for desc in descriptors
 								collect (list)))
 			 (rules (output-all-rules))
+			 (functions (output-functions))
 			 (consts (output-consts)))
 		(do-output-string-constants stream)
 		(do-output-consts stream consts)
+		(do-output-functions stream functions)
 		(do-output-descriptors stream descriptors processes)
 		(output-data-file-info stream)
 		;; write init-code
@@ -685,11 +718,14 @@
 			 (processes (output-processes))
           (descriptors (output-descriptors))
 			 (rules (output-all-rules))
-			 (consts (output-consts)))
+			 (consts (output-consts))
+			 (functions (output-functions)))
 		;; output strings
 		(do-output-string-constants stream)
 		; output constant code
 		(do-output-consts stream consts)
+		; write functions
+		(do-output-functions stream functions)
 		; output predicate descriptions
       (do-output-descriptors stream descriptors processes)
 		; output global priority predicate, if any
