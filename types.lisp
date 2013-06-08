@@ -19,10 +19,14 @@
          (if forced-types
             (intersection forced-types *number-types*)
             *number-types*))
+		((eq-num-cmp-p op)
+			(if (has-elem-p forced-types :type-bool)
+				*number-types*))
       ((eq-cmp-p op)
          (if (or forced-types
                  (not (has-elem-p forced-types :type-bool)))
-            `(,@*number-types* :type-addr :type-bool ,@*list-types*)))))
+            `(,@*number-types* :type-addr :type-bool ,@*list-types*)))
+		(t (warn "not valid operands") nil)))
 
 (defun type-op (op &optional forced-types)
    (cond

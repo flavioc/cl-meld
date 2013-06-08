@@ -534,4 +534,5 @@
    `(or ,@(mapcar #'(lambda (s) `(eq ,sym ,s)) symbols)))
    
 (defun eq-arith-p (sym) (eq-or sym :plus :minus :mul :div :mod))
+(defun eq-num-cmp-p (sym) (eq-or sym :lesser :lesser-equal :greater :greater-equal))
 (defun eq-cmp-p (sym) (eq-or sym :equal :not-equal :lesser :lesser-equal :greater :greater-equal :or))
