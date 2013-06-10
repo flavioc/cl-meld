@@ -63,3 +63,8 @@
 	(let ((output-file (if out out (pathname-name (pathname prog)))))
    	(meld-compile (create-debug-file prog)
                  	(concatenate 'string "/Users/flaviocruz/Projects/meld/" output-file))))
+
+(defun comp-data (prog &optional (out nil))
+	(let ((output-file (if out out (pathname-name (pathname prog)))))
+		(meld-compile (create-debug-file prog)
+			(concatenate 'string "/Users/flaviocruz/Projects/meld/" output-file) t)))
