@@ -595,8 +595,7 @@
 			(t
 				(write-priority-order stream :desc))))
 	(let ((prio (get-initial-priority)))
-		(assert (not (null prio)))
-		(write-float-stream stream prio)))
+		(write-float-stream stream (if prio prio 0.0))))
 		
 (defun output-data-file-info (stream)
 	(write-hexa stream 3))
@@ -732,9 +731,9 @@
 		(cond
 			((any-global-priority-p)
 				(output-global-priority stream))
-			((get-initial-priority)
-				(output-initial-priority stream))
-			(t (write-hexa stream 0)))
+			(t
+				(printdbg "Using initial priority...")
+				(output-initial-priority stream)))
       (dolist (vec processes) (write-vec stream vec))
 		(do-output-rules stream rules)))
    

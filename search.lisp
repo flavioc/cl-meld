@@ -52,6 +52,7 @@
                      ((addr-p expr) nil)
                      ((argument-p expr) nil)
 							((get-constant-p expr) nil)
+							((callf-p expr) (dolist (arg (callf-args expr)) (aux arg)))
 							((call-p expr) (dolist (arg (call-args expr)) (aux arg)))
                      ((cons-p expr)
                         (aux (cons-head expr))

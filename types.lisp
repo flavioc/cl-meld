@@ -53,10 +53,10 @@
            (convert-float-p expr)
 			  (get-constant-p expr))
          (third expr))
-      ((or (op-p expr) (call-p expr) (cons-p expr))
+      ((or (op-p expr) (call-p expr) (callf-p expr) (cons-p expr))
          (fourth expr))
       ((or (let-p expr) (if-p expr)) (fifth expr))
-      (t (error 'type-invalid-error :text (tostring "Cannot deduce type of expression ~a" expr)))))
+      (t (error 'type-invalid-error :text (tostring "expr-type: cannot deduce type of expression ~a" expr)))))
       
 (defun typed-var-p (var) (and (= (length var) 3)))
 (defun single-typed-var-p (var) (and (typed-var-p var) (one-elem-p (third var))))
