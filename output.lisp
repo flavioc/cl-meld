@@ -620,6 +620,7 @@
          (write-string-stream stream str))))
 
 (defun output-all-rules ()
+	(printdbg "Processing rules...")
 	(loop for code-rule in *code-rules*
 		collect
    		(let ((vec (create-bin-array))
@@ -630,6 +631,7 @@
 (defparameter +meld-magic+ '(#x6d #x65 #x6c #x64 #x20 #x66 #x69 #x6c))
 
 (defun do-output-header (stream)
+	(printdbg "Processing header...")
 	(dolist (magic +meld-magic+)
 		(write-hexa stream magic))
 	(write-int-stream stream *major-version*)
@@ -638,6 +640,7 @@
    (write-nodes stream *nodes*))
 
 (defun do-output-descriptors (stream descriptors processes)
+	(printdbg "Processing predicates...")
 	(loop for vec-desc in descriptors
          for vec-proc in processes
          do (write-int-stream stream (length vec-proc)) ; write code size first
@@ -651,6 +654,7 @@
 			do (write-vec stream (output-string str))))
 			
 (defun do-output-consts (stream consts)
+	(printdbg "Processing constants...")
 	(write-int-stream stream (length *consts*))
 	(do-constant-list *consts* (:type typ)
 		(write-hexa stream (type-to-byte typ)))
@@ -658,6 +662,7 @@
 	(write-vec stream consts))
 	
 (defun do-output-rules (stream rules)
+	(printdbg "Processing rules...")
 	(write-int-stream stream (length *code-rules*))
 	(dolist2 (vec rules) (code-rule *code-rules*)
 	 (let* ((ids (subgoal-ids code-rule))
@@ -676,6 +681,7 @@
 		)))
 		
 (defun do-output-functions (stream functions)
+	(printdbg "Processing functions...")
 	(write-int-stream stream (length functions))
 	(dolist (fun functions)
 		(write-int-stream stream (length fun))

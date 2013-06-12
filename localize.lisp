@@ -250,13 +250,30 @@
       (unless (some #'(lambda (h) (var-eq-p (first args) h)) homes)
          (error 'localize-invalid-error
                :text (tostring "Subgoal ~a has a bad home argument: ~a" name (first args))))))
+
+(defun body-shares-same-home (body home-argument)
+	(do-subgoals body (:args args :name name)
+		(unless (var-eq-p home-argument (first args))
+			(return-from body-shares-same-home nil)))
+	t)
    
 (defun edges-equal-to (host)
    #L(or (var-eq-p host (get-first-arg !1)) (var-eq-p host (get-second-arg !1))))
 
+(defun find-linear-body-homes (clause homes)
+	(let ((vars1 (iterate-expr #'(lambda (x)
+                                 (cond
+                                    ((and (var-p x) (type-addr-p (var-type x))) x))) clause)))
+		(remove-duplicates (append vars1 homes) :test #'var-eq-p)))
+
 (defun localize-start (clause routes host)
    (let ((paths (get-paths (clause-body clause) routes)))
       (let ((home-arguments (get-reachable-nodes paths host)))
+			(if (and (one-elem-p home-arguments)
+						(body-shares-same-home (clause-body clause) (first home-arguments)))
+				;; When using the same home argument in the body of the rule
+				;; we may use all the node variables in the body
+				(setf home-arguments (find-linear-body-homes clause home-arguments)))
          (localize-check-head (clause-head clause) clause home-arguments host)
          (check-subgoal-arguments home-arguments clause)
          (let* ((fun (edges-equal-to host))
