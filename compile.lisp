@@ -289,9 +289,9 @@
 	
 (defun compile-agg-construct (c)
 	(with-agg-construct c (:specs specs)
-		(compile-agg-construct-specs c specs nil nil nil)))
+		(compile-agg-construct-specs c specs nil nil)))
 
-(defun compile-agg-construct-specs (c specs end steps vars-regs)
+(defun compile-agg-construct-specs (c specs end vars-regs)
 	(cond
 		((null specs)
 			(let ((inner-code (compile-iterate (agg-construct-body c) (agg-construct-body c) nil nil nil nil
@@ -310,11 +310,10 @@
 					 (rest-specs (rest specs)))
 				(with-reg (acc)
 					(with-agg-spec first-spec (:var var :op op)
-						(let ((spec-end (agg-construct-end op acc))
-								(spec-steps (agg-construct-step op acc var)))
+						;(add-used-var var reg)
+						(let ((spec-end (agg-construct-end op acc)))
 							(let ((inner-code (compile-agg-construct-specs c rest-specs
 										(append end spec-end)
-										(append steps spec-steps)
 										(cons (list var acc op) vars-regs))))
 								`(,@(agg-construct-start op acc) ,@inner-code)))))))))
 
@@ -406,7 +405,7 @@
              (rem-body (remove-unneeded-assignments (remove-tree-first next-sub (remove-all body constraints)) head)))
          (compile-constraints-and-assignments constraints assignments
             (if (not next-sub)
-               (compile-head rem-body head clause subgoal delete-regs inside head-compiler)
+					(compile-head rem-body head clause subgoal delete-regs inside head-compiler)
                (let ((next-sub-name (subgoal-name next-sub)))
                   (with-reg (reg next-sub)
                      (let* ((match-constraints (mapcar #'rest (add-subgoal next-sub reg :match)))

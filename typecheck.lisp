@@ -125,7 +125,6 @@
 							(loop for var in (function-args fun)
 									for arg in (callf-args expr)
 									do (progn
-										(warn "checking ~a" arg)
 										(get-type arg `(,(var-type var)))))
 							(merge-types forced-types `(,(function-ret-type fun)))))
                ((call-p expr)
@@ -257,8 +256,9 @@
          (when (and body-p (not (var-p arg)))
             (error 'type-invalid-error :text (tostring "only variables at body: ~a (~a)" name arg)))
          (when (var-p arg)
-            (if (and (not body-p) (not (variable-defined-p arg)))
-               (error 'type-invalid-error :text (tostring "undefined variable: ~a" arg)))
+            (when (and (not body-p) (not (variable-defined-p arg)))
+					(assert nil)
+               (error 'type-invalid-error :text (tostring "undefined variable: ~a (~a)" arg *defined*)))
             (if body-p
                (variable-is-defined arg)))
 			(unless (one-elem-p (get-type arg `(,forced-type)))
@@ -361,11 +361,11 @@
             (when (and (op-p expr) (equal-p expr) (var-p op1)
                         (not (variable-defined-p op1))
                         (not (has-elem-p vars (var-name op1))))
-         ;; changes constraints to assignments
-         (setf (first orig) :assign)
-         (setf (second orig) op1)
-         (setf (cddr orig) (list op2))
-         (push (var-name op1) vars))))))
+         		;; changes constraints to assignments
+		        	(setf (first orig) :assign)
+		        	(setf (second orig) op1)
+		        	(setf (cddr orig) (list op2))
+		        	(push (var-name op1) vars))))))
 
 (defun unfold-cons (mangled-var cons)
    (let* ((tail-var (generate-random-var))
@@ -498,7 +498,10 @@
 																		
 (defun type-check-clause (head body clause axiom-p)
    (with-typecheck-context
-      (variable-is-defined (first-host-node head))
+		(let ((host (first-host-node body)))
+			(unless host
+				(setf host (first-host-node head)))
+      	(variable-is-defined host))
 		(setf (clause-body clause)
 			(type-check-body-and-head body head :check-comprehensions t :check-agg-constructs t :check-exists t :axiom-p axiom-p))
 		;; add :random to every subgoal with such variable

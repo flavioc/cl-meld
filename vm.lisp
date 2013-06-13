@@ -30,7 +30,10 @@
    (setf (third proc) new-instrs))
 (defsetf process-instrs set-process-instrs)
 
-(defun make-move (from to) `(:move ,from ,to))
+(defun make-move (from to)
+	(assert (not (null from)))
+	(assert (not (null to)))
+	`(:move ,from ,to))
 (defun move-to (mv) (third mv))
 (defun move-from (mv) (second mv))
 
