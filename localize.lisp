@@ -317,7 +317,7 @@
          (unless (and (var-p first-arg)
                      (one-of-the-vars-p homes first-arg))
             (error 'localize-invalid-error
-                     :text (tostring "Variable was not found: ~a" first-arg))))))
+                     :text (tostring "Variable was not found: ~a (available: ~{~a~^, ~})" (var-name first-arg) (mapcar #'var-name homes)))))))
 
 (defun localize-check-head (head clause homes host)
 	(localize-check-head-by-homes head homes)

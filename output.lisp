@@ -22,6 +22,9 @@
 (defun output-int (int)
    (loop for i upto 3
       collect (ldb (byte 8 (* i 8)) int)))
+(defun output-int64 (int)
+	(loop for i upto 7
+		collect (ldb (byte 8 (* i 8)) int)))
 (defun output-float (flt) (output-int (encode-float32 (coerce flt 'float))))
 (defun output-string (str)
 	(map 'list #'char-code str))
@@ -35,7 +38,8 @@
 					 (code (push-string-constant str)))
 				(list #b000110 (output-int code))))
       ((vm-addr-p val) (list  #b000101 (output-int (vm-addr-num val))))
-      ((vm-host-id-p val) (list #b000011))
+      ((vm-ptr-p val) (list #b001011 (output-int64 (vm-ptr-val val))))
+		((vm-host-id-p val) (list #b000011))
       ((vm-nil-p val) (list #b000100))
       ((vm-world-p val) (output-value (make-vm-int (number-of-nodes *nodes*))))
       ((tuple-p val) (list #b011111))
@@ -619,14 +623,20 @@
          (write-int-stream stream (length str))
          (write-string-stream stream str))))
 
-(defun output-all-rules ()
+(defun output-all-rules (&optional (is-data-p nil))
 	(printdbg "Processing rules...")
 	(loop for code-rule in *code-rules*
-		collect
-   		(let ((vec (create-bin-array))
-			 		(code (rule-code code-rule)))
-				(output-instrs code vec)
-				vec)))
+			for count = 0 then (1+ count)
+			collect
+   			(let ((vec (create-bin-array))
+			 			(code (rule-code code-rule)))
+					(if (and (= count 0) is-data-p)
+						;; for data files just print the select by node instruction
+						(let* ((iterate (second (rule-code code-rule)))
+								(select (find-if #'(lambda (instr) (eq (first instr) :select-node)) (iterate-instrs iterate))))
+							(output-instrs `(,(make-vm-rule 0) ,select ,(make-return-derived)) vec))
+						(output-instrs code vec))
+					vec)))
 				
 (defparameter +meld-magic+ '(#x6d #x65 #x6c #x64 #x20 #x66 #x69 #x6c))
 
@@ -701,7 +711,7 @@
 			 (descriptors (output-descriptors))
 			 (processes (loop for desc in descriptors
 								collect (list)))
-			 (rules (output-all-rules))
+			 (rules (output-all-rules t))
 			 (functions (output-functions))
 			 (consts (output-consts)))
 		(do-output-string-constants stream)

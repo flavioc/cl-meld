@@ -310,7 +310,6 @@
 					 (rest-specs (rest specs)))
 				(with-reg (acc)
 					(with-agg-spec first-spec (:var var :op op)
-						;(add-used-var var reg)
 						(let ((spec-end (agg-construct-end op acc)))
 							(let ((inner-code (compile-agg-construct-specs c rest-specs
 										(append end spec-end)
@@ -642,6 +641,7 @@
 														,(make-vm-rule-done)
 														,(make-move :tuple reg)
 														,(make-vm-remove reg)
+														,(make-move (make-vm-ptr 0) (make-reg 0))
 														,(make-return-derived))
 												:to-delete-p t)
 												,(make-return)))) (list (lookup-def-id "_init")) nil))

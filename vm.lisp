@@ -68,6 +68,10 @@
 (defun make-vm-pcounter () `(:pc-counter))
 (defun vm-pcounter-p (x) (tagged-p x :pc-counter))
 
+(defun make-vm-ptr (v) `(:ptr ,v))
+(defun vm-ptr-val (x) (second x))
+(defun vm-ptr-p (x) (tagged-p x :ptr))
+
 (defun make-reg-dot (reg field) `(:reg-dot ,reg ,field))
 (defun reg-dot-reg (reg-dot) (second reg-dot))
 (defun reg-dot-field (reg-dot) (third reg-dot))
