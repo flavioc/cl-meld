@@ -108,6 +108,11 @@
          do (add-mapping mapping node count))
    mapping)
 
+(defun in-file-ordering (nodes &key (mapping (make-mapping-set)))
+	(loop for node in nodes
+			do (add-mapping mapping node node))
+	mapping)
+
 (defun random-ordering (nodes &key (start-count 0) (mapping (make-mapping-set)))
    (naive-ordering (shuffle-list nodes) :start-count start-count :mapping mapping))
 
@@ -175,6 +180,7 @@
    (case *ordering-type*
       (:naive (naive-ordering *nodes*))
       (:random (random-ordering *nodes*))
+		(:in-file (in-file-ordering *nodes*))
       (:breadth (let ((edge-set (find-edge-set (get-route-names)))
                       (node-set (create-hash-set *nodes*)))
                   (bfs-ordering edge-set node-set)))
