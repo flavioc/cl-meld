@@ -53,3 +53,5 @@
 (define-external-function "cpu-id" :type-int '(:type-addr))
 (define-external-function "node2int" :type-int '(:type-addr))
 (define-external-function "intpower" :type-int '(:type-int :type-int))
+(define-external-function "intlistsort" :type-list-int '(:type-list-int))
+(define-external-function "intlistremoveduplicates" :type-list-int '(:type-list-int))
