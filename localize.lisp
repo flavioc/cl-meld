@@ -269,7 +269,7 @@
 (defun localize-start (clause routes host)
    (let ((paths (get-paths (clause-body clause) routes)))
       (let ((home-arguments (get-reachable-nodes paths host)))
-			(if (and (one-elem-p home-arguments)
+			(when (and (one-elem-p home-arguments)
 						(body-shares-same-home (clause-body clause) (first home-arguments)))
 				;; When using the same home argument in the body of the rule
 				;; we may use all the node variables in the body

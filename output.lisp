@@ -174,7 +174,10 @@
 (defun output-axiom-argument (arg vec subgoal)
 	(cond
 		((addr-p arg) (output-list-bytes vec (output-int (addr-num arg))))
-		((int-p arg) (output-list-bytes vec (output-int (int-val arg))))
+		((int-p arg)
+			(if (type-float-p (expr-type arg))
+				(output-list-bytes vec (output-float (int-val arg)))
+				(output-list-bytes vec (output-int (int-val arg)))))
 		((float-p arg) (output-list-bytes vec (output-float (float-val arg))))
 		((string-constant-p arg) (output-list-bytes vec (output-int (push-string-constant (string-constant-val arg)))))
 		((nil-p arg) (add-byte #b0 vec))
