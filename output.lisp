@@ -582,15 +582,6 @@
 ;; the following 3 functions output the main byte-code options
 ;;
 
-(defun output-global-priority (stream)
-	(write-hexa stream 1)
-	(let* ((found (find-if #'global-priority-p *priorities*))
-			 (id (lookup-def-id (global-priority-name found))))
-		(write-hexa stream (logand *tuple-id-mask* id))
-		(write-short-stream stream (global-priority-argument found))
-		(write-priority-order stream (global-priority-asc-desc found))))
-		
-
 (defun output-initial-priority (stream)
 	"Writes priority information."
 	(write-hexa stream 2)
@@ -607,10 +598,6 @@
 (defun output-data-file-info (stream)
 	(write-hexa stream 3))
 
-(defun any-global-priority-p ()
-	(let ((found (find-if #'global-priority-p *priorities*)))
-		(ensure-bool found)))
-		
 (defun get-initial-priority ()
 	(let ((found (find-if #'initial-priority-p *priorities*)))
 		(when found
@@ -747,12 +734,7 @@
 		; output predicate descriptions
       (do-output-descriptors stream descriptors processes)
 		; output global priority predicate, if any
-		(cond
-			((any-global-priority-p)
-				(output-global-priority stream))
-			(t
-				(printdbg "Using initial priority...")
-				(output-initial-priority stream)))
+		(output-initial-priority stream)
       (dolist (vec processes) (write-vec stream vec))
 		(do-output-rules stream rules)))
    

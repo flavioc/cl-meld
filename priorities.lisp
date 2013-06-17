@@ -7,12 +7,6 @@
 (defun priority-left (x) (second x))
 (defun priority-right (x) (third x))
 
-(defun make-global-priority (pred-name argument asc-desc) `(:global-prio ,pred-name ,argument ,asc-desc))
-(defun global-priority-p (x) (tagged-p x :global-prio))
-(defun global-priority-name (x) (second x))
-(defun global-priority-argument (x) (third x))
-(defun global-priority-asc-desc (x) (fourth x))
-
 (defun make-initial-priority (num) `(:initial-prio ,num))
 (defun initial-priority-value (p) (second p))
 (defun initial-priority-p (p) (tagged-p p :initial-prio))
