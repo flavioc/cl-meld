@@ -271,6 +271,16 @@
                   (let ((res (output-value arg)))
                      (add-byte (first res) vec)
                      (add-bytes vec (second res))))))
+		(:calle (let ((extern-id (lookup-custom-external-function-id (vm-calle-name instr)))
+						 (args (vm-calle-args instr)))
+						(add-byte #b00011011 vec)
+						(add-byte (logand *extern-id-mask* extern-id) vec)
+						(add-byte (length args) vec)
+						(add-byte (logand *reg-mask* (reg-to-byte (vm-calle-dest instr))) vec)
+						(dolist (arg args)
+							(let ((res (output-value arg)))
+								(add-byte (first res) vec)
+								(add-bytes vec (second res))))))
       (:if (let ((reg-b (reg-to-byte (vm-if-reg instr))))
              (write-jump vec 2
                (add-byte #b01100000 vec)
@@ -557,6 +567,10 @@
    (dolist (part (output-int int))
       (write-hexa stream part)))
 
+(defun write-int64-stream (stream int)
+	(dolist (part (output-int64 int))
+		(write-hexa stream part)))
+
 (defun write-string-stream (stream str)
    (loop for x being the elements of str
       do (write-hexa stream (char-code x))))
@@ -686,6 +700,22 @@
 	(dolist (fun functions)
 		(write-int-stream stream (length fun))
 		(write-vec stream fun)))
+		
+(defconstant +max-extern-function-name+ 256)
+(defconstant +max-extern-file-name+ 1024)
+		
+(defun do-output-externs (stream)
+	(write-int-stream stream (length *externs*))
+	(do-externs *externs* (:name name :extern ex)
+		(write-int-stream stream (extern-id ex))
+		(let ((len (length name)))
+			(write-string-stream stream name)
+			(loop for i from len upto (1- +max-extern-function-name+)
+				do (write-hexa stream 0)))
+		(loop for i from 1 upto +max-extern-file-name+
+			do (write-hexa stream 0))
+		(write-int64-stream stream 0)
+		))
 
 (defun do-output-data (stream)
 	(do-output-header stream)
@@ -707,6 +737,8 @@
 		(do-output-string-constants stream)
 		(do-output-consts stream consts)
 		(do-output-functions stream functions)
+		; write external definitions
+		(do-output-externs stream)
 		(do-output-descriptors stream descriptors processes)
 		(output-data-file-info stream)
 		;; write init-code
@@ -731,6 +763,8 @@
 		(do-output-consts stream consts)
 		; write functions
 		(do-output-functions stream functions)
+		; write external definitions
+		(do-output-externs stream)
 		; output predicate descriptions
       (do-output-descriptors stream descriptors processes)
 		; output global priority predicate, if any

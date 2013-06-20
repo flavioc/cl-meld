@@ -189,6 +189,11 @@
 (defun vm-call-dest (call) (third call))
 (defun vm-call-args (call) (fourth call))
 
+(defun make-vm-calle (name dest args) `(:calle ,name ,dest ,args))
+(defun vm-calle-name (call) (vm-call-name call))
+(defun vm-calle-dest (call) (vm-call-dest call))
+(defun vm-calle-args (call) (vm-call-args call))
+
 (defun make-vm-push-registers () `(:push-registers))
 (defun make-vm-pop-registers () `(:pop-registers))
 (defun make-vm-funcall (name) `(:callf ,name))

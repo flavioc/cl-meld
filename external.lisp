@@ -6,8 +6,21 @@
 (defparameter *external-functions* (make-hash-table :test #'equal))
 (defparameter *external-functions-counter* 0)
 
+(defun lookup-custom-external-function (name)
+	(find-if (lambda (x) (string-equal name (extern-name x))) *externs*))
+	
+(defun lookup-custom-external-function-id (name)
+	(extern-id (lookup-custom-external-function name)))
+
 (defun lookup-external-definition (name)
+	;; lookup pre-defined externals first
 	(multiple-value-bind (extern found-p) (gethash name *external-functions*)
+		(unless found-p
+			;; if not, look for user defined
+			(let ((item (lookup-custom-external-function name)))
+				(when item
+					(setf found-p t
+							extern item))))
 		(unless found-p
 			(error 'external-invalid-error :text (tostring "invalid external function: ~a" name)))
 		extern))

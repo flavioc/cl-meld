@@ -159,6 +159,9 @@
          (return-from has-function-call-p t)))
    nil)
 
+(defvar *needed-externs* nil)
+(defun add-needed-extern (extern-name) (push extern-name *needed-externs*))
+
 (defvar *max-arg-needed* 0)
    
 (defun generate-part-expression (final-type body fun-args args)
@@ -324,7 +327,8 @@
    (extern-definition
       (:extern atype const :lparen type-args :rparen :dot #'(lambda (e ret-type name l args r d)
    	                                                         (declare (ignore e l r d))
-   	                                                         (make-extern name ret-type args))))
+																					(add-needed-extern name)
+   	                                                         (make-extern name ret-type args (1- (length *needed-externs*))))))
 	(predicate-options
 		()
 		(predicate-option predicate-options #'cons))
@@ -556,7 +560,8 @@
 	 (:const #'identity)))
 	 
 (defmacro with-parse-context (&body body)
-   `(let ((*parsed-consts* nil))
+   `(let ((*parsed-consts* nil)
+			 (*needed-externs* nil))
       ,@body))
       
 (defmacro with-inner-parse-context (&body body)
