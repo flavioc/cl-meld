@@ -11,6 +11,11 @@
 	
 (defun lookup-custom-external-function-id (name)
 	(extern-id (lookup-custom-external-function name)))
+	
+(defun lookup-standard-external-function (name)
+	(multiple-value-bind (extern found-p) (gethash name *external-functions*)
+		(if found-p
+			extern)))
 
 (defun lookup-external-definition (name)
 	;; lookup pre-defined externals first

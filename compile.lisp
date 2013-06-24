@@ -72,9 +72,9 @@
 
 (defun decide-external-function (name new-reg regs)
 	"Decides if external function is pre-defined or not."
-	(if (lookup-custom-external-function name)
-		(make-vm-calle name new-reg regs)
-		(make-vm-call name new-reg regs)))
+	(if (lookup-standard-external-function name)
+		(make-vm-call name new-reg regs)
+		(make-vm-calle name new-reg regs)))
 
 (defun compile-call (name args regs code)
    (if (null args)
