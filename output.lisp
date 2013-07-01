@@ -706,7 +706,7 @@
 		
 (defun do-output-externs (stream)
 	(write-int-stream stream (length *externs*))
-	(do-externs *externs* (:name name :extern ex)
+	(do-externs *externs* (:name name :extern ex :types types :ret-type ret)
 		(write-int-stream stream (extern-id ex))
 		(let ((len (length name)))
 			(write-string-stream stream name)
@@ -715,6 +715,10 @@
 		(loop for i from 1 upto +max-extern-file-name+
 			do (write-hexa stream 0))
 		(write-int64-stream stream 0)
+		(write-int-stream stream (length types))
+		(write-hexa stream (type-to-byte ret))
+		(dolist (typ types)
+			(write-hexa stream (type-to-byte typ)))
 		))
 
 (defun do-output-data (stream)
