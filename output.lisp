@@ -25,7 +25,9 @@
 (defun output-int64 (int)
 	(loop for i upto 7
 		collect (ldb (byte 8 (* i 8)) int)))
-(defun output-float (flt) (output-int (encode-float32 (coerce flt 'float))))
+(defun output-float32 (flt) (output-int (encode-float32 (coerce flt 'float))))
+(defun output-float64 (flt) (output-int64 (encode-float64 (coerce flt 'float))))
+(defun output-float (flt) (output-float64 flt))
 (defun output-string (str)
 	(map 'list #'char-code str))
 
