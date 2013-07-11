@@ -73,3 +73,6 @@
 (define-external-function "intpower" :type-int '(:type-int :type-int))
 (define-external-function "intlistsort" :type-list-int '(:type-list-int))
 (define-external-function "intlistremoveduplicates" :type-list-int '(:type-list-int))
+(define-external-function "degeneratevector" :type-list-int '(:type-int :type-int))
+(define-external-function "demergemessages" :type-list-int '(:type-list-int :type-list-int))
+(define-external-function "intlistequal" :type-int '(:type-list-int :type-list-int))
