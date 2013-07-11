@@ -174,7 +174,7 @@
 			;; all subgoals in host node
          (when (transform-remote-subgoals (clause-head clause) from)
 				; every subgoal in head goes to 'from'
-            (clause-add-option clause `(:route ,(var-name to))))
+				(clause-add-option clause `(:route ,(var-name to))))
          (return-from do-localize-one nil))
       (let* ((body (clause-body clause))
              (head (clause-head clause))
@@ -182,7 +182,7 @@
              (constraints (select-valid-constraints body (all-variable-names `(,@subgoals ,@assignments))))
              (stripped-body (remove-all body `(,route-subgoal ,@subgoals ,@constraints ,@assignments)))
              (new-routing (if (eq order 'forward) (get-inverse-route route-subgoal) nil)))
-         (cond
+			(cond
             ((and (eq order 'backward)
                   (null stripped-body))
                (add-route-fact-to-invert (subgoal-name route-subgoal))
@@ -201,6 +201,7 @@
 					(let ((new-clause-body `(,@subgoals ,@assignments ,@constraints)))
 						(when (is-route-subgoal-alone-p new-clause-body route-subgoal from)
 							(reverse-route-subgoal-alone route-subgoal)
+							(transform-remote-subgoals (clause-head clause) from)
 							(return-from do-localize-one nil))
                	(when new-routing
                   	(add-route-fact-to-invert (subgoal-name route-subgoal))
