@@ -13,18 +13,10 @@
       :initarg :clauses
       :initform (error "missing clauses.")
       :accessor clauses)
-    (worker-clauses
-      :initarg :worker-clauses
-      :initform (error "missing worker clauses.")
-      :accessor worker-clauses)
     (axioms
       :initarg :axioms
       :initform (error "missing axioms.")
       :accessor axioms)
-    (worker-axioms
-      :initarg :worker-axioms
-      :initform (error "missing worker axioms.")
-      :accessor worker-axioms)
     (functions
       :initarg :functions
       :initform (error "missing functions.")
@@ -50,39 +42,28 @@
 		:initform (error "missing args-needed.")
 		:accessor args-needed)))
 
-(defun is-worker-clause-p (defs)
-   #'(lambda (clause)
-      (let ((first (find-if #'subgoal-p (clause-head clause))))
-         (is-worker-definition-p (lookup-definition (subgoal-name first) defs)))))
-
 (defun make-ast (defs externs clauses axioms funs nodes priorities consts args-needed)
-   (multiple-value-bind (worker-clauses node-clauses) (split-mult-return (is-worker-clause-p defs) clauses)
-      (multiple-value-bind (worker-axioms node-axioms) (split-mult-return (is-worker-clause-p defs) axioms)
-         (multiple-value-bind (const-axioms normal-axioms) (split-mult-return #'is-constant-axiom-p node-axioms)
-				(make-instance 'ast
-	            :definitions defs
-	            :externs externs
-	            :clauses node-clauses
-	            :worker-clauses worker-clauses
-	            :axioms normal-axioms
-					:const-axioms const-axioms ;; these axioms will not localized
-	            :worker-axioms worker-axioms
-	            :functions funs
-	            :nodes nodes
-					:priorities priorities
-					:consts consts
-					:args-needed args-needed)))))
- 
+	(multiple-value-bind (const-axioms normal-axioms) (split-mult-return #'is-constant-axiom-p axioms)
+		(make-instance 'ast
+         :definitions defs
+         :externs externs
+         :clauses clauses
+         :axioms normal-axioms
+			:const-axioms const-axioms ;; these axioms will not be localized
+         :functions funs
+         :nodes nodes
+			:priorities priorities
+			:consts consts
+			:args-needed args-needed)))
+
 (defun merge-asts (ast1 ast2)
    "Merges two ASTs together. Note that ast1 is modified."
    (make-instance 'ast
          :definitions (nconc (definitions ast1) (definitions ast2))
          :externs (nconc (externs ast1) (externs ast2))
          :clauses (nconc (clauses ast1) (clauses ast2))
-         :worker-clauses (nconc (worker-clauses ast1) (worker-clauses ast2))
          :axioms (nconc (axioms ast1) (axioms ast2))
-         :worker-axioms (nconc (worker-axioms ast1) (worker-axioms ast2))
-			:const-axioms (nconc (const-axioms ast1) (const-axioms ast2))
+         :const-axioms (nconc (const-axioms ast1) (const-axioms ast2))
          :functions (nconc (functions ast1) (functions ast2))
          :nodes (union (nodes ast1) (nodes ast2))
 			:priorities (union (priorities ast1) (priorities ast2))

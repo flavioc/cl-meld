@@ -134,48 +134,14 @@
          (cons (addr-num (cons-head ls))
                (get-constant-list-addrs (cons-tail ls))))
       (t (assert nil))))
-   
-(defun has-select-nodes-p ()
-   (let ((ls (filter #L(subgoal-appears-code-p !1 "select_nodes") *worker-axioms*)))
-      (and (one-elem-p ls)
-           (with-subgoal (first (clause-head (first ls))) (:args args)
-               (and (var-p (first args))
-                    (is-constant-node-list-p (second args)))))))
       
 (defun build-initial-mapping-set (addrs total)
    (letret (mapping (make-mapping-set))
       (loop for i from 0 upto (1- total)
             for node in addrs
             do (add-mapping mapping node i))))
-            
-(defun programmer-ordering (nodes)
-   (let* ((clause (find-if #L(subgoal-appears-code-p !1 "select_nodes") *worker-axioms*))
-          (sub (first (clause-head clause))))
-      (assert sub)
-      (with-subgoal sub (:args args)
-         (let* ((addrs (get-constant-list-addrs (second args)))
-                (total (length addrs))
-                (mapping-set (build-initial-mapping-set addrs total))
-                (remaining-nodes (set-difference nodes addrs)))
-            (when remaining-nodes
-               (warn "Not all nodes are present in select_nodes"))
-            (case *ordering-type*
-               (:naive (naive-ordering remaining-nodes :start-count total :mapping mapping-set))
-               (:random (random-ordering remaining-nodes :start-count total :mapping mapping-set))
-               (:breadth (let ((remaining-node-set (create-hash-set remaining-nodes))
-                               (edge-set (if (null remaining-nodes)
-                                             (make-edge-set)
-                                             (find-edge-set (get-route-names)))))
-                           (bfs-ordering edge-set remaining-node-set
-                                          :mapping-set mapping-set
-                                          :count total))))))))
 
 (defun do-topology-ordering ()
-   (when (has-select-nodes-p)
-      (let ((mapping (programmer-ordering *nodes*)))
-         ;; Remove select_nodes definition
-         ;; (setf *definitions* (remove-if #L(equal (definition-name !1) "select_nodes") *definitions*))
-      (return-from do-topology-ordering mapping)))
 	(setf *nodes* (reverse *nodes*))
    (case *ordering-type*
       (:naive (naive-ordering *nodes*))

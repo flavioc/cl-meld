@@ -6,15 +6,14 @@
 (defun check-home-argument (name typs)
    (when (null typs)
       (error 'type-invalid-error :text (concatenate 'string name " has no arguments")))
-   (unless (or (type-addr-p (first typs))
-               (type-worker-p (first typs)))
+   (unless (type-addr-p (first typs))
       (error 'type-invalid-error
-         :text (concatenate 'string "first argument of tuple " name " must be of type 'node' or 'worker'"))))
+         :text (concatenate 'string "first argument of tuple " name " must be of type 'node'"))))
          
 (defun no-types-p (ls) (null ls))
 (defun merge-types (ls types) (intersection ls types))
 (defun valid-type-combination-p (types)
-   (equal-or types (:type-int) (:type-float) (:type-int :type-float) (:type-bool) (:type-addr) (:type-worker)
+   (equal-or types (:type-int) (:type-float) (:type-int :type-float) (:type-bool) (:type-addr)
                    (:type-list-int) (:type-list-float) (:type-list-addr) (:type-string)))
    
 (defparameter *constraints* nil)

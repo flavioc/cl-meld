@@ -411,7 +411,6 @@
       (:type-list-int #b0011)
       (:type-list-float #b0100)
       (:type-list-addr #b0101)
-      (:type-worker #b0110)
 		(:type-string #b1001)
       (otherwise (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ)))))
 

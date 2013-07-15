@@ -167,12 +167,6 @@
 (defun definition-add-tagged-option (def name &rest rest)
    (definition-add-option def `(,name ,@rest)))
 
-(defun is-worker-definition-p (def)
-   (definition-has-option-p def :worker))
-
-(defun is-addr-definition-p (def)
-   (not (is-worker-definition-p def)))
-
 (defun definition-set-local-agg (def)
    (definition-add-option def :local-agg))
 (defun definition-has-local-agg-p (def)

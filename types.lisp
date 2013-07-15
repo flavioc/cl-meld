@@ -2,8 +2,8 @@
 
 (defparameter *number-types* '(:type-int :type-float))
 (defparameter *list-number-types* '(:type-list-int :type-list-float))
-(defparameter *list-types* `(,@*list-number-types* :type-list-addr :type-list-worker))
-(defparameter *all-types* `(,@*number-types* :type-bool :type-addr :type-worker :type-string ,@*list-types*))
+(defparameter *list-types* `(,@*list-number-types* :type-list-addr))
+(defparameter *all-types* `(,@*number-types* :type-bool :type-addr :type-string ,@*list-types*))
 
 (defmacro deftype-p (&rest types)
    `(on-top-level
@@ -11,7 +11,7 @@
                                        (eq ,(format-symbol "KEYWORD" "TYPE-~A" (symbol-name x)) ty)))
                   types)))
 
-(deftype-p int addr worker bool string float list-int list-float list-addr list-worker)
+(deftype-p int addr bool string float list-int list-float list-addr)
 
 (defun type-operands (op &optional forced-types)
    (cond

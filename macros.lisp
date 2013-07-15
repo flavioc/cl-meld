@@ -209,12 +209,6 @@
    `(do-definitions-list *node-definitions* (:name ,name :types ,types :options ,options :definition ,definition
                                        :operation ,operation :id ,id)
       ,@body))
-
-(defmacro do-worker-definitions ((&key definition name types options (operation 'do))
-                                &body body)
-   `(do-definitions-list *worker-definitions* (:name ,name :types ,types :options ,options :definition ,definition
-                                       :operation ,operation)
-      ,@body))
          
 (define-with extern (name ret-type types))
 (define-loop extern with-extern do-externs (name ret-type types))
@@ -237,17 +231,10 @@
    `(do-clauses *clauses* (:head ,head :body ,body :clause ,clause
                            :options ,options :id ,id :operation ,operation)
       ,@rest))
-
-(defmacro do-worker-rules ((&key head body clause options id (operation 'do)) &body rest)
-   `(do-clauses *worker-clauses* (:head ,head :body ,body :clause ,clause
-                           :options ,options :id ,id :operation ,operation)
-      ,@rest))
       
 (defmacro do-all-rules ((&key head body clause options) &body rest)
    `(progn
       (do-rules (:head ,head :body ,body :clause ,clause :options ,options)
-         ,@rest)
-      (do-worker-rules (:head ,head :body ,body :clause ,clause :options ,options)
          ,@rest)))
          
 (defmacro par-do-rules ((&key head body clause options) &body rest)
@@ -265,11 +252,6 @@
 			(do-subgoals ,head (:subgoal ,subgoal)
 				,@rest))))
       
-(defmacro do-worker-axioms ((&key head body clause options id (operation 'do)) &body rest)
-   `(do-clauses *worker-axioms* (:head ,head :body ,body :clause ,clause
-                           :options ,options :id ,id :operation ,operation)
-      ,@rest))
-      
 (defmacro par-do-axioms ((&key head body clause options) &body rest)
    `(par-do-clauses *axioms* (:head ,head :body ,body :clause ,clause :options ,options)
       ,@rest))
@@ -277,8 +259,6 @@
 (defmacro do-all-axioms ((&key head body clause options) &body rest)
    `(progn
       (do-axioms (:head ,head :body ,body :clause ,clause :options ,options)
-         ,@rest)
-      (do-worker-axioms (:head ,head :body ,body :clause ,clause :options ,options)
          ,@rest)))
 
 (define-term-construct subgoal #'subgoal-p (name args options))

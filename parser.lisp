@@ -78,7 +78,6 @@
 										("node" :type-addr)
 										("string" :type-string)
 										("list" :type-list)
-										("worker" :type-worker)
 										("include" :include)
 										("random" :random)
 										("route" :route)
@@ -202,9 +201,6 @@
       (generate-part-expression ret-type body fun-args args)
       ))
 
-(defun may-be-worker-types-p (types)
-   (and types
-        (type-worker-p (first types))))
 (defun parser-make-definition (name types &optional options)
 	(make-definition name types options))
 
@@ -231,7 +227,7 @@
  	
 	(:terminals (:const :type :variable :number :string :lparen :rparen
 								:bar :arrow :dot :comma :type-int :type-addr
-								:type-worker :type-float :type-string :plus :minus :mul :mod :div
+								:type-float :type-string :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl :arg
 								:lsparen :rsparen :nil :bar :type-list :local
@@ -372,8 +368,7 @@
  	 (:type-int (return-const :type-int))
  	 (:type-float (return-const :type-float))
  	 (:type-addr (return-const :type-addr))
-	 (:type-string (return-const :type-string))
- 	 (:type-worker (return-const :type-worker)))
+	 (:type-string (return-const :type-string)))
 	   
 	(statements
 	 ()
