@@ -579,6 +579,10 @@
 					(error 'type-invalid-error :text
 						(tostring "external function argument types do not match: ~a and ~a"
 							t1 t2))))))
+	(dolist (name *exported-predicates*)
+		(let ((def (lookup-definition name)))
+			(unless def
+				(error 'type-invalid-error :text (tostring "exported predicate ~a was not found" name)))))
    (add-variable-head)
    (do-rules (:clause clause)
       (transform-clause-constants clause))

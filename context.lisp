@@ -19,5 +19,7 @@
 (define-symbol-macro *processes* (processes *code*))
 (define-symbol-macro *consts-code* (consts *code*))
 (define-symbol-macro *function-code* (functions *code*))
+(define-symbol-macro *exported-predicates* (exported-predicates *ast*))
+(define-symbol-macro *imported-predicates* (imported-predicates *ast*))
 
 (defun set-abstract-syntax-tree (ast) (setf *ast* ast))

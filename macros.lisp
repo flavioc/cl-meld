@@ -218,6 +218,9 @@
 
 (define-with function (name args ret-type body))
 (define-loop function with-function do-functions (name args ret-type body))
+
+(define-with import (imp as from))
+(define-loop import with-import do-imports (imp as from))
      
 (defmacro par-do-clauses (clauses (&key (head nil) (body nil) (clause nil)
                                     (options nil)) &body rest)

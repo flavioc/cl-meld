@@ -530,3 +530,10 @@
 (defun eq-arith-p (sym) (eq-or sym :plus :minus :mul :div :mod))
 (defun eq-num-cmp-p (sym) (eq-or sym :lesser :lesser-equal :greater :greater-equal))
 (defun eq-cmp-p (sym) (eq-or sym :equal :not-equal :lesser :lesser-equal :greater :greater-equal :or))
+
+;; imports
+(defun make-import (imp as file) `(:import ,imp ,as ,file))
+(defun import-p (x) (tagged-p x :import))
+(defun import-imp (x) (second x))
+(defun import-as (x) (third x))
+(defun import-from (x) (fourth x))

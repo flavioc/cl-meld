@@ -37,12 +37,20 @@
 		:initarg :const-axioms
 		:initform (error "missing const axioms.")
 		:accessor const-axioms)
+	(exported-predicates
+		:initarg :exported-predicates
+		:initform (error "missing exported predicates.")
+		:accessor exported-predicates)
+	(imported-predicates
+		:initarg :imported-predicates
+		:initform (error "missing imported predicates.")
+		:accessor imported-predicates)
 	(args-needed
 		:initarg :args-needed
 		:initform (error "missing args-needed.")
 		:accessor args-needed)))
 
-(defun make-ast (defs externs clauses axioms funs nodes priorities consts args-needed)
+(defun make-ast (defs externs clauses axioms funs nodes priorities consts exported-predicates imported-predicates args-needed)
 	(multiple-value-bind (const-axioms normal-axioms) (split-mult-return #'is-constant-axiom-p axioms)
 		(make-instance 'ast
          :definitions defs
@@ -54,6 +62,8 @@
          :nodes nodes
 			:priorities priorities
 			:consts consts
+			:exported-predicates exported-predicates
+			:imported-predicates imported-predicates
 			:args-needed args-needed)))
 
 (defun merge-asts (ast1 ast2)
@@ -68,6 +78,8 @@
          :nodes (union (nodes ast1) (nodes ast2))
 			:priorities (union (priorities ast1) (priorities ast2))
 			:consts (append (consts ast1) (consts ast2))
+			:export-predicates (append (exported-predicates ast1) (exported-predicates ast2))
+			:imported-predicates (append (imported-predicates ast1) (imported-predicates ast2))
 			:args-needed (max (args-needed ast1) (args-needed ast2))))
 
 ;;;;;;;;;;;;;;;;;;;

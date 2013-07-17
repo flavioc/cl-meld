@@ -83,6 +83,10 @@
 										("route" :route)
 										("action" :action)
 										("linear" :linear)
+										("export" :export)
+										("import" :import)
+										("from" :from)
+										("as" :as)
 										("let" :let)
 										("in" :in)
 										("end" :end)
@@ -162,6 +166,12 @@
 (defun add-needed-extern (extern-name) (push extern-name *needed-externs*))
 
 (defvar *max-arg-needed* 0)
+
+(defvar *parser-exported-predicates* nil)
+(defun add-exported-predicate (name) (push name *parser-exported-predicates*))
+
+(defvar *parser-imported-predicates* nil)
+(defun add-imported-predicate (imp) (push imp *parser-imported-predicates*))
    
 (defun generate-part-expression (final-type body fun-args args)
    (let ((this-fun-arg (first fun-args))
@@ -236,7 +246,7 @@
 								:dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :fun :end :colon
 								:not-equal :if :then :else :prio :random
-								:min :asc :desc :or
+								:min :asc :desc :or :export :import :as :from
 								:exists :initial-priority :priority-type :priority-order
 								:delay-seconds :delay-ms :question-mark))
 
@@ -249,6 +259,8 @@
 	                                                               (defined-nodes-list) ; nodes
 																						!3 ; priorities
 																						!5 ; consts
+																						*parser-exported-predicates*
+																						*parser-imported-predicates*
 																						*max-arg-needed*))) ;; args-needed
 
 	(includes
@@ -264,10 +276,17 @@
 
 	(definitions
 	 ()
-	 (definition definitions #'cons))
+	 (definition definitions #'(lambda (d ls) (if (null d) ls (cons d ls)))))
 
    (definition
-      (:type predicate-options const type-args-part #L(parser-make-definition !3 !4 !2)))
+		(:import predicate-options const type-args-part :as const :from const :dot #'(lambda (i opts name args as imported-name fr file d)
+																											(declare (ignore i as d fr))
+																											(add-imported-predicate (make-import name imported-name file))
+																											(parser-make-definition imported-name args opts)))
+		(:export const :dot #'(lambda (e name d) (declare (ignore e d)) (add-exported-predicate name) nil))
+      (:type predicate-options const type-args-part :dot #'(lambda (ty opts name args d)
+																					(declare (ignore ty d))
+																					(parser-make-definition name args opts))))
 
 	(priorities
 		()
@@ -335,7 +354,7 @@
 	   (:linear (return-const :linear)))
 	   
 	(type-args-part
-	   (:lparen type-args :rparen :dot #'(lambda (l typs r d) (declare (ignore l r d)) typs)))
+	   (:lparen type-args :rparen #'(lambda (l typs r) (declare (ignore l r)) typs)))
 
 	(type-args
 	 (type-decl #'list)
@@ -561,7 +580,9 @@
       
 (defmacro with-inner-parse-context (&body body)
    `(let ((*found-nodes* (make-hash-table))
-			 (*line-number* 0))
+			 (*line-number* 0)
+			 (*parser-imported-predicates* nil)
+			 (*parser-exported-predicates* nil))
       ,@body))
 
 (defun strip-comments-from-line (line)
