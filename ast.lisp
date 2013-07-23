@@ -78,7 +78,7 @@
          :nodes (union (nodes ast1) (nodes ast2))
 			:priorities (union (priorities ast1) (priorities ast2))
 			:consts (append (consts ast1) (consts ast2))
-			:export-predicates (append (exported-predicates ast1) (exported-predicates ast2))
+			:exported-predicates (append (exported-predicates ast1) (exported-predicates ast2))
 			:imported-predicates (append (imported-predicates ast1) (imported-predicates ast2))
 			:args-needed (max (args-needed ast1) (args-needed ast2))))
 
