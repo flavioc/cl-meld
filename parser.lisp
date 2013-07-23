@@ -590,8 +590,8 @@
       
 (defun read-source-line (stream)
    (multiple-value-bind (line missing-newline-p) (read-line stream nil nil)
-      (unless missing-newline-p
-         (strip-comments-from-line line))))
+		(declare (ignore missing-newline-p))
+      (strip-comments-from-line line)))
 
 (defun simple-stream-lexer (read-source-line string-lexer &key (stream *standard-input*))
   (let (eof line-lexer (update t))
