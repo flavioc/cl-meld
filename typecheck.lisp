@@ -558,6 +558,71 @@
 				(if (string-equal name1 name2)
 					(error 'type-invalid-error :text (tostring "multiple definitions of ~a: ~a ~a" name1 def1 def2)))))))
 					
+(defun find-same-subgoal (ls sub)
+	(when (subgoal-is-remote-p sub)
+		(return-from find-same-subgoal nil))
+	(with-subgoal sub (:name name :args args)
+		(do-subgoals ls (:name other :args args-other :subgoal sub-other)
+			(when (and (string-equal name other)
+							(equal args args-other)
+							(not (subgoal-is-remote-p sub-other)))
+				(return-from find-same-subgoal sub-other))))
+	nil)
+	
+(defun find-persistent-rule (clause)
+	"Returns T if we just use persistent facts in the rule and if any linear
+	facts are used, then are re-derived in the head of the rule."
+	(with-clause clause (:body body :head head)
+		(let ((tmp-head (get-subgoals head))
+				(mark-subgoals nil)
+				(to-remove nil)
+				(linear-fail nil))
+			(do-subgoals body (:name name :subgoal sub)
+				(let ((def (lookup-definition name)))
+					(when (is-linear-p def)
+						(cond
+							((subgoal-has-option-p sub :reuse) )
+							(t
+								(let ((found (find-same-subgoal tmp-head sub)))
+									(cond
+										(found
+											(push sub mark-subgoals)
+											(push found to-remove)
+											(setf tmp-head (remove found tmp-head)))
+										(t (setf linear-fail t)))))))))
+			(dolist (sub to-remove)
+				(setf (clause-head clause) (delete sub (clause-head clause))))
+			(dolist (sub mark-subgoals)
+				(subgoal-add-option sub :reuse))
+			(unless linear-fail
+				(do-subgoals body (:name name :subgoal sub)
+					(when (subgoal-has-option-p sub :reuse)
+						(let ((def (lookup-definition name)))
+							(unless (is-reused-p def)
+								(definition-set-reused def)))))))))
+
+(defun rule-is-persistent-p (clause)
+	"Returns T if we just use persistent facts in the rule and if any linear
+	facts are used, then are re-derived in the head of the rule."
+	(with-clause clause (:body body :head head)
+		;(when (or (get-comprehensions head)
+		;			 (get-agg-constructs head))
+		;	(return-from rule-is-persistent-p nil))
+		(let ((tmp-head (get-subgoals head)))
+			(do-subgoals body (:name name :subgoal sub)
+				(let ((def (lookup-definition name)))
+					(when (and (is-linear-p def)
+									(not (subgoal-has-option-p sub :reuse)))
+						(return-from rule-is-persistent-p nil)))))
+		t))
+		
+(defun find-persistent-rules ()
+	(do-rules (:clause clause)
+		(find-persistent-rule clause))
+	(do-rules (:clause clause)
+		(when (rule-is-persistent-p clause)
+			(clause-set-persistent clause))))
+					
 (defun type-check ()
 	(do-definitions (:name name :types typs)
       (check-home-argument name typs))
@@ -594,4 +659,5 @@
 		(with-subgoal sub (:name name :args args :options opts)
 			(do-type-check-subgoal name args opts :axiom-p t)))
    (do-all-axioms (:head head :body body :clause clause)
-      (type-check-clause head body clause t)))
+      (type-check-clause head body clause t))
+	(find-persistent-rules))

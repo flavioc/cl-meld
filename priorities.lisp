@@ -35,9 +35,7 @@
 account the dependencies between predicates."
 	(let ((start-nodes (select-start-nodes priorities)))
 		(cond
-			((null start-nodes)
-				(warn "COULD NOT ASSIGN PRIORITIES TO PREDICATES DUE TO CYCLES ~a" priorities)
-				nil)
+			((null start-nodes) nil)
 			(t
 				(multiple-value-bind (removed remaining-nodes)
 						(remove-all-start-nodes priorities start-nodes)

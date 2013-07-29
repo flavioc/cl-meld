@@ -166,6 +166,8 @@
          (second res))))
 (defun definition-add-tagged-option (def name &rest rest)
    (definition-add-option def `(,name ,@rest)))
+(defun definition-set-cyclical (def) (definition-add-option def :cycle))
+(defun definition-is-cyclical-p (def) (definition-has-option-p def :cycle))
 
 (defun definition-set-local-agg (def)
    (definition-add-option def :local-agg))
@@ -334,7 +336,6 @@
 (defsetf convert-float-expr set-convert-float-expr)
 
 (defun make-world () (list :world))
-
 
 (defun make-var (var &optional typ) `(:var ,(if (stringp var) (str->sym var) var) ,@(if typ `(,typ) nil)))      
 (defun var-name (val) (second val))

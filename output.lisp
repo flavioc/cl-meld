@@ -455,6 +455,8 @@
          (setf prop (logior prop #b00010000)))
 		(when (is-reused-p def)
 			(setf prop (logior prop #b00100000)))
+		(when (definition-is-cyclical-p def)
+			(setf prop (logior prop #b01000000)))
       prop))
 
 (defparameter *max-tuple-name* 32)

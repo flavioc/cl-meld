@@ -535,69 +535,11 @@
 			(do-axioms (:body body :head head :clause clause :operation :append)
       		(compile-with-starting-subgoal body head clause)))))
 
-(defun find-same-subgoal (ls sub)
-	(when (subgoal-is-remote-p sub)
-		(return-from find-same-subgoal nil))
-	(with-subgoal sub (:name name :args args)
-		(do-subgoals ls (:name other :args args-other :subgoal sub-other)
-			(when (and (string-equal name other)
-							(equal args args-other)
-							(not (subgoal-is-remote-p sub-other)))
-				(return-from find-same-subgoal sub-other))))
-	nil)
-	
-(defun find-persistent-rule (clause)
-	"Returns T if we just use persistent facts in the rule and if any linear
-	facts are used, then are re-derived in the head of the rule."
-	(with-clause clause (:body body :head head)
-		(let ((tmp-head (get-subgoals head))
-				(mark-subgoals nil)
-				(to-remove nil)
-				(linear-fail nil))
-			(do-subgoals body (:name name :subgoal sub)
-				(let ((def (lookup-definition name)))
-					(when (is-linear-p def)
-						(cond
-							((subgoal-has-option-p sub :reuse) )
-							(t
-								(let ((found (find-same-subgoal tmp-head sub)))
-									(cond
-										(found
-											(push sub mark-subgoals)
-											(push found to-remove)
-											(setf tmp-head (remove found tmp-head)))
-										(t (setf linear-fail t)))))))))
-			(dolist (sub to-remove)
-				(setf (clause-head clause) (delete sub (clause-head clause))))
-			(dolist (sub mark-subgoals)
-				(subgoal-add-option sub :reuse))
-			(unless linear-fail
-				(do-subgoals body (:name name :subgoal sub)
-					(when (subgoal-has-option-p sub :reuse)
-						(let ((def (lookup-definition name)))
-							(unless (is-reused-p def)
-								(definition-set-reused def)))))))))
-
-(defun rule-is-persistent-p (clause)
-	"Returns T if we just use persistent facts in the rule and if any linear
-	facts are used, then are re-derived in the head of the rule."
-	(with-clause clause (:body body :head head)
-		(when (or (get-comprehensions head)
-					 (get-agg-constructs head))
-			(return-from rule-is-persistent-p nil))
-		(let ((tmp-head (get-subgoals head)))
-			(do-subgoals body (:name name :subgoal sub)
-				(let ((def (lookup-definition name)))
-					(when (and (is-linear-p def)
-									(not (subgoal-has-option-p sub :reuse)))
-						(return-from rule-is-persistent-p nil)))))
-		t))
-
 (defun compile-processes ()
 	(do-definitions (:definition def :name name :operation collect)
       (if (is-init-p def)
          (make-process name `(,(make-return-linear)))
-         (make-process name `(,@(compile-normal-process name (filter #'rule-is-persistent-p (find-clauses-with-subgoal-in-body name)))
+         (make-process name `(,@(compile-normal-process name (filter #'clause-is-persistent-p (find-clauses-with-subgoal-in-body name)))
                                  ,(make-return))))))
 
 (defun compile-consts ()
@@ -622,10 +564,6 @@
 (defun number-clauses ()
 	(do-rules (:clause clause :id id)
 		(clause-add-id clause (1+ id))))
-		
-(defun find-persistent-rules ()
-	(do-rules (:clause clause)
-		(find-persistent-rule clause)))
 
 (defun rule-subgoal-ids (clause)
 	(with-clause clause (:body body)
@@ -654,13 +592,12 @@
 		 							(make-rule-code (with-empty-compile-context
 												`(,(make-vm-rule (1+ id)) ,@(compile-iterate body body head clause t nil) ,(make-return)))
 											(rule-subgoal-ids clause)
-											(rule-is-persistent-p clause))))))
+											(clause-is-persistent-p clause))))))
 		`(,init-rule ,@other-rules)))
 											
 
 (defun compile-ast ()
 	(number-clauses)
-	(find-persistent-rules)
 	(let ((procs (compile-processes))
 			(consts (compile-consts))
 			(functions (compile-functions)))

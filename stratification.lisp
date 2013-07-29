@@ -375,8 +375,42 @@
            (,routes *strat-routes*)
            (,clauses (remove-if (clause-edge-fact-p *strat-routes*) *clauses*)))
       ,@body))
+
+(defun detect-cycles-table (visited edges n origin)
+	(multiple-value-bind (ls found-p) (gethash n edges)
+		(dolist (neighbor ls)
+			(when (string-equal neighbor origin)
+				(let ((def (lookup-definition origin)))
+					(definition-set-cyclical def))
+				(return-from detect-cycles-table nil))
+			(multiple-value-bind (vis found-p) (gethash neighbor visited)
+				(when (eq vis :unvisited)
+					(setf (gethash neighbor visited) :visited)
+					(detect-cycles-table visited edges neighbor origin)
+					(setf (gethash neighbor visited) :unvisited))))))
+	
+(defun find-cycles ()
+	(let ((table (make-hash-table :test 'equal)))
+		(do-rules (:clause clause)
+			(when (clause-is-persistent-p clause)
+				(with-clause clause (:body body :head head)
+					(do-subgoals body (:name body-name)
+						(multiple-value-bind (value found-p) (gethash body-name table)
+							(do-subgoals head (:name head-name)
+								(unless (has-test-elem-p value head-name #'string-equal)
+									(push head-name value)))
+							(setf (gethash body-name table) value))))))
+		(let ((visited (make-hash-table :test 'equal)))
+			(loop for key being the hash-keys of table
+				do (setf (gethash key visited) :unvisited))
+			(loop for key being the hash-keys of table
+				do (progn
+						(loop for key being the hash-keys of table
+							do (setf (gethash key visited) :unvisited))
+						(detect-cycles-table visited table key key))))))
    
 (defun stratify ()
+	(find-cycles)
    (with-stratification-context (routes clauses)
       (dolist (rout routes)
          (set-generated-by-all rout)

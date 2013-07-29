@@ -135,6 +135,10 @@
 	(clause-add-tagged-option clause :id id))
 (defun clause-get-id (clause)
 	(first (clause-get-tagged-option clause :id)))
+(defun clause-set-persistent (clause)
+	(clause-add-tagged-option clause :persistent))
+(defun clause-is-persistent-p (clause)
+	(clause-has-tagged-option-p clause :persistent))
    
 (defun delete-option-args (delete-opt) (second delete-opt))
 (defun delete-option-name (delete-opt) (first delete-opt))
