@@ -15,6 +15,9 @@
 (defun priority-order (x) (second x))
 (defun priority-order-p (x) (tagged-p x :priority-order))
 
+(defun make-priority-static () `(:priority-static))
+(defun priority-static-p (x) (tagged-p x :priority-static))
+
 (defun all-start-nodes (priorities)
 	(remove-duplicates (mapcar #'priority-left priorities) :test #'string-equal))
 (defun all-end-nodes (priorities)

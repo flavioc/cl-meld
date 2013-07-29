@@ -589,11 +589,11 @@
    (iterate-nodes (fake-id real-id nodes)
       (write-int-stream stream fake-id)
       (write-int-stream stream real-id)))
-
-(defun write-priority-order (stream order)
+		
+(defun priority-order-bit (order)
 	(case order
-		(:asc (write-hexa stream #b00000001))
-		(:desc (write-hexa stream #b00000000))))
+		(:asc #b00000001)
+		(:desc #b00000000)))
 
 ;;
 ;; the following 3 functions output the main byte-code options
@@ -603,12 +603,12 @@
 	"Writes priority information."
 	(write-hexa stream 2)
 	(write-hexa stream 1) ; float
-	(let ((order (find-if #'priority-order-p *priorities*)))
-		(cond
-			(order
-				(write-priority-order stream (priority-order order)))
-			(t
-				(write-priority-order stream :desc))))
+	(let* ((order (find-if #'priority-order-p *priorities*))
+			 (static (find-if #'priority-static-p *priorities*))
+			 (byt (priority-order-bit (if order order :desc))))
+		(when static
+			(setf byt (logior byt #b00000010)))
+		(write-hexa stream byt))
 	(let ((prio (get-initial-priority)))
 		(write-float-stream stream (if prio prio 0.0))))
 		
