@@ -47,10 +47,17 @@
 		(external-invalid-error (c) (format t "External functions: ~a~%" (text c)))
       (output-invalid-error (c) (format t "Output error: ~a~%" (text c)))))
 
+(defun meld-clear-variables ()
+	(setf *ast* nil)
+	(setf *code* nil)
+	(setf *code-rules* nil))
+	
 (defun meld-compile-list (pairs)
    (loop for (in out) in pairs
          do (unless (meld-compile in out)
                (format t "PROBLEM COMPILING ~a~%" in)
+					(meld-clear-variables)
+					(sb-ext:gc :full t)
                (return-from meld-compile-list nil)))
    t)
 

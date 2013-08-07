@@ -1,4 +1,4 @@
-#!/usr/bin/env sbcl --noinform --control-stack-size 32 --noprint --script
+#!/usr/bin/env sbcl --noinform --control-stack-size 128 --dynamic-space-size 2048 --noprint --script
 
 (defvar *params* (rest sb-ext:*posix-argv*))
 
