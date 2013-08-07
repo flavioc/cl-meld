@@ -15,6 +15,14 @@ fi
 ARG=""
 for file in $PWD/$DIR/*.meld; do
 	base=`basename $file .meld`
-	ARG="$ARG $file $PWD/$TARGET/$base"
+   target="$TARGET/$base.m"
+   if [ "$file" -nt "$target" ]; then
+      ARG="$ARG $file $PWD/$TARGET/$base"
+      echo ">> Compiling $DIR/$base.meld to $target"
+   fi
 done
-meld-compile-file $ARG
+if [ -z "$ARG" ]; then
+   echo ">> Files are up-to-date"
+else
+   meld-compile-file $ARG
+fi
