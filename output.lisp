@@ -605,7 +605,7 @@
 	(write-hexa stream 1) ; float
 	(let* ((order (find-if #'priority-order-p *priorities*))
 			 (static (find-if #'priority-static-p *priorities*))
-			 (byt (priority-order-bit (if order order :desc))))
+			 (byt (priority-order-bit (if order (priority-order order) :desc))))
 		(when static
 			(setf byt (logior byt #b00000010)))
 		(write-hexa stream byt))
