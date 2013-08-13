@@ -18,6 +18,10 @@
 (defun make-priority-static () `(:priority-static))
 (defun priority-static-p (x) (tagged-p x :priority-static))
 
+(defun make-priority-cluster (typ) `(:priority-cluster ,typ))
+(defun priority-cluster-type (x) (second x))
+(defun priority-cluster-p (x) (tagged-p x :priority-cluster))
+
 (defun all-start-nodes (priorities)
 	(remove-duplicates (mapcar #'priority-left priorities) :test #'string-equal))
 (defun all-end-nodes (priorities)

@@ -143,14 +143,16 @@
 
 (defun do-topology-ordering ()
 	(setf *nodes* (reverse *nodes*))
-   (case *ordering-type*
-      (:naive (naive-ordering *nodes*))
-      (:random (random-ordering *nodes*))
-		(:in-file (in-file-ordering *nodes*))
-      (:breadth (let ((edge-set (find-edge-set (get-route-names)))
-                      (node-set (create-hash-set *nodes*)))
-                  (bfs-ordering edge-set node-set)))
-      (otherwise (assert nil))))
+	(let* ((found (find-if #'priority-cluster-p *priorities*))
+		  	 (ordering-type (if found (priority-cluster-type found) *ordering-type*)))
+   	(case ordering-type
+	     (:naive (naive-ordering *nodes*))
+	     (:random (random-ordering *nodes*))
+		  (:in-file (in-file-ordering *nodes*))
+	     (:breadth (let ((edge-set (find-edge-set (get-route-names)))
+	                     (node-set (create-hash-set *nodes*)))
+	                 (bfs-ordering edge-set node-set)))
+	     (otherwise (assert nil)))))
 
 (defun optimize-topology ()
    (let ((mapping (do-topology-ordering)))
