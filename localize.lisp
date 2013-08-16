@@ -96,7 +96,7 @@
 					for arg in (rest args)
 					when (type-addr-p typ)
 					collect (list (first args) arg)))))
-                  
+
 (defun get-reachable-nodes (paths-sub start-node)
    (let ((paths (mappend #L(find-all-addrs-in-subgoal !1) paths-sub))
           (rm `(,start-node)))
@@ -269,20 +269,23 @@
 
 (defun localize-start (clause routes host)
    (let ((paths (get-paths (clause-body clause) routes)))
-      (let ((home-arguments (get-reachable-nodes paths host)))
+      (let ((home-arguments (get-reachable-nodes paths host))
+				(same-home nil))
 			(when (and (one-elem-p home-arguments)
 						(body-shares-same-home (clause-body clause) (first home-arguments)))
 				;; When using the same home argument in the body of the rule
 				;; we may use all the node variables in the body
+				(setf same-home t)
 				(setf home-arguments (find-linear-body-homes clause home-arguments)))
          (localize-check-head (clause-head clause) clause home-arguments host)
          (check-subgoal-arguments home-arguments clause)
-         (let* ((fun (edges-equal-to host))
-                (edges (filter fun paths))
-                (remaining (remove-if fun paths)))
-            (if edges
-               (do-localize host clause edges remaining)
-               (transform-remote-subgoals (clause-head clause) host))))))
+			(unless same-home
+         	(let* ((fun (edges-equal-to host))
+                	 (edges (filter fun paths))
+                	 (remaining (remove-if fun paths)))
+					(if edges
+               	(do-localize host clause edges remaining)
+               	(transform-remote-subgoals (clause-head clause) host)))))))
       
 (defun one-of-the-vars-p (ls var)
    (find-if #L(var-eq-p var !1) ls))
