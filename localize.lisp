@@ -150,14 +150,14 @@
          (get-subgoals body)))
          
 (defun transform-remote-subgoals (head host)
-   (let ((all-transformed t))
+	(let ((all-transformed t))
       (do-subgoals head (:args args :subgoal sub)
          (let ((first-arg (first args)))
             (if (var-eq-p first-arg host)
                (setf all-transformed nil)
 					(subgoal-add-route sub (var-name first-arg)))))
       (do-comprehensions head (:right right :comprehension comp)
-         (do-subgoals right (:args args :subgoal sub)
+			(do-subgoals right (:args args :subgoal sub)
             (let ((first-arg (first args)))
                (if (var-eq-p first-arg host)
                   (setf all-transformed nil)
@@ -279,6 +279,8 @@
 				(setf home-arguments (find-linear-body-homes clause home-arguments)))
          (localize-check-head (clause-head clause) clause home-arguments host)
          (check-subgoal-arguments home-arguments clause)
+			(when same-home
+				(transform-remote-subgoals (clause-head clause) host))
 			(unless same-home
          	(let* ((fun (edges-equal-to host))
                 	 (edges (filter fun paths))
