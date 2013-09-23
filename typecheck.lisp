@@ -617,13 +617,16 @@
 		(do-subgoals body (:name name :args args :options options)
 			(do-type-check-subgoal name args options :body-p nil))))
       
-(defun type-check-body (clause)
+(defun type-check-body (clause host axiom-p)
 	(do-subgoals (clause-body clause) (:name name :args args :options options)
       (do-type-check-subgoal name args options :body-p t))
    (do-agg-constructs (clause-body clause) (:agg-construct c)
       (do-type-check-agg-construct c t))
    (transform-clause-constants clause)
 	(reset-typecheck-context)
+	(when axiom-p
+		(variable-is-defined host)
+		(force-constraint (var-name host) '(:type-addr)))
 	(do-subgoals (clause-body clause) (:args args)
 		(dolist (arg args)
 			(when (var-p arg)
@@ -654,7 +657,7 @@
 		(setf (clause-body clause) new-body)))
 		
 (defun type-check-body-and-head (clause host &key check-comprehensions check-agg-constructs check-exists axiom-p)
-	(type-check-body clause)
+	(type-check-body clause host axiom-p)
 	(type-check-all-except-body clause host :check-comprehensions check-comprehensions
 													  	:check-agg-constructs check-agg-constructs
 													  	:check-exists check-exists

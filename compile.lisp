@@ -121,7 +121,6 @@
 					(assert look)
 					(return-expr dest `(,(make-vm-struct-val (struct-val-idx expr) look dest))))))
 		((struct-p expr)
-			(warn "~a ~a" expr (expr-type expr))
 			(with-dest-or-new-reg (dest)
 				(let ((ls (struct-list expr))
 						instrs)
