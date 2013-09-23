@@ -95,6 +95,7 @@
 			(compile-callf-args (rest args) `(,@args-code ,@arg-code) (1+ n)))))
 
 (defun compile-expr (expr &optional dest)
+	;(warn "compile-expr ~a ~a" expr dest)
    (cond
       ((int-p expr) ;; Int expression in the previous phases maybe coerced into a float
          (let ((typ (expr-type expr)))
@@ -108,9 +109,26 @@
 			(return-expr (make-vm-argument (argument-id expr))))
 		((get-constant-p expr)
 			(return-expr (make-vm-constant (get-constant-name expr))))
-		((var-p expr) (return-expr (lookup-used-var (var-name expr))))
+		((var-p expr)
+			(let ((look (lookup-used-var (var-name expr))))
+				(assert look)
+				(return-expr look)))
       ((call-p expr)
          (compile-call (call-name expr) (call-args expr) nil nil))
+		((struct-val-p expr)
+			(with-dest-or-new-reg (dest)
+				(let ((look (lookup-used-var (var-name (struct-val-var expr)))))
+					(assert look)
+					(return-expr dest `(,(make-vm-struct-val (struct-val-idx expr) look dest))))))
+		((struct-p expr)
+			(warn "~a ~a" expr (expr-type expr))
+			(with-dest-or-new-reg (dest)
+				(let ((ls (struct-list expr))
+						instrs)
+					(return-expr dest
+						`(,@(loop for x in ls
+								append `(,(make-vm-push) ,@(compile-expr-to x (make-vm-stack 0))))
+							,(make-vm-make-struct (expr-type expr) dest))))))
 		((callf-p expr)
 			(with-dest-or-new-reg (dest)
 				(return-expr dest `(,(make-vm-push) ;; for pcounter

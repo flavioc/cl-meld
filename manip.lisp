@@ -251,8 +251,6 @@
 
 (defun const-p (s)
    (or (int-p s) (float-p s)
-		(and (cons-p s) (const-p (cons-head s)) (const-p (cons-tail s)))
-		(nil-p s)
 		(string-constant-p s)
 		(addr-p s)
 		(get-constant-p s)))
@@ -335,6 +333,21 @@
    (setf (second c) expr))
 (defsetf convert-float-expr set-convert-float-expr)
 
+(defun make-struct (ls) `(:struct ,ls))
+(defun struct-p (x) (tagged-p x :struct))
+(defun struct-list (x) (second x))
+(defun set-struct-list (s ls)
+	(setf (second s) ls))
+(defsetf struct-list set-struct-list)
+
+(defun make-struct-val (idx var &optional typ) (assert (var-p var)) `(:struct-val ,idx ,var ,typ))
+(defun struct-val-p (x) (tagged-p x :struct-val))
+(defun struct-val-idx (x) (second x))
+(defun struct-val-var (x) (third x))
+(defun set-struct-val-var (x v)
+	(setf (third x) v))
+(defsetf struct-val-var set-struct-val-var)
+
 (defun make-world () (list :world))
 
 (defun make-var (var &optional typ) `(:var ,(if (stringp var) (str->sym var) var) ,@(if typ `(,typ) nil)))      
@@ -352,9 +365,9 @@
 (defparameter *var-counter* 0)
 (defun generate-random-var-name ()
    (tostring "MV~a" (incf *var-counter*)))
-(defun generate-random-var ()
+(defun generate-random-var (&optional typ)
    "Generates a new variable name."
-   (make-var (generate-random-var-name)))
+   (make-var (generate-random-var-name) typ))
 
 ;;;; ASSIGNMENTS
 

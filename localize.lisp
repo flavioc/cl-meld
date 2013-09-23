@@ -242,6 +242,7 @@
                (when target-clause
                   (if add-to-program-p
                      (push target-clause *clauses*))
+						(clause-set-persistent target-clause)
                   (when new-edges
                      (do-localize to target-clause new-edges new-remaining))))))))
 

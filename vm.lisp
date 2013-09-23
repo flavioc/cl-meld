@@ -77,8 +77,8 @@
 (defun reg-dot-field (reg-dot) (third reg-dot))
 (defun reg-dot-p (reg-dot) (tagged-p reg-dot :reg-dot))
 
-(defun make-vm-nil () :nil)
-(defun vm-nil-p (n) (eq n :nil))
+(defun make-vm-nil () '(:nil))
+(defun vm-nil-p (n) (tagged-p n :nil))
 
 (defun make-vm-world () :world)
 (defun vm-world-p (w) (eq w :world))
@@ -109,6 +109,15 @@
 (defun vm-tail-dest (tail) (third tail))
 (defun vm-tail-type (tail) (fourth tail))
 (defun vm-tail-p (tail) (tagged-p tail :tail))
+
+(defun make-vm-struct-val (idx from to) `(:struct-val ,idx ,from ,to))
+(defun vm-struct-val-idx (x) (second x))
+(defun vm-struct-val-from (x) (third x))
+(defun vm-struct-val-to (x) (fourth x))
+
+(defun make-vm-make-struct (typ to) `(:struct ,typ ,to))
+(defun vm-make-struct-to (x) (third x))
+(defun vm-make-struct-type (x) (second x))
 
 (defun make-vm-if (r instrs) (list :if r instrs))
 (defun vm-if-reg (i) (second i))

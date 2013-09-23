@@ -28,6 +28,7 @@
 	("\\?"									(return (values :question-mark $@)))
 	("\\$"                           (return (values :dollar $@)))
 	("=>"                            (return (values :to $@)))
+	("\\:\\("								(return (values :lpaco $@)))
 	(":-"                            (return (values :arrow  $@)))
 	("\\:"                           (return (values :colon $@)))
 	("\\("			                  (return (values :lparen $@)))
@@ -253,7 +254,7 @@
 								:exists :initial-priority :priority-type :priority-order
 								:delay-seconds :delay-ms :question-mark
 								:static-priority :cluster-priority
-								:random-priority))
+								:random-priority :lpaco))
 
 	(program
 	  (includes definitions priorities externs consts funs statements #L(make-ast  !2 ; definitions
@@ -388,12 +389,16 @@
 
 	(atype
 	 base-type
-	 (:type-list base-type #'(lambda (l ty)
+	 (:lpaco type-list :rparen #'(lambda (l tl r)
+												(declare (ignore l r))
+												(make-struct-type tl)))
+	 (:type-list atype #'(lambda (l ty)
 	                           (declare (ignore l))
-	                           (case ty
-	                              (:type-int :type-list-int)
-	                              (:type-float :type-list-float)
-	                              (:type-addr :type-list-addr)))))
+										(make-list-type ty))))
+										
+	(type-list
+		(atype #'list)
+		(atype :comma type-list #'(lambda (ty comma ls) (declare (ignore comma)) (cons ty ls))))
 
 	(base-type
  	 (:type-int (return-const :type-int))
@@ -532,10 +537,11 @@
 	               (t (make-call name args)))))
 	   (const #L(if (has-const-def-p !1)
 						(make-get-constant !1)
-						(error (make-condition 'parse-failure-error :text (tostring "aggregate declaration not recognized ~a" str) :line *line-number*))))
+						(error (make-condition 'parse-failure-error :text (tostring "constant not recognized: \"~a\"" !1) :line *line-number*))))
 	   (:local :number #L(let ((val (parse-integer !2))) (add-found-node val) (make-addr val)))
 		number
 	   (:lparen expr :rparen #'(lambda (l expr r) (declare (ignore l r)) expr))
+		(:lpaco expr-list :rparen #'(lambda (l ls r) (declare (ignore l r)) (make-struct ls)))
 	   (:type-float :lparen expr :rparen #'(lambda (f l expr r) (declare (ignore f l r)) (make-convert-float expr)))
 	   (:world (return-const (make-world)))
 	   (expr :minus expr #'make-minus)
@@ -565,6 +571,10 @@
 	   (expr :comma sub-list #'(lambda (expr x sub) (declare (ignore x)) (make-cons expr sub)))
 	   (expr :bar expr #'(lambda (a b c) (declare (ignore b)) (make-cons a c))))
 
+	(expr-list
+		(expr #'list)
+		(expr :comma expr-list #'(lambda (x c xs) (declare (ignore c)) (cons x xs))))
+		
    (cmp
 		(cmp :or cmp #'make-or)
 		(:lparen cmp :rparen #'(lambda (l cmp r) (declare (ignore l r)) cmp))

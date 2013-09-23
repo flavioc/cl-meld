@@ -1,7 +1,7 @@
 (in-package :cl-meld)
 
 (defparameter *major-version* 0)
-(defparameter *minor-version* 9)
+(defparameter *minor-version* 10)
 
 (defparameter *base-tuples* nil)
 

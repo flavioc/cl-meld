@@ -13,6 +13,8 @@
 			(progn
 				(push-end str *output-string-constants*)
 				(1- (length *output-string-constants*))))))
+				
+(defparameter *program-types* nil)
 
 (defmacro with-memory-stream (s &body body)
    `(let ((,s (make-in-memory-output-stream)))
@@ -166,13 +168,6 @@
           ,@body
          (write-offset ,vec (- (length ,vec) ,pos) (+ ,pos ,jump-many)))))
          
-(defun output-cons-type (typ)
-	(assert (not (null typ)))
-   (case typ
-      (:type-list-int 0)
-      (:type-list-float 1)
-      (:type-list-addr 2)))
-
 (defun output-axiom-argument (arg vec subgoal)
 	(cond
 		((addr-p arg) (output-list-bytes vec (output-int (addr-num arg))))
@@ -299,6 +294,17 @@
                   (output-matches (iterate-matches instr) vec)
                   (output-instrs (iterate-instrs instr) vec)
                   (add-byte #b00000001 vec)))
+		(:struct-val
+			(do-vm-values vec ((vm-struct-val-from instr) (vm-struct-val-to instr))
+				#b00011100
+				(vm-struct-val-idx instr)
+				(logand *value-mask* first-value)
+				(logand *value-mask* second-value)))
+		(:struct
+			(do-vm-values vec ((vm-make-struct-to instr))
+				#b00011101
+				(lookup-type-id (vm-make-struct-type instr))
+				(logand *value-mask* first-value)))
       (:move
 				(do-vm-values vec ((move-from instr) (move-to instr))
                 #b00110000
@@ -317,18 +323,18 @@
                (logand *value-mask* second-value)))
       (:cons (do-vm-values vec ((vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr))
                   #b00000100
-                  (output-cons-type (vm-cons-type instr))
+						(lookup-type-id (vm-cons-type instr))
                   (logand *value-mask* first-value)
                   (logand *value-mask* second-value)
                   (logand *value-mask* third-value)))
       (:head (do-vm-values vec ((vm-head-cons instr) (vm-head-dest instr))
                   #b00000101
-                  (output-cons-type (vm-head-type instr))
+						(lookup-type-id (vm-head-type instr))
                   (logand *value-mask* first-value)
                   (logand *value-mask* second-value)))
       (:tail (do-vm-values vec ((vm-tail-cons instr) (vm-tail-dest instr))
                   #b000000110
-                  (output-cons-type (vm-tail-type instr))
+						(lookup-type-id (vm-tail-type instr))
                   (logand *value-mask* first-value)
                   (logand *value-mask* second-value)))
       (:convert-float (do-vm-values vec ((vm-convert-float-place instr) (vm-convert-float-dest instr))
@@ -403,20 +409,36 @@
       (letret (vec (create-bin-array))
          (output-instrs instrs vec))))
 
-(defun type-to-byte (typ)
-	(case typ
-      (:type-int #b0000)
-      (:type-float #b0001)
-      (:type-addr #b0010)
-      (:type-list-int #b0011)
-      (:type-list-float #b0100)
-      (:type-list-addr #b0101)
-		(:type-string #b1001)
-      (otherwise (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ)))))
+(defun lookup-type-id (typ)
+	(let ((ret (position typ *program-types* :test #'equal)))
+		(assert (integerp ret))
+		ret))
+
+(defun type-to-bytes (typ)
+	(cond
+		((symbolp typ)
+			(case typ
+      		(:type-int '(#b0000))
+      		(:type-float '(#b0001))
+      		(:type-addr '(#b0010))
+				(:type-string '(#b1001))
+				(otherwise (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ)))))
+		((type-list-p typ)
+			(let* ((sub (type-list-element typ))
+					 (bytes (type-to-bytes sub)))
+				`(,#b0011 ,@bytes)))
+		((type-struct-p typ)
+			(let ((ls (type-struct-list typ)))
+				(let ((x `(,#b0100 ,(length ls) ,@(loop for ty in ls append (type-to-bytes ty)))))
+					x)))
+		(t (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ)))))
 
 (defun output-arg-type (typ vec)
-   (add-byte (type-to-byte typ) vec))
-
+	(add-byte (lookup-type-id typ) vec))
+		
+(defun write-arg-type (stream typ)
+	(write-hexa stream (lookup-type-id typ)))
+		
 (defun output-aggregate-type (agg typ)
    (case agg
       (:first #b0001)
@@ -426,10 +448,13 @@
       (:max (case typ
                (:type-int #b0010)
                (:type-float #b0101)))
-      (:sum (case typ
-               (:type-int #b0100)
-               (:type-float #b0111)
-               (:type-list-float #b1011)))))
+      (:sum (cond
+					((type-int-p typ) #b0100)
+					((type-float-p typ) #b0111)
+					((type-list-p typ)
+						(let ((sub (type-list-element typ)))
+							(cond
+								((type-float-p sub) #b1011))))))))
 
 (defun output-aggregate (types)
    (let ((agg (find-if #'aggregate-p types)))
@@ -460,7 +485,6 @@
       prop))
 
 (defparameter *max-tuple-name* 32)
-(defparameter *max-tuple-args* 32)
 (defparameter *max-agg-info* 32)
 
 (defmacro refill-up-to ((vec max) &body body)
@@ -477,9 +501,8 @@
          do (add-byte (char-code x) vec))))
          
 (defun output-tuple-type-args (types vec)
-   (refill-up-to (vec *max-tuple-args*)
-      (dolist (typ (definition-arg-types types))
-         (output-arg-type typ vec))))
+	(dolist (typ (definition-arg-types types))
+		(output-arg-type typ vec)))
          
 (defun output-stratification-level (def)
    (let ((level (definition-get-tagged-option def :strat)))
@@ -566,21 +589,22 @@
       (write-hexa stream (first ls))
       (write-hexa stream (second ls))))
 
+(defun write-list-stream (stream bytes)
+	(dolist (b bytes)
+		(write-hexa stream b)))
+
 (defun write-int-stream (stream int)
-   (dolist (part (output-int int))
-      (write-hexa stream part)))
+	(write-list-stream stream (output-int int)))
 
 (defun write-int64-stream (stream int)
-	(dolist (part (output-int64 int))
-		(write-hexa stream part)))
+	(write-list-stream stream (output-int64 int)))
 
 (defun write-string-stream (stream str)
    (loop for x being the elements of str
       do (write-hexa stream (char-code x))))
 
 (defun write-float-stream (stream flt)
-	(dolist (part (output-float flt))
-		(write-hexa stream part)))
+	(write-list-stream stream (output-float flt)))
 
 (defun write-nodes (stream nodes)
    (when (zerop (number-of-nodes nodes))
@@ -647,6 +671,27 @@
 				
 (defparameter +meld-magic+ '(#x6d #x65 #x6c #x64 #x20 #x66 #x69 #x6c))
 
+(defun add-type-to-typelist (types new)
+	(if (member new types :test #'equal)
+		types
+		(push new types)))
+		
+(defun collect-all-types ()
+	(setf *program-types* nil)
+	(do-definitions (:types types)
+		(dolist (ty types)
+			(setf *program-types* (add-type-to-typelist *program-types* (arg-type ty)))))
+	(do-constant-list *consts* (:type typ)
+		(setf *program-types* (add-type-to-typelist *program-types* typ)))
+	(do-externs *externs* (:types types :ret-type ret)
+		(setf *program-types* (add-type-to-typelist *program-types* ret))
+		(dolist (typ types)
+			(setf *program-types* (add-type-to-typelist *program-types* typ))))
+	(do-functions *functions* (:ret-type typ :args args)
+		(setf *program-types* (add-type-to-typelist *program-types* typ))
+		(dolist (arg args)
+			(setf *program-types* (add-type-to-typelist *program-types* (var-type arg))))))
+
 (defun do-output-header (stream)
 	(printdbg "Processing header...")
 	(dolist (magic +meld-magic+)
@@ -655,6 +700,11 @@
 	(write-int-stream stream *minor-version*)
 	(write-hexa stream (length *definitions*))
    (write-nodes stream *nodes*)
+	(collect-all-types)
+	(write-hexa stream (length *program-types*))
+	(loop for typ in *program-types*
+			do (let ((bytes (type-to-bytes typ)))
+					(write-list-stream stream bytes)))
 	(write-int-stream stream (length *imported-predicates*))
 	(do-imports *imported-predicates* (:imp imp :as as :from file)
 		(write-int-stream stream (length imp))
@@ -686,7 +736,7 @@
 	(printdbg "Processing constants...")
 	(write-int-stream stream (length *consts*))
 	(do-constant-list *consts* (:type typ)
-		(write-hexa stream (type-to-byte typ)))
+		(write-arg-type stream typ))
 	(write-int-stream stream (length consts))
 	(write-vec stream consts))
 	
@@ -731,11 +781,10 @@
 			do (write-hexa stream 0))
 		(write-int64-stream stream 0)
 		(write-int-stream stream (length types))
-		(write-hexa stream (type-to-byte ret))
+		(write-arg-type stream ret)
 		(dolist (typ types)
-			(write-hexa stream (type-to-byte typ)))
-		))
-
+			(write-arg-type stream typ))))
+			
 (defun do-output-data (stream)
 	(do-output-header stream)
 	(when (> (args-needed *ast*) 0)

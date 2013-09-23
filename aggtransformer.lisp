@@ -6,7 +6,12 @@
       (case agg
          (:first t)
          (:sum
-            (eq-or typ :type-int :type-float :type-list-int :type-list-float))
+				(or (type-int-p typ)
+					(type-float-p typ)
+					(if (type-list-p typ)
+						(let ((sub (type-list-element typ)))
+							(or (type-int-p sub)
+								(type-float-p sub))))))
          ((:min :max)
             (eq-or typ :type-int :type-float)))))
             
