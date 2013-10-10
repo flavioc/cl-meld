@@ -10,7 +10,6 @@
 (require 'asdf)
 (setf asdf:*asdf-verbose* nil) ; die messages die!
 (require 'asdf-install)
-(push "/Users/flaviocruz/Projects/LispMeld/" asdf:*central-registry*)
 (format t "==> Loading CL-Meld...~%")
 (asdf:oos 'asdf:load-op 'cl-meld)
 
