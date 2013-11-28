@@ -13,7 +13,6 @@
 (defun no-types-p (ls) (null ls))
 
 (defun merge-type (t1 t2)
-	;(warn "merge-type ~a ~a" t1 t2)
 	(assert (not (null t1)))
 	(assert (not (null t2)))
 	(if (equal t1 t2)
@@ -38,7 +37,6 @@
 		(t nil)))
 		
 (defun merge-with-suitable-list-type (types subtype)
-	;(warn "merge-with-suitable-list-type ~a ~a" types subtype)
 	(let ((ls (filter #'type-list-p types)))
 		(if (eq subtype :all)
 			ls
@@ -47,7 +45,6 @@
 					`(,f))))))
 		
 (defun merge-types (ls types)
-	;(warn "merge-types ~a ~a" ls types)
 	(cond
 		((= (length ls) (length types) 1)
 			(let ((t1 (first ls))
@@ -162,7 +159,6 @@
 		(mapcar #'type-struct-list (filter #'type-struct-p forced-types))))
          
 (defun get-type (expr forced-types body-p)
-	;(warn "get-type ~a ~a ~a" expr forced-types body-p)
 	(assert (not (null forced-types)))
 	(assert (not (null (first forced-types))))
    (labels ((do-get-type (expr forced-types)
@@ -437,13 +433,11 @@
          (error 'type-invalid-error :text "constraint must be of type bool"))))
 
 (defun update-assignment (assignments assign)
-	;(warn "update-assignment ~a" assign)
 	(let* ((var (assignment-var assign)) (var-name (var-name var)))
       (multiple-value-bind (forced-types ok) (gethash var-name *constraints*)
          (let ((ty (get-type (assignment-expr assign) (if ok forced-types *all-types*) t)))
             (variable-is-defined var)
-				;(warn "added ~a" var)
-            (force-constraint var-name ty)
+				(force-constraint var-name ty)
             (set-type var ty)
 				(dolist (used-var (all-variables (assignment-expr assign)))
                (when-let ((other (find-if #'(lambda (a)
@@ -519,6 +513,8 @@
 
 (defun transform-constant-to-constraint (arg &optional use-host-p)
    (cond
+		((var-p arg)
+			(values arg nil nil))
 		((and (addr-p arg) use-host-p)
 			(values (make-host-id) `(,(make-constraint (make-equal (make-host-id) '= arg))) nil))
 		((and (get-constant-p arg) use-host-p)
@@ -539,7 +535,10 @@
 				(multiple-value-bind (new-constraints new-vars)
 					(unfold-struct new-var arg)
 					(values new-var new-constraints `(,new-var ,@new-vars)))))
-      (t (values arg nil nil))))
+		((op-p arg)
+			(let ((new-var (generate-random-var (expr-type arg))))
+				(values new-var `(,(make-constraint (make-equal new-var '= arg))) `(,new-var))))
+		(t (error 'type-invalid-error :text (tostring "subgoal argument ~a is invalid" arg)))))
 
 (defun transform-constants-to-constraints-clause (clause args &optional only-addr-p)
    (mapcar #'(lambda (arg)

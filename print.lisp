@@ -10,7 +10,7 @@
 		start))
 
 (defun print-val (val &optional (hide-pars nil))
-   (cond
+	(cond
       ((var-p val) (tostring "~a" (var-name val)))
       ((int-p val) (tostring "~A" (int-val val)))
       ((float-p val) (tostring "~A" (float-val val)))
@@ -103,7 +103,7 @@
    (do-constraints subgoals (:expr expr :id id)
       (check-print-level stream)
       (format stream "~a" (print-val expr t))))
-      
+
 (defun print-assignments (stream subgoals)
    (do-assignments subgoals (:var var :expr expr :id id)
       (check-print-level stream)
