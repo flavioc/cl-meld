@@ -63,15 +63,15 @@
 
 ;; this is to be removed... soon
       
-(defun create-debug-file (prog)
-   (concatenate 'string "/Users/flaviocruz/Projects/meld/" prog ".meld"))
+(defun create-debug-file (prog ext)
+   (concatenate 'string "/Users/flaviocruz/Projects/meld/master/" prog ext))
 
 (defun comp (prog &optional (out nil))
 	(let ((output-file (if out out (pathname-name (pathname prog)))))
-   	(meld-compile (create-debug-file prog)
-                 	(concatenate 'string "/Users/flaviocruz/Projects/meld/" output-file))))
+   	(meld-compile (create-debug-file prog ".meld")
+                 	(create-debug-file output-file ""))))
 
 (defun comp-data (prog &optional (out nil))
 	(let ((output-file (if out out (pathname-name (pathname prog)))))
-		(meld-compile (create-debug-file prog)
-			(concatenate 'string "/Users/flaviocruz/Projects/meld/" output-file) t)))
+		(meld-compile (create-debug-file prog ".meld")
+         (create-debug-file output-file "") t)))

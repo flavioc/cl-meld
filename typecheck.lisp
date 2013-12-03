@@ -176,7 +176,11 @@
 									(error 'type-invalid-error :text
 												(tostring "variable ~a is not defined" (var-name expr))))
 								(force-constraint (var-name expr) forced-types))))
-               ((int-p expr) (merge-types forced-types '(:type-int :type-float)))
+					((bool-p expr) (merge-types forced-types '(:type-bool)))
+               ((int-p expr) (let ((new-types (merge-types forced-types '(:type-int :type-float))))
+											(if (one-elem-this new-types :type-float)
+												(transform-int-to-float expr))
+											new-types))
                ((float-p expr) (merge-types forced-types '(:type-float)))
                ((addr-p expr) (merge-types forced-types '(:type-addr)))
 					((argument-p expr) (merge-types forced-types '(:type-string)))
@@ -371,7 +375,7 @@
 				(unless (one-elem-p type-ret)
             	(error 'type-invalid-error :text (tostring "type error ~a type ~a" arg type-ret)))))))
 
-(defun do-type-check-agg-construct (c in-body-p)
+(defun do-type-check-agg-construct (c in-body-p clause)
 	(let ((old-defined (copy-list *defined*))
          (types nil))
    	(extend-typecheck-context
@@ -389,6 +393,7 @@
 			(do-type-check-assignments (agg-construct-body c))
 			(do-constraints (agg-construct-body c) (:expr expr)
 		     (do-type-check-constraints expr))
+			(optimize-agg-construct-constraints c clause)
 			(do-agg-specs (agg-construct-specs c) (:op op :var to)
 				(case op
 					(:min
@@ -408,9 +413,9 @@
 						(set-var-constraint (var-name to) '(:type-int)))))
 			(do-subgoals (agg-construct-head c) (:name name :args args :options options)
 		      (do-type-check-subgoal name args options))
-			(let ((new-body (remove-unneeded-assignments (agg-construct-body c) (agg-construct-head c))))
-		   	(do-type-check-assignments new-body)
-				(setf (agg-construct-body c) new-body))
+			(cleanup-assignments-from-agg-construct c)
+			(optimize-subgoals (agg-construct-head c) (append (clause-body clause) (agg-construct-body c)))
+			(cleanup-assignments-from-agg-construct c)
 			(let ((new-ones *defined-in-context*)
 					(target-variables (mapcar #'var-name (agg-construct-vlist c))))
               (do-agg-specs (agg-construct-specs c) (:op op :var to)
@@ -550,7 +555,51 @@
 							new-arg))
 				args))
 				
+(defun optimize-constraints-assignments (assigns constraints &optional constant-assigns constant-constraints)
+	"Optimizes constraints by computing constant expressions.
+	Returns new optimized set of constraints and assignments."
+	(let ((new-constraints constraints) (new-assigns assigns))
+		(loop for ass in assigns
+				do (setf (assignment-expr ass) (optimize-expr (assignment-expr ass) (append constraints constant-constraints) (append assigns constant-assigns))))
+		(loop for constr in constraints
+				do (let ((result (optimize-expr (constraint-expr constr) (append assigns constant-assigns) (append (remove-tree constraints constr) constant-constraints))))
+						(cond
+							((and (bool-p result) (bool-val result))
+								(warn "CONSTRAINT ~a is always true!" constr)
+								;; remove this constraint because it is always true
+								(delete-one new-constraints constr))
+							((and (bool-p result) (not (bool-val result)))
+								;; just a warning
+								(warn "CONSTRAINT ~a is always false!" constr))
+							(t
+								(setf (constraint-expr constr) result)))))
+		(append new-assigns new-constraints)))
+	
+(defun optimize-clause-constraints (clause)
+	(let* ((assigns (get-assignments (clause-body clause)))
+	  	 	 (constraints (get-constraints (clause-body clause)))
+		 	 (new-body (remove-all (remove-all (clause-body clause) assigns) constraints))
+		 	 (new-assigns-constraints (optimize-constraints-assignments assigns constraints)))
+		(setf (clause-body clause) (append new-body new-assigns-constraints))))
+		
+(defun optimize-comprehension-constraints (compr clause)
+	(let* ((assigns (get-assignments (comprehension-left compr)))
+			 (constraints (get-constraints (comprehension-left compr)))
+			 (new-body (remove-all (remove-all (comprehension-left compr) assigns) constraints))
+			 (new-assigns-constraints (optimize-constraints-assignments assigns constraints
+				(get-assignments (clause-body clause)) (get-constraints (clause-body clause)))))
+		(setf (comprehension-left compr) (append new-body new-assigns-constraints))))
+		
+(defun optimize-agg-construct-constraints (agg clause)
+	(let* ((assigns (get-assignments (agg-construct-body agg)))
+			 (constraints (get-constraints (agg-construct-body agg)))
+			 (new-body (remove-all (remove-all (agg-construct-body agg) assigns) constraints))
+			 (new-assigns-constraints (optimize-constraints-assignments assigns constraints 
+				(get-assignments (clause-body clause)) (get-constraints (clause-body clause)))))
+		(setf (agg-construct-body agg) (append new-body new-assigns-constraints))))
+
 (defun transform-clause-constants (clause)
+	"Removes all constants from the subgoal arguments by creating constraints."
    (do-subgoals (clause-body clause) (:args args :subgoal sub)
       (setf (subgoal-args sub) (transform-constants-to-constraints-clause clause args))))
 
@@ -597,10 +646,10 @@
    (do-axioms (:clause clause)
       (add-variable-head-clause clause)))
       
-(defun do-type-check-comprehension (comp)
+(defun do-type-check-comprehension (comp clause)
    (let ((target-variables (mapcar #'var-name (comprehension-variables comp))))
       (extend-typecheck-context
-			(type-check-comprehension comp)
+			(type-check-comprehension comp clause)
          ;; check if the set of new defined variables is identical to target-variables
          (let ((new-ones *defined-in-context*))
             (unless (subsetp new-ones target-variables)
@@ -620,7 +669,7 @@
 	(do-subgoals (clause-body clause) (:name name :args args :options options)
       (do-type-check-subgoal name args options :body-p t))
    (do-agg-constructs (clause-body clause) (:agg-construct c)
-      (do-type-check-agg-construct c t))
+      (do-type-check-agg-construct c t clause))
    (transform-clause-constants clause)
 	(reset-typecheck-context)
 	(when axiom-p
@@ -632,37 +681,59 @@
 				(variable-is-defined arg)
 				(force-constraint (var-name arg) `(,(var-type arg))))))
    (create-assignments (clause-body clause))
-   (assert-assignment-undefined (get-assignments (clause-body clause)))
+	(assert-assignment-undefined (get-assignments (clause-body clause)))
 	(do-type-check-assignments (clause-body clause))
 	(do-constraints (clause-body clause) (:expr expr)
-      (do-type-check-constraints expr)))
-
-(defun type-check-all-except-body (clause host &key check-comprehensions check-agg-constructs check-exists axiom-p)
-	(when (and axiom-p (not (variable-defined-p host)))
-		(variable-is-defined host))
-	(do-subgoals (clause-head clause) (:name name :args args :options options)
-      (do-type-check-subgoal name args options :axiom-p axiom-p))
-   (when check-comprehensions
-		(do-comprehensions (clause-head clause) (:comprehension comp)
-      	(do-type-check-comprehension comp)))
-	(when check-agg-constructs
-		(do-agg-constructs (clause-head clause) (:agg-construct c)
-			(do-type-check-agg-construct c nil)))
-	(when check-exists
-		(do-exists (clause-head clause) (:var-list vars :body body)
-			(do-type-check-exists vars body)))
+      (do-type-check-constraints expr))
+	(optimize-clause-constraints clause))
+	
+(defun cleanup-assignments-from-clause (clause)
 	(let ((new-body (remove-unneeded-assignments (clause-body clause) (clause-head clause))))
    	(do-type-check-assignments new-body)
 		(setf (clause-body clause) new-body)))
 		
-(defun type-check-body-and-head (clause host &key check-comprehensions check-agg-constructs check-exists axiom-p)
+(defun cleanup-assignments-from-comprehension (comp)
+	(let ((new-left (remove-unneeded-assignments (comprehension-left comp) (comprehension-right comp))))
+		(do-type-check-assignments new-left)
+		(setf (comprehension-left comp) new-left)))
+		
+(defun cleanup-assignments-from-agg-construct (agg)
+	(let ((new-body (remove-unneeded-assignments (agg-construct-body agg) (agg-construct-head agg))))
+   	(do-type-check-assignments new-body)
+		(setf (agg-construct-body agg) new-body)))
+		
+(defun type-check-clause-head-subgoals (clause &key axiom-p)
+	(do-subgoals (clause-head clause) (:name name :args args :options options)
+      (do-type-check-subgoal name args options :axiom-p axiom-p)))
+
+(defun type-check-all-except-body (clause host &key axiom-p)
+	(when (and axiom-p (not (variable-defined-p host)))
+		(variable-is-defined host))
+	(type-check-clause-head-subgoals clause :axiom-p axiom-p)
+	(do-comprehensions (clause-head clause) (:comprehension comp)
+     	(do-type-check-comprehension comp clause))
+	(do-agg-constructs (clause-head clause) (:agg-construct c)
+		(do-type-check-agg-construct c nil clause))
+	(do-exists (clause-head clause) (:var-list vars :body body)
+		(do-type-check-exists vars body)
+		(optimize-subgoals body (clause-body clause))))
+		
+(defun optimize-subgoals (subgoals ass-constrs)
+	(let ((ass (get-assignments ass-constrs))
+			(constrs (get-constraints ass-constrs)))
+		(do-subgoals subgoals (:args args :subgoal sub)
+			(let ((new-args (mapcar #L(optimize-expr !1 ass constrs) (rest args))))
+				(setf (subgoal-args sub) (cons (first args) new-args))))))
+		
+(defun type-check-body-and-head (clause host &key axiom-p)
 	(type-check-body clause host axiom-p)
-	(type-check-all-except-body clause host :check-comprehensions check-comprehensions
-													  	:check-agg-constructs check-agg-constructs
-													  	:check-exists check-exists
-													  	:axiom-p axiom-p))
-													
-(defun type-check-comprehension (comp)
+	(type-check-all-except-body clause host :axiom-p axiom-p)
+	(optimize-subgoals (clause-head clause) (clause-body clause))
+	;; we may need to re-check subgoals again because of optimizations
+	(type-check-clause-head-subgoals clause :axiom-p axiom-p)
+	(cleanup-assignments-from-clause clause))
+	
+(defun type-check-comprehension (comp clause)
 	(extend-typecheck-context
 		(with-comprehension comp (:left left :right right)
 			(do-subgoals left (:name name :args args :options options)
@@ -679,19 +750,19 @@
 		(do-type-check-assignments left)
 		(do-constraints left (:expr expr)
 	      (do-type-check-constraints expr)))
+	(optimize-comprehension-constraints comp clause)
 	(with-comprehension comp (:right right)
 		(do-subgoals right (:name name :args args :options options)
-      	(do-type-check-subgoal name args options)))
-	(let ((new-left (remove-unneeded-assignments (comprehension-left comp) (comprehension-right comp))))
-   	(do-type-check-assignments new-left)
-		(setf (comprehension-left comp) new-left)))
+      	(do-type-check-subgoal name args options))
+		(optimize-subgoals right (append (comprehension-left comp) (clause-body clause))))
+	(cleanup-assignments-from-comprehension comp))
 						
 (defun type-check-clause (clause axiom-p)
 	(with-typecheck-context
 		(let ((host (first-host-node (clause-body clause))))
 			(unless host
 				(setf host (first-host-node (clause-head clause))))
-			(type-check-body-and-head clause host :check-comprehensions t :check-agg-constructs t :check-exists t :axiom-p axiom-p))
+			(type-check-body-and-head clause host :axiom-p axiom-p))
 		;; add :random to every subgoal with such variable
 		(when (clause-has-random-p clause)
 			(let ((var (clause-get-random-variable clause)))

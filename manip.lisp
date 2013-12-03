@@ -11,6 +11,7 @@
                (list ,sym a c)))
             symbs)))
 
+;; available operations
 (define-makes :plus :minus :mul :mod :div
       :lesser :lesser-equal :greater :greater-equal
       :equal :assign :not-equal :or)
@@ -38,9 +39,15 @@
 (defun call-name (call) (second call))
 (defun call-args (call) (third call))
 
+(defun set-call-args (call new-args) (setf (third call) new-args))
+(defsetf call-args set-call-args)
+
 (defun make-callf (name args) `(:callf ,name ,args))
 (defun callf-name (call) (second call))
 (defun callf-args (call) (third call))
+
+(defun set-callf-args (call new-args) (setf (third call) new-args))
+(defsetf callf-args set-callf-args)
 
 (defun lookup-function (name)
 	(let ((fun (find-if #'(lambda (x) (string-equal (callf-name x) name)) *functions*)))
@@ -65,7 +72,7 @@
    (setf (third cons) tail))
 (defsetf cons-tail set-cons-tail)
 
-(defun make-head (c) `(:head ,c))
+(defun make-head (c &optional type) `(:head ,c ,type))
 (defun head-list (c) (second c))
 
 (defun set-head-list (head list)
@@ -82,7 +89,7 @@
 (defun make-true () '(:true))
 (defun make-false () '(:false))
 
-(defun make-not (expr) `(:not ,expr))
+(defun make-not (expr &optional type) `(:not ,expr ,type))
 (defun not-expr (not) (second not))
 
 (defun set-not-expr (not expr)
@@ -249,10 +256,13 @@
    (setf (second constraint) new-expr))
 (defsetf constraint-expr set-constraint-expr)
 
-(defun const-p (s)
-   (or (int-p s) (float-p s)
+(defun literal-p (s)
+	(or (int-p s) (float-p s)
 		(string-constant-p s)
-		(addr-p s)
+		(addr-p s)))
+
+(defun const-p (s)
+   (or (literal-p s)
 		(get-constant-p s)))
             
 (defun make-op (op op1 op2)
@@ -327,9 +337,14 @@
 (defun float-val (val) (second val))
 (defun make-float (flt) `(:float ,flt :type-float))
 
+(defun int-float-val (x) (second x))
+
+(defun transform-int-to-float (expr)
+	(setf (first expr) :float))
+
 (defun make-host-id () '(:host-id :type-addr))
 
-(defun make-convert-float (expr) `(:convert-float ,expr))
+(defun make-convert-float (expr) `(:convert-float ,expr :type-float))
 (defun convert-float-expr (flt) (second flt))
 
 (defun set-convert-float-expr (c expr)
@@ -520,6 +535,11 @@
 
 (defun lookup-extern (name)
    (find-if #L(string-equal name (extern-name !1)) *externs*))
+
+(defun make-const-definition (name expr) `(:const ,name ,expr))
+(defun const-definition-p (const) (tagged-p const :const))
+(defun const-definition-name (const) (second const))
+(defun const-definition-expr (const) (third const))
 
 (defun lookup-const (name)
 	(find-if #L(string-equal name (constant-name !1)) *consts*))

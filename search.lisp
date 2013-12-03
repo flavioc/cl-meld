@@ -127,21 +127,32 @@
                   body (remove-all body next-unneeded))
          finally (return body)))
 
+
 (defmacro find-constraints (body &rest fns)
-   `(mapfilter #'constraint-expr #L(and (constraint-p !1)
-                                       ,@(loop for fn in fns
-                                              collect `(funcall ,fn (constraint-expr !1))))
-         ,body))
+	`(filter #L(and (constraint-p !1) ,@(loop for fn in fns collect `(funcall ,fn (constraint-expr !1)))) body))
+	
+(defmacro find-constraints-expr (body &rest fns)
+	`(mapcar #'constraint-expr (find-constraints ,body ,@fns)))
 
 (defun constraint-by-var1 (var-name expr) (var-eq-p var-name (op-op1 expr)))
 (defun constraint-by-var2 (var-name expr) (var-eq-p var-name (op-op2 expr)))
 
 (defun subgoal-by-name (name) #L(string-equal name (subgoal-name !1)))
 
-(defun find-assignment-constraints (body var)
-   (find-constraints body
+(defun find-assignment-constraints-expr (body var)
+	"Finds all assignments in body and returns their right hand side expression."
+   (find-constraints-expr body
                      #L(equal-p !1)
                      #L(constraint-by-var1 var !1)))
+
+(defun find-assignment-constraints (body var)
+	(find-constraints body #L(equal-p !1) #L(constraint-by-var1 var !1)))
+
+(defun find-assignment-by-var (body var)
+	"Finds the first assignment expression of a certain variable."
+	(let ((r (find-if #'(lambda (a) (and (assignment-p a) (var-eq-p var (assignment-var a)))) body)))
+		(when r
+			(assignment-expr r))))
 
 (defun subgoal-appears-code-p (code subgoal-name)
    (do-subgoals code (:name name)
@@ -193,4 +204,126 @@
 (defun find-clauses-with-subgoal-in-body (subgoal-name)
    (filter #'(lambda (clause) (clause-body-matches-subgoal-p clause subgoal-name))
 				*clauses*))
+				
+(defun get-variable-equal-constraints (constraints)
+	(filter #'(lambda (c) (let ((e (constraint-expr c)))
+									(and (eq (op-op e) :equal)
+												(var-p (op-op1 e)))))
+	 							constraints))
 
+(defun expr-is-constant-p (expr constraints assigns)
+	"Decides if the 'expr' is a constant by using the equal operations in constraints and the assignments.
+	Returns a new constant and computable expression."
+	(cond
+		((bool-p expr) expr)
+		((host-id-p expr) nil)
+		((literal-p expr) expr)
+		((nil-p expr) expr)
+		((call-p expr) nil)
+		((callf-p expr) nil)
+		((cons-p expr) nil)
+		((world-p expr) nil)
+		((if-p expr) 
+			(let ((c (expr-is-constant-p (if-cmp expr) constraints assigns)))
+				(when c
+					(let ((e1 (expr-is-constant-p (if-e1 expr) constraints assigns)))
+						(when e1
+							(let ((e2 (expr-is-constant-p (if-e2 expr) constraints assigns)))
+								(make-if c e1 e2 (expr-type expr))))))))
+		((convert-float-p expr)
+			(let ((i (expr-is-constant-p (convert-float-expr expr) constraints assigns)))
+				(when i
+					(make-convert-float i))))
+		((test-nil-p expr)
+			(let ((x (expr-is-constant-p (test-nil-expr expr) constraints assigns)))
+				(cond
+					((and x (cons-p x))
+						(make-bool t))
+					((and x (nil-p x))
+						(make-bool nil))
+					(t nil))))
+		((head-p expr)
+			(let ((c (expr-is-constant-p (head-list expr) constraints assigns)))
+				(when c
+					(make-head c (expr-type expr)))))
+		((not-p expr)
+			(let ((c (expr-is-constant-p (not-expr expr) constraints assigns)))
+				(when c
+					(make-not c (expr-type expr)))))
+		((get-constant-p expr)
+			(let ((c (lookup-const (get-constant-name expr))))
+				(expr-is-constant-p (const-definition-expr c) nil nil)))
+		((var-p expr)
+			(let ((cs (find-assignment-constraints-expr constraints expr)))
+				(dolist (c cs)
+					(let ((ret (expr-is-constant-p (op-op2 c) constraints assigns)))
+						(when ret
+							(return-from expr-is-constant-p ret))))
+				(let ((ass-expr (find-assignment-by-var assigns expr)))
+					(when ass-expr
+						(expr-is-constant-p ass-expr constraints assigns)))))
+		((op-p expr)
+			(let ((e1 (op-op1 expr))
+					(e2 (op-op2 expr)))
+				(let ((c1 (expr-is-constant-p e1 constraints assigns)))
+					(when c1
+						(let ((c2 (expr-is-constant-p e2 constraints assigns)))
+							(when c2
+								(make-op (op-op expr) c1 c2)))))))
+		((tail-p expr)
+			(let ((ret (expr-is-constant-p (tail-list expr) constraints assigns)))
+				(when ret
+					(make-tail ret))))
+		(t
+			(warn "-----NOT CONSIDERING ~a as constant-----" expr)
+			nil)))
+			
+(defmacro compute-arith-expr (expr c1 c2 op)
+	(with-gensyms (typ)
+		`(let ((,typ (expr-type ,expr)))
+			(cond
+				((and (int-p ,c1) (int-p ,c2))
+					(make-int (,op (int-val ,c1) (int-val ,c2)) :type-int))
+				((and (int-p ,c1) (float-p ,c2))
+					(if (eq ,typ :type-int)
+						(make-int (,op (int-val ,c1) (float-val ,c2)) ,typ)
+						(make-float (,op (int-val ,c1) (float-val ,c2)))))
+				((and (float-p ,c1) (int-p ,c2))
+					(if (eq ,typ :type-int)
+						(make-int (,op (float-val ,c1) (int-val ,c2)) ,typ)
+						(make-float (,op (float-val ,c1) (int-val ,c2)))))
+				((and (float-p ,c1) (float-p ,c2))
+					(make-float (,op (float-val ,c1) (float-val ,c2))))
+				(t (error 'expr-invalid-error :text (tostring "cannot optimize arithmetic operation ~a" ,expr)))))))
+			
+(defun compute-constant-expr (expr)
+	"Compiles constant expression into a constant."
+	(cond
+		((const-p expr) expr)
+		((bool-p expr) expr)
+		((nil-p expr) expr)
+		((op-p expr)
+			(let* ((op (op-op expr))
+				    (e1 (op-op1 expr))
+				 	 (e2 (op-op2 expr))
+					 (c1 (compute-constant-expr e1))
+					 (c2 (compute-constant-expr e2)))
+				(case op
+					(:plus (compute-arith-expr expr c1 c2 +))
+					(:minus (compute-arith-expr expr c1 c2 -))
+					(:mul (compute-arith-expr expr c1 c2 *))
+					(:div (compute-arith-expr expr c1 c2 /))
+					(:lesser (make-bool (< (int-float-val c1) (int-float-val c2))))
+					(:lesser-equal (make-bool (<= (int-float-val c1) (int-float-val c2))))
+					(:equal (cond
+								((and (int-p c1) (int-p c2))
+									(make-bool (= (int-val c1) (int-val c2))))
+								((and (float-p c1) (float-p c2))
+									(make-bool (= (float-val c1) (float-val c2))))
+								(t (error 'expr-invalid-error :text (tostring "evaluation of ~a is not supported yet." expr)))))
+					(t (error 'expr-invalid-error :text (tostring "evaluation of ~a is not supported yet." expr))))))
+		((tail-p expr)
+			(let ((res (compute-constant-expr (tail-list expr))))
+				(cons-tail res)))
+		(t
+			(error 'expr-invalid-error :text (tostring "evaluation of ~a is not supported yet." expr)))))

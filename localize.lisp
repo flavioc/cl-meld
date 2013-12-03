@@ -57,7 +57,7 @@
             (if (equal route name)
                (let* ((reverse-host (second args))
                       (host-var (first args))
-                      (constraint-expr (first (find-assignment-constraints body host-var)))
+                      (constraint-expr (first (find-assignment-constraints-expr body host-var)))
                       (real-host (op-op2 constraint-expr))
                       (remain-args (drop-first-n args 2))
                       (new-clause (make-clause nil `(,(make-subgoal new-name `(,reverse-host ,real-host ,@remain-args)))))) 

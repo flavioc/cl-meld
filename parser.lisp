@@ -130,11 +130,6 @@
 			 (remain (subseq remain1 0 (- (length remain1) 2))))
 		(parse-integer remain)))
 
-(defun make-const-definition (name expr) `(:const ,name ,expr))
-(defun const-definition-p (const) (tagged-p const :const))
-(defun const-definition-name (const) (second const))
-(defun const-definition-expr (const) (third const))
-
 (defvar *parsed-consts* nil)
 (defun lookup-const-def (name)
 	(let ((x (find-if #L(equal (const-definition-name !1) name) *parsed-consts*)))

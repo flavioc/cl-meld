@@ -154,7 +154,7 @@
                   (remove-used-var (var-name (let-var expr)))
                   (return-expr place-body `(,@code-expr ,@code-body))))))
       ((if-p expr)
-         (with-compiled-expr (place-cmp code-cmp) (if-cmp expr)
+			(with-compiled-expr (place-cmp code-cmp) (if-cmp expr)
             (with-dest-or-new-reg (dest)
                (let ((code1 (compile-expr-to (if-e1 expr) dest))
                      (code2 (compile-expr-to (if-e2 expr) dest)))
@@ -218,15 +218,22 @@
                (values new-reg `(,(make-move var new-reg)))))) 
          default))
 
-(defun add-subgoal (subgoal reg &optional (in-c reg))
+(defun add-subgoal (subgoal reg body &optional (in-c reg))
+	"Adds subgoal to the compilation context and returns several low constraints plus the updated body of the rule."
    (with-subgoal subgoal (:args args)
-      (filter #L(not (null !1))
-         (loop for arg in args
-               for i upto (length args)
-               collect (let ((already-defined (lookup-used-var (var-name arg))))
-                        (cond
-                           (already-defined (make-low-constraint (expr-type arg) (make-reg-dot in-c i) already-defined))
-                           (t (add-used-var (var-name arg) (make-reg-dot reg i)) nil)))))))
+        (let ((low-constraints (loop for arg in args
+								              for i upto (length args)
+								              append (let ((already-defined (lookup-used-var (var-name arg))))
+								                       (cond
+								                          (already-defined (list (make-low-constraint (expr-type arg) (make-reg-dot in-c i) already-defined)))
+								                          (t
+																	(let* ((cs (find-assignment-constraints body arg))
+																		    (first-const (find-if #L(and (op-p (constraint-expr !1)) (literal-p (op-op2 (constraint-expr !1)))) cs)))
+																		(add-used-var (var-name arg) (make-reg-dot reg i))
+																		(when first-const
+																			(delete-one body first-const)
+																			(list (make-low-constraint (expr-type arg) (make-reg-dot in-c i) (op-op2 (constraint-expr first-const))))))))))))
+				(values low-constraints body))))
 
 (defun compile-remain-delete-args (n ls)
    (if (null ls)
@@ -424,28 +431,31 @@
 							(find-if #'subgoal-p body))))))))
                      
 (defun compile-iterate (body orig-body head clause subgoal delete-regs &key (inside nil) (head-compiler #'do-compile-head-code))
+
    (multiple-value-bind (constraints assignments) (get-compile-constraints-and-assignments body)
-      (let* ((next-sub (select-next-subgoal-for-compilation body))
-             (rem-body (remove-unneeded-assignments (remove-tree-first next-sub (remove-all body constraints)) head)))
+		(let* ((next-sub (select-next-subgoal-for-compilation body))
+             (body1 (remove-unneeded-assignments (remove-tree-first next-sub (remove-all body constraints)) head)))
          (compile-constraints-and-assignments constraints assignments
             (if (not next-sub)
-					(compile-head rem-body head clause subgoal delete-regs inside head-compiler)
+					(compile-head body1 head clause subgoal delete-regs inside head-compiler)
                (let ((next-sub-name (subgoal-name next-sub)))
                   (with-reg (reg next-sub)
-                     (let* ((match-constraints (mapcar #'rest (add-subgoal next-sub reg :match)))
-                            (def (lookup-definition next-sub-name))
-                            (new-delete-regs (if (subgoal-to-be-deleted-p next-sub def)
-                                                (cons reg delete-regs) delete-regs))
-                            (iterate-code (compile-iterate rem-body orig-body head clause subgoal new-delete-regs
+							(multiple-value-bind (low-constraints body2) (add-subgoal next-sub reg body1 :match)
+								; body2 may have a reduced number of constraints
+	                    (let* ((match-constraints (mapcar #'rest low-constraints))
+	                           (def (lookup-definition next-sub-name))
+	                           (new-delete-regs (if (subgoal-to-be-deleted-p next-sub def)
+	                                               (cons reg delete-regs) delete-regs))
+	                           (iterate-code (compile-iterate body2 orig-body head clause subgoal new-delete-regs
 																					:inside t :head-compiler head-compiler))
-                            (other-code `(,(make-move :tuple reg) ,@iterate-code)))
-                        `(,(make-iterate next-sub-name
+	                           (other-code `(,(make-move :tuple reg) ,@iterate-code)))
+	                       `(,(make-iterate next-sub-name
 											match-constraints other-code
 											:random-p (subgoal-has-random-p next-sub)
 											:min-p (subgoal-has-min-p next-sub)
 											:min-arg (subgoal-get-min-variable-position next-sub)
-											:to-delete-p (subgoal-to-be-deleted-p next-sub def)))))))))))
-      
+											:to-delete-p (subgoal-to-be-deleted-p next-sub def))))))))))))
+     
 (defun compile-constraint (inner-code constraint)
    (let ((c-expr (constraint-expr constraint)))
       (with-compiled-expr (reg expr-code) c-expr
@@ -488,23 +498,20 @@
                            (make-vm-if reg old))))
                constraints :initial-value inner-code :from-end t)))
 
-(defun compile-initial-subgoal-aux (body orig-body head clause subgoal)
-	(let ((without-subgoal (remove-tree subgoal body)))
-      (if (null (subgoal-args subgoal))
-         (compile-iterate without-subgoal orig-body head clause subgoal nil)
-         (with-reg (sub-reg subgoal)
-            (let ((start-code (make-move :tuple sub-reg))
-                  (low-constraints (add-subgoal subgoal sub-reg))
-                  (inner-code (compile-iterate without-subgoal orig-body head clause subgoal nil)))
-               `(,start-code ,@(compile-low-constraints low-constraints inner-code)))))))
-
 (defun get-first-min-subgoal (body)
 	(do-subgoals body (:subgoal sub)
 		(when (subgoal-has-min-p sub)
 			(return-from get-first-min-subgoal sub))))
 
 (defun compile-initial-subgoal (body orig-body head clause subgoal)
-	(compile-initial-subgoal-aux body orig-body head clause subgoal))
+	(let ((body1 (remove-tree subgoal body)))
+      (if (null (subgoal-args subgoal))
+         (compile-iterate body1 orig-body head clause subgoal nil)
+         (with-reg (sub-reg subgoal)
+				(multiple-value-bind (low-constraints body2) (add-subgoal subgoal sub-reg body1)
+	            (let ((start-code (make-move :tuple sub-reg))
+							(inner-code (compile-iterate body2 orig-body head clause subgoal nil)))
+	               `(,start-code ,@(compile-low-constraints low-constraints inner-code))))))))
 
 (defun get-my-subgoals (body name)
    (filter #'(lambda (sub)
@@ -608,7 +615,7 @@
 												,(make-return)))) (list (lookup-def-id "_init")) nil))
 			(other-rules (do-rules (:clause clause :id id :operation collect)
 								(with-clause clause (:body body :head head)
-		 							(make-rule-code (with-empty-compile-context
+									(make-rule-code (with-empty-compile-context
 												`(,(make-vm-rule (1+ id)) ,@(compile-iterate body body head clause t nil) ,(make-return)))
 											(rule-subgoal-ids clause)
 											(clause-is-persistent-p clause))))))

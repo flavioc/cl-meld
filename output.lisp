@@ -620,7 +620,7 @@
 	(case order
 		(:asc #b00000001)
 		(:desc #b00000000)))
-
+		
 ;;
 ;; the following 3 functions output the main byte-code options
 ;;

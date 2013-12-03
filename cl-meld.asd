@@ -45,7 +45,8 @@
 		 			         :depends-on ("package"
 		 			                      "util"
 		 			                      "manip"
-		 			                      "macros"))
+		 			                      "macros"
+												 "search"))
 		 			(:file "types"
 		 			         :depends-on ("package"
 		 			                      "util"

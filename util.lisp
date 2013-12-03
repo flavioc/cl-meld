@@ -19,6 +19,10 @@
    (if (listp list)
       (null (cdr list))
       t))
+
+(defun one-elem-this (list this)
+	(and (one-elem-p list)
+			(equal (car list) this)))
    
 (defun at-least-n-p (ls n)
    (if (zerop n)
@@ -80,6 +84,9 @@
 
 (defun remove-tree (tree ls) (remove tree ls :test #'equal))
 (defun remove-tree-first (tree ls) (remove tree ls :test #'equal :count 1))
+
+(defmacro delete-one (from item)
+	`(setf ,from (delete ,item ,from :test #'equal)))
 
 (defmacro delete-all (from ls)
    (with-gensyms (el)

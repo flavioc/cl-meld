@@ -194,7 +194,7 @@
           (found (find-if #L(var-eq-p (assignment-var !1) var) assignments)))
       (if found
          (assignment-expr found)
-         (let ((op-expr (find-assignment-constraints body var)))
+         (let ((op-expr (find-assignment-constraints-expr body var)))
             (when op-expr
                (op-op2 (first op-expr)))))))
    
