@@ -11,6 +11,7 @@
 
 (defun print-val (val &optional (hide-pars nil))
 	(cond
+		((bool-p val) (tostring "~a" (if (bool-val val) "true" "false"))) 
       ((var-p val) (tostring "~a" (var-name val)))
       ((int-p val) (tostring "~A" (int-val val)))
       ((float-p val) (tostring "~A" (float-val val)))

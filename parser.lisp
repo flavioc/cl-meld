@@ -77,6 +77,7 @@
 										("immediate" :immediate)
 										("extern" :extern)
 										("const" :const-decl)
+										("bool" :type-bool)
 										("int" :type-int)
 										("float" :type-float)
 										("node" :type-addr)
@@ -100,6 +101,8 @@
 										("else" :else)
 										("min" :min)
 										("priority" :prio)
+										("true" :true)
+										("false" :false)
 										("nil" :nil))
 					(values typ rest *line-number*))))))
 					
@@ -239,8 +242,8 @@
  	
  	(:precedence ((:left :mul :div :mod) (:left :or :plus :minus)))
  	
-	(:terminals (:const :type :variable :number :string :lparen :rparen
-								:bar :arrow :dot :comma :type-int :type-addr
+	(:terminals (:const :type :true :false :variable :number :string :lparen :rparen
+								:bar :arrow :dot :comma :type-bool :type-int :type-addr
 								:type-float :type-string :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl :arg
@@ -401,6 +404,7 @@
 		(atype :comma type-list #'(lambda (ty comma ls) (declare (ignore comma)) (cons ty ls))))
 
 	(base-type
+	 (:type-bool (return-const :type-bool))
  	 (:type-int (return-const :type-int))
  	 (:type-float (return-const :type-float))
  	 (:type-addr (return-const :type-addr))
@@ -528,6 +532,8 @@
 	(expr
 	   variable
 		arg
+		(:true (return-const (make-bool t)))
+		(:false (return-const (make-bool nil)))
 		(:string #'(lambda (x) (make-string-constant (subseq x 1 (1- (length x)))))) ;; need to trim the first and final ""
 	   (const :lparen args :rparen #'(lambda (name l args r) (declare (ignore l r))
 	            (acond

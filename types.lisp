@@ -74,7 +74,7 @@
 (defun expr-type (expr)
    (cond
       ((or (nil-p expr) (host-id-p expr)) (second expr))
-      ((or (var-p expr) (int-p expr) (float-p expr) (addr-p expr) (tail-p expr)
+      ((or (var-p expr) (int-p expr) (bool-p expr) (float-p expr) (addr-p expr) (tail-p expr)
            (head-p expr) (not-p expr) (test-nil-p expr)
            (convert-float-p expr)
 			  (get-constant-p expr)

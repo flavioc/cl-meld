@@ -27,6 +27,7 @@
    (cond
       ;; we do nothing for these
       ((var-p expr))
+		((bool-p expr))
 		((int-p expr))
       ((float-p expr))
 		((host-id-p expr))

@@ -35,6 +35,7 @@
 
 (defun output-value (val)
    (cond
+		((vm-bool-p val) (list #b001100 (list (if (vm-bool-val val) #b1 #b0))))
       ((vm-int-p val) (list #b000001 (output-int (vm-int-val val))))
       ((vm-float-p val) (list #b000000 (output-float (vm-float-val val))))
 		((vm-string-constant-p val)
@@ -421,6 +422,7 @@
       		(:type-int '(#b0000))
       		(:type-float '(#b0001))
       		(:type-addr '(#b0010))
+				(:type-bool '(#b0101))
 				(:type-string '(#b1001))
 				(otherwise (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ)))))
 		((type-list-p typ)

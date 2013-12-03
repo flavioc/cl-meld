@@ -48,6 +48,7 @@
                         (aux (if-cmp expr))
                         (aux (if-e1 expr))
                         (aux (if-e2 expr)))
+							((bool-p expr) nil)
                      ((var-p expr) nil)
                      ((int-p expr) nil)
                      ((float-p expr) nil)

@@ -152,6 +152,10 @@
 (defun vm-alloc-tuple (alloc) (second alloc))
 (defun vm-alloc-reg (alloc) (third alloc))
 
+(defun make-vm-bool (v) `(:bool ,v))
+(defun vm-bool-val (v) (second v))
+(defun vm-bool-p (v) (tagged-p v :bool))
+
 (defun make-vm-int (int) `(:int ,int))
 (defun vm-int-p (int) (tagged-p int :int))
 (defun vm-int-val (int) (second int))

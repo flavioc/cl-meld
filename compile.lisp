@@ -97,6 +97,8 @@
 (defun compile-expr (expr &optional dest)
 	;(warn "compile-expr ~a ~a" expr dest)
    (cond
+		((bool-p expr)
+		 (return-expr (make-vm-bool (bool-val expr))))
       ((int-p expr) ;; Int expression in the previous phases maybe coerced into a float
          (let ((typ (expr-type expr)))
             (return-expr (funcall (if (type-int-p typ) #'make-vm-int #'make-vm-float)

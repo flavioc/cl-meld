@@ -22,7 +22,7 @@
                   (tagged-p val ,sy)))
          symbs)))
          
-(define-is-p :int :float :var :plus :minus :mul :div :mod
+(define-is-p :bool :int :float :var :plus :minus :mul :div :mod
             :equal :not-equal
             :lesser :lesser-equal :greater :greater-equal
             :convert-float :world :colocated
@@ -313,6 +313,9 @@
 (defun make-string-constant (v) `(:string ,v :type-string))
 (defun string-constant-val (x) (second x))
 (defun string-constant-p (x) (tagged-p x :string))
+
+(defun make-bool (v) `(:bool ,v :type-bool))
+(defun bool-val (b) (second b))
    
 (defun int-val (val) (second val))
 (defun make-int (int &optional typ)

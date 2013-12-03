@@ -105,7 +105,7 @@
    (let ((typ (list (try-one typs))))
       (cond
          ((or (nil-p expr) (world-p expr) (host-id-p expr)) (setf (cdr expr) typ))
-         ((or (var-p expr) (int-p expr) (float-p expr) (string-constant-p expr) (tail-p expr) (head-p expr)
+         ((or (var-p expr) (bool-p expr) (int-p expr) (float-p expr) (string-constant-p expr) (tail-p expr) (head-p expr)
                (not-p expr) (test-nil-p expr) (addr-p expr) (convert-float-p expr)
 					(get-constant-p expr) (struct-p expr))
             (setf (cddr expr) typ))
