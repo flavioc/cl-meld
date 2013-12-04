@@ -298,14 +298,16 @@
                (add-byte (logand *reg-mask* reg-b) vec)
                (jumps-here vec)
                (output-instrs (vm-if-instrs instr) vec))))
-      (:iterate (write-jump vec 4
-                  (add-byte #b10100000 vec)
-                  (add-byte (lookup-def-id (iterate-name instr)) vec)
-						(multiple-value-bind (b1 b2) (iterate-options-bytes instr)
-							(add-byte b1 vec)
-							(add-byte b2 vec))
-                  (jumps-here vec)
-                  (output-matches (iterate-matches instr) vec)
+      (:iterate (write-jump vec 8 ;; outside jump
+						(write-jump vec 4 ;; inner jump
+                  	(add-byte #b10100000 vec)
+                  	(add-byte (lookup-def-id (iterate-name instr)) vec)
+							(multiple-value-bind (b1 b2) (iterate-options-bytes instr)
+								(add-byte b1 vec)
+								(add-byte b2 vec))
+                  	(jumps-here vec)
+							(jumps-here vec)
+                  	(output-matches (iterate-matches instr) vec))
                   (output-instrs (iterate-instrs instr) vec)
                   (add-byte #b00000001 vec)))
 		(:struct-val
