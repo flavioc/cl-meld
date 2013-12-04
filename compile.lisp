@@ -218,21 +218,94 @@
                (values new-reg `(,(make-move var new-reg)))))) 
          default))
 
+(defun find-matchable-constraint-for-var (body var reg level)
+	(cond
+		((int-p var) (values (make-vm-int (int-val var)) nil))
+		((float-p var) (values (make-vm-float (float-val var)) nil))
+		((var-p var)
+			(let ((already-defined (lookup-used-var (var-name var))))
+		   	(cond
+		      	(already-defined
+						(cond
+							((zerop level)
+							 (values already-defined nil))
+							((not (reg-eq-p (reg-dot-reg already-defined) reg))
+								(values already-defined nil))))
+					(t
+						(let ((literal-constr (find-if #L(and (op-p (constraint-expr !1)) (literal-p (op-op2 (constraint-expr !1))))
+															(find-assignment-constraints body var)))
+								(non-nil-constr (find-if #'(lambda (cs)
+																		(let ((note (not-expr (constraint-expr cs))))
+																			(when (test-nil-p note)
+																				(var-eq-p var (test-nil-expr note)))))
+																	(find-not-constraints body)))
+								(nil-constr (find-if #'(lambda (cs)
+																	(let ((v (test-nil-expr (constraint-expr cs))))
+																		(var-eq-p var v)))
+																(find-test-nil-constraints body))))
+							(cond
+								(literal-constr
+									(values (op-op2 (constraint-expr literal-constr)) (list literal-constr)))
+								(non-nil-constr
+									(multiple-value-bind (ls new-constraints) (get-possible-list-constraint body var reg level)
+										(if ls
+											(values ls (cons non-nil-constr new-constraints))
+											(values (make-vm-non-nil) (list non-nil-constr)))))
+								(nil-constr
+									(values (make-vm-nil) (list nil-constr)))))))))))
+							
+(defun get-possible-list-constraint (body arg reg level)
+	"Looks into body if the list variable arg has constraints in relation to its structure."
+	(let ((head-ass (find-if #'(lambda (ass) (let ((e (assignment-expr ass)))
+																(when (head-p e)
+																	(var-eq-p (head-list e) arg))))
+										(get-assignments body)))
+			(head-eqs (find-constraints body #L(and (equal-p !1) (head-p (op-op2 !1)) (var-eq-p (head-list (op-op2 !1)) arg))))
+			(tail-ass (find-if #'(lambda (ass) (let ((e (assignment-expr ass)))
+																(when (tail-p e)
+																	(var-eq-p (tail-list e) arg))))
+									(get-assignments body)))
+			(tail-eq-nil (find-constraints body #L(and (equal-p !1) (nil-p (op-op1 !1)) (tail-p (op-op2 !1)) (var-eq-p (tail-list (op-op2 !1)) arg))))
+			head-constraints head-value tail-constraints tail-value)
+		(cond
+			(head-ass
+				(let ((head-var (assignment-var head-ass)))
+					(multiple-value-bind (val head-consts) (find-matchable-constraint-for-var body head-var reg (1+ level))
+						(setf head-constraints head-consts
+								head-value val))))
+			(head-eqs
+				(let ((head-expr (op-op1 (constraint-expr (first head-eqs)))))
+					(multiple-value-bind (val head-consts) (find-matchable-constraint-for-var body head-expr reg (1+ level))
+						(when val
+							(setf head-constraints head-eqs
+									head-value val))))))
+		(cond
+			(tail-ass
+				(let ((tail-var (assignment-var tail-ass)))
+					(multiple-value-bind (val tail-consts) (find-matchable-constraint-for-var body tail-var reg (1+ level))
+				 		(setf tail-constraints tail-consts
+								tail-value val))))
+			(tail-eq-nil
+				(setf tail-constraints tail-eq-nil
+						tail-value (make-vm-nil))))
+		(when (or head-value tail-value)
+			(unless tail-value
+				(setf tail-value (make-vm-any)))
+			(unless head-value
+				(setf head-value (make-vm-any)))
+			(values (make-vm-list head-value tail-value) (append head-constraints tail-constraints)))))
+			
 (defun add-subgoal (subgoal reg body &optional (in-c reg))
 	"Adds subgoal to the compilation context and returns several low constraints plus the updated body of the rule."
    (with-subgoal subgoal (:args args)
         (let ((low-constraints (loop for arg in args
 								              for i upto (length args)
-								              append (let ((already-defined (lookup-used-var (var-name arg))))
-								                       (cond
-								                          (already-defined (list (make-low-constraint (expr-type arg) (make-reg-dot in-c i) already-defined)))
-								                          (t
-																	(let* ((cs (find-assignment-constraints body arg))
-																		    (first-const (find-if #L(and (op-p (constraint-expr !1)) (literal-p (op-op2 (constraint-expr !1)))) cs)))
-																		(add-used-var (var-name arg) (make-reg-dot reg i))
-																		(when first-const
-																			(delete-one body first-const)
-																			(list (make-low-constraint (expr-type arg) (make-reg-dot in-c i) (op-op2 (constraint-expr first-const))))))))))))
+								              append (multiple-value-bind (val constrs-to-remove) (find-matchable-constraint-for-var body arg reg 0)
+																(when (or (not val) (not (reg-dot-p val)))
+																	(add-used-var (var-name arg) (make-reg-dot reg i)))
+																(when val
+																	(delete-all body constrs-to-remove)
+																	(list (make-low-constraint (expr-type arg) (make-reg-dot in-c i) val)))))))
 				(values low-constraints body))))
 
 (defun compile-remain-delete-args (n ls)
@@ -429,6 +502,18 @@
 						(if with-mod
 							with-mod
 							(find-if #'subgoal-p body))))))))
+							
+(defun constraints-in-the-same-subgoal-p (reg)
+	#'(lambda (c)
+		(let ((v1 (low-constraint-v1 c))
+				(v2 (low-constraint-v2 c)))
+			(when (and (reg-dot-p v1)
+							(reg-dot-p v2))
+				(reg-eq-p reg (reg-dot-reg v2))))))
+				
+(defun transform-reg-matches (reg)
+	#'(lambda (c)
+		(make-low-constraint (low-constraint-type c) (make-reg-dot reg (reg-dot-field (low-constraint-v1 c))) (low-constraint-v2 c))))
                      
 (defun compile-iterate (body orig-body head clause subgoal delete-regs &key (inside nil) (head-compiler #'do-compile-head-code))
 
@@ -442,13 +527,16 @@
                   (with-reg (reg next-sub)
 							(multiple-value-bind (low-constraints body2) (add-subgoal next-sub reg body1 :match)
 								; body2 may have a reduced number of constraints
-	                    (let* ((match-constraints (mapcar #'rest low-constraints))
-	                           (def (lookup-definition next-sub-name))
-	                           (new-delete-regs (if (subgoal-to-be-deleted-p next-sub def)
+								(let* ((match-constraints (mapcar #'rest (remove-if (constraints-in-the-same-subgoal-p reg) low-constraints)))
+										;; these constraints related arguments inside the matching subgoal
+										 (inner-constraints (mapcar (transform-reg-matches reg) (filter (constraints-in-the-same-subgoal-p reg) low-constraints)))
+	                            (def (lookup-definition next-sub-name))
+	                            (new-delete-regs (if (subgoal-to-be-deleted-p next-sub def)
 	                                               (cons reg delete-regs) delete-regs))
-	                           (iterate-code (compile-iterate body2 orig-body head clause subgoal new-delete-regs
-																					:inside t :head-compiler head-compiler))
-	                           (other-code `(,(make-move :tuple reg) ,@iterate-code)))
+	                            (iterate-code (compile-low-constraints inner-constraints
+																	(compile-iterate body2 orig-body head clause subgoal new-delete-regs
+																					:inside t :head-compiler head-compiler)))
+	                            (other-code `(,(make-move :tuple reg) ,@iterate-code)))
 	                       `(,(make-iterate next-sub-name
 											match-constraints other-code
 											:random-p (subgoal-has-random-p next-sub)
@@ -488,6 +576,7 @@
       (remove-defined-assignments assignments)))
 
 (defun compile-low-constraints (constraints inner-code)
+	"Compiles the low constraints when starting with some initial subgoal."
    (with-reg (reg)
       (reduce #'(lambda (c old)
 						(let ((vm-op (set-type-to-op (low-constraint-type c) :type-bool :equal)))

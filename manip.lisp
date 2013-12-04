@@ -549,6 +549,7 @@
    
 (defun op-to-string (op)
    (case op
+		(:or "||")
       (:plus "+")
       (:minus "-")
       (:mul "*")

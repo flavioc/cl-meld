@@ -32,12 +32,23 @@
 (defun output-float (flt) (output-float64 flt))
 (defun output-string (str)
 	(map 'list #'char-code str))
+	
+(defconstant +any-value-flag+ #b001111)
+	
+(defun output-list (ls)
+	(let ((head (vm-list-head ls))
+			 (tail (vm-list-tail ls)))
+		(let ((bytes-head (output-value head))
+				(bytes-tail (output-value tail)))
+			(append (flatten bytes-head) (flatten bytes-tail)))))
 
 (defun output-value (val)
    (cond
+		((vm-any-p val) (list +any-value-flag+))
 		((vm-bool-p val) (list #b001100 (list (if (vm-bool-val val) #b1 #b0))))
       ((vm-int-p val) (list #b000001 (output-int (vm-int-val val))))
       ((vm-float-p val) (list #b000000 (output-float (vm-float-val val))))
+		((vm-list-p val) (list #b001110 (output-list val)))
 		((vm-string-constant-p val)
 			(let* ((str (vm-string-constant-val val))
 					 (code (push-string-constant str)))
@@ -46,6 +57,8 @@
       ((vm-ptr-p val) (list #b001011 (output-int64 (vm-ptr-val val))))
 		((vm-host-id-p val) (list #b000011))
       ((vm-nil-p val) (list #b000100))
+		;; special value to handle matches with non-nil lists
+		((vm-non-nil-p val) (list #b001101))
       ((vm-world-p val) (output-value (make-vm-int (number-of-nodes *nodes*))))
       ((tuple-p val) (list #b011111))
 		((vm-pcounter-p val) (list #b001010))

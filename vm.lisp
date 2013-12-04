@@ -80,6 +80,17 @@
 (defun make-vm-nil () '(:nil))
 (defun vm-nil-p (n) (tagged-p n :nil))
 
+(defun make-vm-non-nil () '(:non-nil))
+(defun vm-non-nil-p (n) (tagged-p n :non-nil))
+
+(defun make-vm-list (head tail) `(:list ,head ,tail))
+(defun vm-list-head (x) (second x))
+(defun vm-list-tail (x) (third x))
+(defun vm-list-p (x) (tagged-p x :list))
+
+(defun make-vm-any () '(:any))
+(defun vm-any-p (n) (tagged-p n :any))
+
 (defun make-vm-world () :world)
 (defun vm-world-p (w) (eq w :world))
 

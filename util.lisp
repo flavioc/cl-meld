@@ -110,6 +110,13 @@
 (defmacro tree-intersection (t1 t2) `(intersection ,t1 ,t2 :test #'equal))
 (defmacro tree-subsetp (t1 t2) `(subsetp ,t1 ,t2 :test #'equal))
 
+(defun flatten (ls)
+	(cond
+		((null ls) (list))
+		((listp ls)
+			(append (flatten (first ls)) (flatten (rest ls))))
+		(t (list ls))))
+
 (defun set-equal-p (s1 s2)
 	(and (subsetp s1 s2)
 		  (subsetp s2 s1)))

@@ -145,6 +145,12 @@
                      #L(equal-p !1)
                      #L(constraint-by-var1 var !1)))
 
+(defun find-not-constraints (body)
+	(find-constraints body #L(not-p !1)))
+	
+(defun find-test-nil-constraints (body)
+	(find-constraints body #L(test-nil-p !1)))
+
 (defun find-assignment-constraints (body var)
 	(find-constraints body #L(equal-p !1) #L(constraint-by-var1 var !1)))
 
