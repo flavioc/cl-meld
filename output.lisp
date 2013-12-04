@@ -41,6 +41,17 @@
 		(let ((bytes-head (output-value head))
 				(bytes-tail (output-value tail)))
 			(append (flatten bytes-head) (flatten bytes-tail)))))
+			
+(defun variable-value-p (val)
+	(cond
+		((reg-p val) t)
+		((reg-dot-p val) t)
+		((vm-pcounter-p val) t)
+		((vm-stack-p val) t)
+		((vm-list-p val)
+			(or (variable-value-p (vm-list-head val))
+				(variable-value-p (vm-list-tail val))))
+		(t nil)))
 
 (defun output-value (val)
    (cond
@@ -204,6 +215,13 @@
 (defparameter *tuple-id-mask* #b01111111)
 (defparameter *extern-id-mask* #b01111111)
 
+(defun constant-matches-p (iter-matches)
+	(loop for match in iter-matches
+			do (let ((val (match-right match)))
+					(when (variable-value-p val)
+						(return-from constant-matches-p nil))))
+	t)
+
 (defun iterate-options-bytes (iter)
 	(let ((opt #b00000000)
 			(snd #b00000000))
@@ -214,6 +232,8 @@
 		(when (iterate-min-p iter)
 			(setf snd (iterate-min-arg iter))
 			(setf opt (logior opt #b00000100)))
+		(when (constant-matches-p (iterate-matches iter))
+			(setf opt (logior opt #b00001000)))
 		(values opt snd)))
 
 (defun output-instr (instr vec)
