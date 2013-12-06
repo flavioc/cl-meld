@@ -596,7 +596,7 @@
       (if (null (subgoal-args subgoal))
          (compile-iterate body1 orig-body head clause subgoal nil)
          (with-reg (sub-reg subgoal)
-				(assert (= (reg-num sub-reg) 1))
+				(assert (= (reg-num sub-reg) 0))
 				(multiple-value-bind (low-constraints body2) (add-subgoal subgoal sub-reg body1)
 	            (let ((inner-code (compile-iterate body2 orig-body head clause subgoal nil)))
 	               `(,@(compile-low-constraints low-constraints inner-code))))))))

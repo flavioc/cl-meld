@@ -245,6 +245,7 @@
 
 (defun make-vm-remove (reg) (list :remove reg))
 (defun vm-remove-reg (rm) (second rm))
+(defun vm-remove-p (rm) (tagged-p rm :remove))
 
 (defun make-vm-delete (pred filter) `(:delete ,pred ,filter))
 (defun vm-delete-name (d) (second d))

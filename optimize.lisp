@@ -78,7 +78,7 @@
 			(if (= (hash-table-count hash) 0)
 				(setf (iterate-instrs iterate) to-keep)
 				(let ((new-instr (make-vm-select-with-rules hash)))
-					(setf (iterate-instrs iterate) (cons new-instr to-keep)))))))
+					(setf (iterate-instrs iterate) `(,(make-vm-remove (make-reg 0)) ,new-instr ,@(remove-if #'(lambda (x) (and (vm-remove-p x) (= 0 (reg-num (vm-remove-reg x))))) to-keep))))))))
                   
 (defmacro iterate-code ((&key instrs proc) &body body)
    (with-gensyms (name)
@@ -112,6 +112,5 @@
       (return-from optimize-code nil))
 	(when (> (hash-table-count *nodes*) 0)
    	(optimize-init))
-   (optimize-returns)
-	)
+   (optimize-returns))
    
