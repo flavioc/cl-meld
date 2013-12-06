@@ -535,10 +535,9 @@
 	                                               (cons reg delete-regs) delete-regs))
 	                            (iterate-code (compile-low-constraints inner-constraints
 																	(compile-iterate body2 orig-body head clause subgoal new-delete-regs
-																					:inside t :head-compiler head-compiler)))
-	                            (other-code `(,(make-move :tuple reg) ,@iterate-code)))
-	                       `(,(make-iterate next-sub-name
-											match-constraints other-code
+																					:inside t :head-compiler head-compiler))))
+	                       `(,(make-iterate next-sub-name reg
+											match-constraints iterate-code
 											:random-p (subgoal-has-random-p next-sub)
 											:min-p (subgoal-has-min-p next-sub)
 											:min-arg (subgoal-get-min-variable-position next-sub)
@@ -597,10 +596,10 @@
       (if (null (subgoal-args subgoal))
          (compile-iterate body1 orig-body head clause subgoal nil)
          (with-reg (sub-reg subgoal)
+				(assert (= (reg-num sub-reg) 1))
 				(multiple-value-bind (low-constraints body2) (add-subgoal subgoal sub-reg body1)
-	            (let ((start-code (make-move :tuple sub-reg))
-							(inner-code (compile-iterate body2 orig-body head clause subgoal nil)))
-	               `(,start-code ,@(compile-low-constraints low-constraints inner-code))))))))
+	            (let ((inner-code (compile-iterate body2 orig-body head clause subgoal nil)))
+	               `(,@(compile-low-constraints low-constraints inner-code))))))))
 
 (defun get-my-subgoals (body name)
    (filter #'(lambda (sub)
@@ -693,11 +692,11 @@
 										(with-reg (reg)
 											`(,(make-vm-rule 0)
 											  	,(make-iterate "_init"
+													reg
 													nil 
-													`(,@(compile-init-process)
-														,(make-vm-rule-done)
-														,(make-move :tuple reg)
+													`(,(make-vm-rule-done)
 														,(make-vm-remove reg)
+														,@(compile-init-process)
 														,(make-move (make-vm-ptr 0) (make-reg 0))
 														,(make-return-derived))
 												:to-delete-p t)

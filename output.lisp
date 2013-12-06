@@ -21,6 +21,9 @@
       ,@body
       s))
    
+(defun output-reg-dot (rd)
+	(list (reg-dot-field rd) (reg-num (reg-dot-reg rd))))
+	
 (defun output-int (int)
    (loop for i upto 3
       collect (ldb (byte 8 (* i 8)) int)))
@@ -71,11 +74,10 @@
 		;; special value to handle matches with non-nil lists
 		((vm-non-nil-p val) (list #b001101))
       ((vm-world-p val) (output-value (make-vm-int (number-of-nodes *nodes*))))
-      ((tuple-p val) (list #b011111))
-		((vm-pcounter-p val) (list #b001010))
+      ((vm-pcounter-p val) (list #b001010))
 		((vm-stack-p val) (list #b001001 (list (vm-stack-offset val))))
       ((reg-p val) (list (logior #b100000 (logand #b011111 (reg-num val)))))
-      ((reg-dot-p val) (list #b000010 (list (reg-dot-field val) (reg-num (reg-dot-reg val)))))
+      ((reg-dot-p val) (list #b000010 (output-reg-dot val)))
 		((vm-argument-p val) (list #b00000111 (list (vm-argument-id val))))
 		((vm-constant-p val) (list #b00001000 (output-int (lookup-const-id (vm-constant-name val)))))
       (t (error 'output-invalid-error :text (tostring "Invalid expression value: ~a" val)))))
@@ -100,6 +102,15 @@
                            (,(map-value-bytes i) (second value)))
                               ,all))
                   vals-code :initial-value instrs-code :from-end nil))))
+
+(defun compile-instr-and-values (vec instr &rest vals)
+	(let ((vals-code (mapcar #'(lambda (val) (if (reg-p val) (list (first (output-value val))) (rest (output-value val)))) vals)))
+		(add-byte instr vec)
+		(loop for val in vals
+				do
+					(if (reg-p val)
+						(add-byte (first (output-value val)) vec)
+						(output-list-bytes vec (second (output-value val)))))))
 
 (defun get-op-byte (op)
    (case op
@@ -318,10 +329,11 @@
                (add-byte (logand *reg-mask* reg-b) vec)
                (jumps-here vec)
                (output-instrs (vm-if-instrs instr) vec))))
-      (:iterate (write-jump vec 8 ;; outside jump
-						(write-jump vec 4 ;; inner jump
+      (:iterate (write-jump vec 9 ;; outside jump
+						(write-jump vec 5 ;; inner jump
                   	(add-byte #b10100000 vec)
                   	(add-byte (lookup-def-id (iterate-name instr)) vec)
+							(add-byte (logand *reg-mask* (reg-to-byte (iterate-reg instr))) vec)
 							(multiple-value-bind (b1 b2) (iterate-options-bytes instr)
 								(add-byte b1 vec)
 								(add-byte b2 vec))

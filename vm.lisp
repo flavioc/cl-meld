@@ -142,20 +142,21 @@
 (defun vm-op-v2 (st) (sixth st))
 (defun vm-op-p (st) (tagged-p st :op))
 
-(defun make-iterate (name matches instrs &key (random-p nil) (to-delete-p nil) (min-p nil) (min-arg nil))
-	`(:iterate ,name ,matches ,instrs ,random-p ,to-delete-p ,min-p ,min-arg))
+(defun make-iterate (name reg matches instrs &key (random-p nil) (to-delete-p nil) (min-p nil) (min-arg nil))
+	`(:iterate ,name ,reg ,matches ,instrs ,random-p ,to-delete-p ,min-p ,min-arg))
 (defun iterate-name (i) (second i))
-(defun iterate-matches (i) (third i))
-(defun iterate-instrs (i) (fourth i))
-(defun iterate-random-p (i) (fifth i))
-(defun iterate-to-delete-p (i) (sixth i))
+(defun iterate-reg (i) (third i))
+(defun iterate-matches (i) (fourth i))
+(defun iterate-instrs (i) (fifth i))
+(defun iterate-random-p (i) (sixth i))
+(defun iterate-to-delete-p (i) (seventh i))
 
 (defun set-iterate-instrs (i instrs)
-	(setf (fourth i) instrs))
+	(setf (fifth i) instrs))
 (defsetf iterate-instrs set-iterate-instrs) 
 
-(defun iterate-min-p (i) (seventh i))
-(defun iterate-min-arg (i) (nth 7 i))
+(defun iterate-min-p (i) (nth 7 i))
+(defun iterate-min-arg (i) (nth 8 i))
 (defun match-left (m) (first m))
 (defun match-right (m) (second m))
 
@@ -258,7 +259,6 @@
 (defun vm-constant-p (c) (tagged-p c :constant))
 (defun vm-constant-name (c) (second c))
 
-(defun tuple-p (tp) (eq tp :tuple))
 (defun match-p (m) (eq m :match))
 
 (defun make-vm-rule (id) `(:rule ,id))
@@ -285,8 +285,7 @@
             (if (match-p (reg-dot-reg place))
                "(match)"
                (reg-num (reg-dot-reg place)))
-            (reg-dot-field place)))
-      ((tuple-p place) "tuple")))
+            (reg-dot-field place)))))
 
 (defmacro generate-print-op (basic-typs basic-ops &body body)
    `(on-top-level

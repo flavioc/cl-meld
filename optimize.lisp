@@ -107,56 +107,11 @@
       (declare (ignore proc))
       (optimize-return-instr-list instrs)))
 
-(defun is-move-followed-by-iter (ls)
-	(let (found-move register)
-		(loop for instr in ls
-				do (case (instr-type instr)
-						(:move
-							(cond
-								(found-move
-									(return-from is-move-followed-by-iter nil))
-								((and (tuple-p (move-from instr))
-										(reg-p (move-to instr)))
-									(setf found-move t)
-									(when (null register)
-										(setf register (move-to instr)))
-									(unless (reg-eq-p register (move-to instr))
-										(return-from is-move-followed-by-iter nil)))
-								(t
-									(return-from is-move-followed-by-iter nil))))
-						(:iterate
-							(unless found-move
-								(return-from is-move-followed-by-iter nil))
-							(setf found-move nil))
-						(:return )))
-		register))
-	
-(defun remove-moves-except-first (instrs reg)
-	(loop for instr-list on instrs
-			do (let ((instr2 (second instr-list)))
-					(case (instr-type instr2)
-						(:move
-							(when (and (reg-eq-p reg (move-to instr2))
-											(tuple-p (move-from instr2)))
-								(setf (rest instr-list) (rest (rest instr-list)))))
-						(otherwise)))))
-			
-(defun optimize-multiple-move-0s-list (ls)
-	(awhen (is-move-followed-by-iter ls)
-		(remove-moves-except-first ls it)))
-
-(defun optimize-multiple-move-0s ()
-	(iterate-code (:instrs instrs :proc proc)
-		(declare (ignore proc))
-		(optimize-multiple-move-0s-list instrs)))
-	
 (defun optimize-code ()
    (unless *use-optimizations*
       (return-from optimize-code nil))
 	(when (> (hash-table-count *nodes*) 0)
    	(optimize-init))
    (optimize-returns)
-	; this is buggy when we have subgoals with simple conditions
-	; (optimize-multiple-move-0s)
 	)
    
