@@ -916,4 +916,12 @@
 			(do-type-check-subgoal name args opts :axiom-p t)))
    (do-all-axioms (:clause clause)
       (type-check-clause clause t))
-	(find-persistent-rules))
+	(find-persistent-rules)
+	;; remove unneeded constants
+	(let (to-remove)
+		;; constants that are really constant do not need to be stored anymore since their values have been computed
+		(dolist (const *consts*)
+			(with-constant const (:name name :expr expr)
+				(when (expr-is-constant-p expr nil nil)
+					(push const to-remove))))
+		(delete-all *consts* to-remove)))
