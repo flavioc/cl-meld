@@ -375,7 +375,15 @@
 
 (defun make-vm-call (name dest args)
 	(assert (and (every #'reg-p args) (reg-p dest)))
-	`(:call ,name ,dest ,args))
+	(let ((size (length args)))
+		(cond
+			((= size 0) `(:call0 ,name ,dest ,args))
+			((= size 1) `(:call1 ,name ,dest ,args))
+			((= size 2) `(:call2 ,name ,dest ,args))
+			((= size 3) `(:call3 ,name ,dest ,args))
+			(t
+				(warn "maybe we should optimize this ~a-args call" size)
+				`(:call ,name ,dest ,args)))))
 (defun vm-call-name (call) (second call))
 (defun vm-call-dest (call) (third call))
 (defun vm-call-args (call) (fourth call))
