@@ -10,12 +10,13 @@
 	(if (has-reg-p regs reg)
 		regs
 		(cons reg regs)))
+		
 (defun find-unused-reg (regs)
 	(loop for i upto (1- *num-regs*)
 		do (if (not (has-reg-p regs (make-reg i)))
 				(return-from find-unused-reg (make-reg i)))))
 		
-(defun alloc-reg (regs data)
+(defun alloc-reg (regs)
 	(assert (< (length regs) *num-regs*))
 	(let ((new-reg (find-unused-reg regs)))
 		(values new-reg (extend-regs regs new-reg))))
@@ -34,9 +35,9 @@
 			 (*used-regs* (copy-list *used-regs*)))
 		,@body))
 
-(defun alloc-new-reg (data) (alloc-reg *used-regs* data))
-(defmacro with-reg ((reg &optional data) &body body)
-   `(multiple-value-bind (,reg *used-regs*) (alloc-new-reg ,data)
+(defun alloc-new-reg () (alloc-reg *used-regs*))
+(defmacro with-reg ((reg) &body body)
+   `(multiple-value-bind (,reg *used-regs*) (alloc-new-reg)
       ,@body))
 (defmacro with-old-reg ((reg) &body body)
 	"Adds a new register to the context so it is not allocated inside body."
@@ -606,7 +607,7 @@
             (if (not next-sub)
 					(compile-head body1 head clause subgoal delete-regs inside head-compiler)
                (let ((next-sub-name (subgoal-name next-sub)))
-                  (with-reg (reg next-sub)
+                  (with-reg (reg)
 							(multiple-value-bind (low-constraints body2) (add-subgoal next-sub reg body1 :match)
 								; body2 may have a reduced number of constraints
 								(let* ((match-constraints (mapcar #'rest (remove-if (constraints-in-the-same-subgoal-p reg) low-constraints)))
@@ -677,7 +678,7 @@
 	(let ((body1 (remove-tree subgoal body)))
       (if (null (subgoal-args subgoal))
          (compile-iterate body1 orig-body head clause subgoal nil)
-         (with-reg (sub-reg subgoal)
+         (with-reg (sub-reg)
 				(assert (= (reg-num sub-reg) 0))
 				(multiple-value-bind (low-constraints body2) (add-subgoal subgoal sub-reg body1)
 	            (let ((inner-code (compile-iterate body2 orig-body head clause subgoal nil)))
