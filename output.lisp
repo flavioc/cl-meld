@@ -103,14 +103,21 @@
                               ,all))
                   vals-code :initial-value instrs-code :from-end nil))))
 
-(defun compile-instr-and-values (vec instr &rest vals)
+(defun compile-instr-and-values-extra (vec instr extra-bytes vals)
 	(let ((vals-code (mapcar #'(lambda (val) (if (reg-p val) (list (first (output-value val))) (rest (output-value val)))) vals)))
 		(add-byte instr vec)
+		(output-list-bytes vec extra-bytes)
 		(loop for val in vals
 				do
 					(if (reg-p val)
 						(add-byte (reg-to-byte val) vec)
 						(output-list-bytes vec (second (output-value val)))))))
+	
+(defun compile-instr-and-values (vec instr &rest vals)
+	(compile-instr-and-values-extra vec instr nil vals))
+	
+(defun compile-instr-type-and-values (vec instr type &rest vals)
+	(compile-instr-and-values-extra vec instr (list (lookup-type-id type)) vals))
       
 (defun reg-to-byte (reg) (reg-num reg))
       
@@ -451,16 +458,24 @@
 			(compile-instr-and-values vec #b01011101 (move-to instr)))
 		(:move-constant-to-reg
 			(compile-instr-and-values vec #b01011110 (move-from instr) (move-to instr)))
-      (:cons (do-vm-values vec ((vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr))
-                  #b00000100
-						(lookup-type-id (vm-cons-type instr))
-                  (logand *value-mask* first-value)
-                  (logand *value-mask* second-value)
-                  (logand *value-mask* third-value)))
-      (:convert-float (do-vm-values vec ((vm-convert-float-place instr) (vm-convert-float-dest instr))
-                        #b00001001
-                        (logand *value-mask* first-value)
-                        (logand *value-mask* second-value)))
+		(:cons-rrr
+			(compile-instr-type-and-values vec #b01011111 (vm-cons-type instr) (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+		(:cons-rff
+			(compile-instr-and-values vec #b01100001 (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+		(:cons-frf
+			(compile-instr-and-values vec #b01100010 (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+		(:cons-ffr
+			(compile-instr-and-values vec #b01100011 (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+		(:cons-rrf
+			(compile-instr-and-values vec #b01100100 (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+		(:cons-rfr
+			(compile-instr-and-values vec #b01100101 (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+		(:cons-frr
+			(compile-instr-type-and-values vec #b01100110 (vm-cons-type instr) (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+		(:cons-fff
+			(compile-instr-and-values vec #b01100111 (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+      (:convert-float
+			(compile-instr-and-values vec #b00001001 (vm-convert-float-place instr) (vm-convert-float-dest instr)))
       (:select-node
 							(when (vm-select-node-empty-p instr)
 								(return-from output-instr nil))
