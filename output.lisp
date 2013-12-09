@@ -109,38 +109,8 @@
 		(loop for val in vals
 				do
 					(if (reg-p val)
-						(add-byte (first (output-value val)) vec)
+						(add-byte (reg-to-byte val) vec)
 						(output-list-bytes vec (second (output-value val)))))))
-
-(defun get-op-byte (op)
-   (case op
-      (:float-not-equal #b00000)
-      (:int-not-equal #b00001)
-      (:float-equal #b00010)
-      (:int-equal #b00011)
-      (:float-lesser #b00100)
-      (:int-lesser #b00101)
-      (:float-lesser-equal #b00110)
-      (:int-lesser-equal #b00111)
-      (:float-greater #b01000)
-      (:int-greater #b01001)
-      (:float-greater-equal #b01010)
-      (:int-greater-equal #b01011)
-      (:float-mod #b01100)
-      (:int-mod #b01101)
-      (:float-plus #b01110)
-      (:int-plus #b01111)
-      (:float-minus #b10000)
-      (:int-minus #b10001)
-      (:float-mul #b10010)
-      (:int-mul #b10011)
-      (:float-div #b10100)
-      (:int-div #b10101)
-      (:addr-not-equal #b10110)
-		(:addr-equal #b10111)
-		(:addr-greater #b11000)
-		(:bool-or #b11001)
-      (otherwise (error 'output-invalid-error :text (tostring "Unknown operation to convert ~a" op)))))
       
 (defun reg-to-byte (reg) (reg-num reg))
       
@@ -286,13 +256,6 @@
             (let ((reg (vm-remove-reg instr)))
                (add-byte #b10000000 vec)
                (add-byte (logand *reg-mask* (reg-to-byte reg)) vec)))
-      (:op (let ((op (get-op-byte (vm-op-op instr))))
-               (do-vm-values vec ((vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr))
-                           #b11000000
-                           (logand *value-mask* first-value)
-                           (logand *value-mask* second-value)
-                           (logand *value-mask* third-value)
-                           (logand *op-mask* op))))
       (:alloc (let ((tuple-id (lookup-def-id (vm-alloc-tuple instr)))
                     (reg (reg-to-byte (vm-alloc-reg instr))))
                   (add-byte #b01000000 vec)
@@ -358,33 +321,142 @@
                 #b00110000
                 (logand *value-mask* first-value)
                 (logand *value-mask* second-value)))
-      (:move-nil (do-vm-values vec ((move-nil-to instr))
-                  #b01110000
-                  (logand *value-mask* first-value)))
-      (:test-nil (do-vm-values vec ((vm-test-nil-place instr) (vm-test-nil-dest instr))
-                     #b00000011
-                     (logand *value-mask* first-value)
-                     (logand *value-mask* second-value)))
-      (:not (do-vm-values vec ((vm-not-place instr) (vm-not-dest instr))
-               #b00000111
-               (logand *value-mask* first-value)
-               (logand *value-mask* second-value)))
+		(:move-int-to-field
+			(compile-instr-and-values vec #b00011110 (move-from instr) (move-to instr)))
+		(:move-int-to-reg
+			(compile-instr-and-values vec #b00011111 (move-from instr) (move-to instr)))
+		(:move-field-to-field
+			(compile-instr-and-values vec #b00100001 (move-from instr) (move-to instr)))
+		(:move-field-to-reg
+			(compile-instr-and-values vec #b00100010 (move-from instr) (move-to instr)))
+		(:move-ptr-to-reg
+			(compile-instr-and-values vec #b00100011 (move-from instr) (move-to instr)))
+      (:move-nil-to-field
+			(compile-instr-and-values vec #b01110000 (move-to instr)))
+		(:move-nil-to-reg
+			(compile-instr-and-values vec #b00100100 (move-to instr)))
+		(:move-field-to-field-ref
+			(compile-instr-and-values vec #b00100101 (move-from instr) (move-to instr)))
+		(:move-reg-to-field
+			(compile-instr-and-values vec #b00100110 (move-from instr) (move-to instr)))
+		(:move-reg-to-field-ref
+			(compile-instr-and-values vec #b00100111 (move-from instr) (move-to instr)))
+		(:move-host-id-to-field
+			(compile-instr-and-values vec #b00101000 (move-from instr) (move-to instr)))
+		(:move-reg-to-constant
+			(compile-instr-and-values vec #b00101001 (move-from instr) (move-to instr)))
+		(:move-constant-to-field
+			(compile-instr-and-values vec #b00101010 (move-from instr) (move-to instr)))
+		(:move-constant-to-field-ref
+			(compile-instr-and-values vec #b00101011 (move-from instr) (move-to instr)))
+		(:move-addr-to-field
+			(compile-instr-and-values vec #b00101100 (move-from instr) (move-to instr)))
+		(:move-float-to-field
+			(compile-instr-and-values vec #b00101101 (move-from instr) (move-to instr)))
+		(:move-float-to-reg
+			(compile-instr-and-values vec #b00101110 (move-from instr) (move-to instr)))
+		(:move-int-to-constant
+			(compile-instr-and-values vec #b00101111 (move-from instr) (move-to instr)))
+		(:move-world-to-field
+			(compile-instr-and-values vec #b00110001 (move-to instr)))
+		(:move-stack-to-pcounter
+			(compile-instr-and-values vec #b00110010 (move-from instr)))
+    	(:move-pcounter-to-stack
+			(compile-instr-and-values vec #b00110011 (move-to instr)))
+		(:move-stack-to-reg
+			(compile-instr-and-values vec #b00110100 (move-from instr) (move-to instr)))
+		(:move-reg-to-stack
+			(compile-instr-and-values vec #b00110101 (move-from instr) (move-to instr)))
+		(:move-addr-to-reg
+			(compile-instr-and-values vec #b00110110 (move-from instr) (move-to instr)))
+		(:move-host-id-to-reg
+			(compile-instr-and-values vec #b00110111 (move-to instr)))
+		(:addr-not-equal
+			(compile-instr-and-values vec #b00111000 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:addr-equal
+			(compile-instr-and-values vec #b00111001 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:int-minus
+			(compile-instr-and-values vec #b00111010 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:int-equal
+			(compile-instr-and-values vec #b00111011 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:int-not-equal
+			(compile-instr-and-values vec #b00111100 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:int-plus
+			(compile-instr-and-values vec #b00111101 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:int-lesser
+			(compile-instr-and-values vec #b00111110 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:int-greater-equal
+			(compile-instr-and-values vec #b00111111 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:bool-or
+			(compile-instr-and-values vec #b01000001 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:int-lesser-equal
+			(compile-instr-and-values vec #b01000010 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:int-greater
+			(compile-instr-and-values vec #b01000011 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:int-mul
+			(compile-instr-and-values vec #b01000100 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:int-div
+			(compile-instr-and-values vec #b01000101 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:float-plus
+			(compile-instr-and-values vec #b01000110 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:float-minus
+			(compile-instr-and-values vec #b01000111 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:float-mul
+			(compile-instr-and-values vec #b01001000 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:float-div
+			(compile-instr-and-values vec #b01001001 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:float-equal
+			(compile-instr-and-values vec #b01001010 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:float-not-equal
+			(compile-instr-and-values vec #b01001011 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:float-lesser
+			(compile-instr-and-values vec #b01001100 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:float-lesser-equal
+			(compile-instr-and-values vec #b01001101 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:float-greater
+			(compile-instr-and-values vec #b01001110 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:float-greater-equal
+			(compile-instr-and-values vec #b01001111 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:move-reg-to-reg
+			(compile-instr-and-values vec #b01010000 (move-from instr) (move-to instr)))
+  		(:test-nil
+			(compile-instr-and-values vec #b00000011 (vm-test-nil-place instr) (vm-test-nil-dest instr)))
+      (:not
+			(compile-instr-and-values vec #b00000111 (vm-not-place instr) (vm-not-dest instr)))
+		(:bool-equal
+			(compile-instr-and-values vec #b01010001 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:bool-not-equal
+			(compile-instr-and-values vec #b01010010 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:head-rr
+			(compile-instr-and-values vec #b01010011 (vm-head-cons instr) (vm-head-dest instr)))
+		(:head-fr
+			(compile-instr-and-values vec #b01010100 (vm-head-cons instr) (vm-head-dest instr)))
+		(:head-ff
+			(compile-instr-and-values vec #b01010101 (vm-head-cons instr) (vm-head-dest instr)))
+		(:head-rf
+			(compile-instr-and-values vec #b01010110 (vm-head-cons instr) (vm-head-dest instr)))
+		(:head-ffr
+			(compile-instr-and-values vec #b01010111 (vm-head-cons instr) (vm-head-dest instr)))
+		(:head-rfr
+			(compile-instr-and-values vec #b01011000 (vm-head-cons instr) (vm-head-dest instr)))
+		(:tail-rr
+			(compile-instr-and-values vec #b01011001 (vm-tail-cons instr) (vm-tail-dest instr)))
+		(:tail-fr
+			(compile-instr-and-values vec #b01011010 (vm-tail-cons instr) (vm-tail-dest instr)))
+		(:tail-ff
+			(compile-instr-and-values vec #b01011011 (vm-tail-cons instr) (vm-tail-dest instr)))
+		(:tail-rf
+			(compile-instr-and-values vec #b01011100 (vm-tail-cons instr) (vm-tail-dest instr)))
+		(:move-world-to-reg
+			(compile-instr-and-values vec #b01011101 (move-to instr)))
+		(:move-constant-to-reg
+			(compile-instr-and-values vec #b01011110 (move-from instr) (move-to instr)))
       (:cons (do-vm-values vec ((vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr))
                   #b00000100
 						(lookup-type-id (vm-cons-type instr))
                   (logand *value-mask* first-value)
                   (logand *value-mask* second-value)
                   (logand *value-mask* third-value)))
-      (:head (do-vm-values vec ((vm-head-cons instr) (vm-head-dest instr))
-                  #b00000101
-						(lookup-type-id (vm-head-type instr))
-                  (logand *value-mask* first-value)
-                  (logand *value-mask* second-value)))
-      (:tail (do-vm-values vec ((vm-tail-cons instr) (vm-tail-dest instr))
-                  #b000000110
-						(lookup-type-id (vm-tail-type instr))
-                  (logand *value-mask* first-value)
-                  (logand *value-mask* second-value)))
       (:convert-float (do-vm-values vec ((vm-convert-float-place instr) (vm-convert-float-dest instr))
                         #b00001001
                         (logand *value-mask* first-value)

@@ -77,9 +77,6 @@
 								(aux (let-var expr))
 								(aux (let-expr expr))
 								(aux (let-body expr)))
-							((colocated-p expr)
-                        (aux (colocated-first expr))
-                        (aux (colocated-second expr)))
                      ((op-p expr)
                         (aux (op-op1 expr))
                         (aux (op-op2 expr)))
@@ -216,8 +213,11 @@
 									(and (eq (op-op e) :equal)
 												(var-p (op-op1 e)))))
 	 							constraints))
-
+	
 (defun expr-is-constant-p (expr constraints assigns)
+	(expr-is-constant-aux-p expr constraints assigns))
+
+(defun expr-is-constant-aux-p (expr constraints assigns)
 	"Decides if the 'expr' is a constant by using the equal operations in constraints and the assignments.
 	Returns a new constant and computable expression."
 	(cond
@@ -230,18 +230,18 @@
 		((cons-p expr) nil)
 		((world-p expr) nil)
 		((if-p expr) 
-			(let ((c (expr-is-constant-p (if-cmp expr) constraints assigns)))
+			(let ((c (expr-is-constant-aux-p (if-cmp expr) constraints assigns)))
 				(when c
-					(let ((e1 (expr-is-constant-p (if-e1 expr) constraints assigns)))
+					(let ((e1 (expr-is-constant-aux-p (if-e1 expr) constraints assigns)))
 						(when e1
-							(let ((e2 (expr-is-constant-p (if-e2 expr) constraints assigns)))
+							(let ((e2 (expr-is-constant-aux-p (if-e2 expr) constraints assigns)))
 								(make-if c e1 e2 (expr-type expr))))))))
 		((convert-float-p expr)
-			(let ((i (expr-is-constant-p (convert-float-expr expr) constraints assigns)))
+			(let ((i (expr-is-constant-aux-p (convert-float-expr expr) constraints assigns)))
 				(when i
 					(make-convert-float i))))
 		((test-nil-p expr)
-			(let ((x (expr-is-constant-p (test-nil-expr expr) constraints assigns)))
+			(let ((x (expr-is-constant-aux-p (test-nil-expr expr) constraints assigns)))
 				(cond
 					((and x (cons-p x))
 						(make-bool t))
@@ -249,35 +249,35 @@
 						(make-bool nil))
 					(t nil))))
 		((head-p expr)
-			(let ((c (expr-is-constant-p (head-list expr) constraints assigns)))
+			(let ((c (expr-is-constant-aux-p (head-list expr) constraints assigns)))
 				(when c
 					(make-head c (expr-type expr)))))
 		((not-p expr)
-			(let ((c (expr-is-constant-p (not-expr expr) constraints assigns)))
+			(let ((c (expr-is-constant-aux-p (not-expr expr) constraints assigns)))
 				(when c
 					(make-not c (expr-type expr)))))
 		((get-constant-p expr)
 			(let ((c (lookup-const (get-constant-name expr))))
-				(expr-is-constant-p (const-definition-expr c) nil nil)))
+				(expr-is-constant-aux-p (const-definition-expr c) nil nil)))
 		((var-p expr)
 			(let ((cs (find-assignment-constraints-expr constraints expr)))
 				(dolist (c cs)
-					(let ((ret (expr-is-constant-p (op-op2 c) constraints assigns)))
+					(let ((ret (expr-is-constant-aux-p (op-op2 c) constraints assigns)))
 						(when ret
-							(return-from expr-is-constant-p ret))))
+							(return-from expr-is-constant-aux-p ret))))
 				(let ((ass-expr (find-assignment-by-var assigns expr)))
 					(when ass-expr
-						(expr-is-constant-p ass-expr constraints assigns)))))
+						(expr-is-constant-aux-p ass-expr constraints assigns)))))
 		((op-p expr)
 			(let ((e1 (op-op1 expr))
 					(e2 (op-op2 expr)))
-				(let ((c1 (expr-is-constant-p e1 constraints assigns)))
+				(let ((c1 (expr-is-constant-aux-p e1 constraints assigns)))
 					(when c1
-						(let ((c2 (expr-is-constant-p e2 constraints assigns)))
+						(let ((c2 (expr-is-constant-aux-p e2 constraints assigns)))
 							(when c2
 								(make-op (op-op expr) c1 c2)))))))
 		((tail-p expr)
-			(let ((ret (expr-is-constant-p (tail-list expr) constraints assigns)))
+			(let ((ret (expr-is-constant-aux-p (tail-list expr) constraints assigns)))
 				(when ret
 					(make-tail ret))))
 		(t

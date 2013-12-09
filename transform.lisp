@@ -86,9 +86,6 @@
       ((not-p expr) (transform-part-expression (not-expr expr)))
       ((test-nil-p expr) (transform-part-expression (test-nil-expr expr)))
       ((convert-float-p expr) (transform-part-expression (convert-float-expr expr)))
-      ((colocated-p expr)
-         (transform-part-expression (colocated-first expr))
-         (transform-part-expression (colocated-second expr)))
       ((op-p expr)
          (transform-part-expression (op-op1 expr))
          (transform-part-expression (op-op2 expr)))
@@ -187,11 +184,7 @@
       ((convert-float-p expr)
          (with-mapped-expr
             (make-convert-float (do-map-expr (convert-float-expr expr)))))
-      ((colocated-p expr)
-         (with-mapped-expr
-            (make-colocated (do-map-expr (colocated-first expr))
-                            (do-map-expr (colocated-second expr)))))
-      ((op-p expr)
+     	((op-p expr)
          (with-mapped-expr
             (make-op (op-op expr)
                      (do-map-expr (op-op1 expr))
@@ -256,7 +249,6 @@
 				((host-id-p expr) expr)
 				((argument-p expr) expr)
 				((world-p expr) expr)
-				((colocated-p expr) expr)
 				((struct-val-p expr) expr)
 				((if-p expr)
 					(let ((cmp (if-cmp expr))

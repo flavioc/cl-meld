@@ -30,16 +30,91 @@
    (setf (third proc) new-instrs))
 (defsetf process-instrs set-process-instrs)
 
-(defun make-move (from to)
+(defun specialize-move (from to typ)
+	(let ((ref-type-p (reference-type-p typ)))
+		(cond
+			((vm-pcounter-p from)
+				(cond
+					((vm-stack-p to)
+						`(:move-pcounter-to-stack ,from ,to))))
+			((vm-stack-p from)
+				(cond
+					((vm-pcounter-p to)
+						`(:move-stack-to-pcounter ,from ,to))
+					((reg-p to)
+						`(:move-stack-to-reg ,from ,to))))
+			((vm-world-p from)
+				(cond
+					((reg-p to)
+						`(:move-world-to-reg ,from ,to))
+					((vm-constant-p to)
+						`(:move-int-to-constant ,(make-vm-int (number-of-nodes *nodes*)) ,to))
+					((reg-dot-p to)
+						`(:move-world-to-field ,from ,to))))
+			((vm-float-p from)
+				(cond
+					((reg-dot-p to) `(:move-float-to-field ,from ,to))
+					((reg-p to) `(:move-float-to-reg ,from ,to))))
+			((vm-addr-p from)
+				(cond
+					((reg-dot-p to) `(:move-addr-to-field ,from ,to))
+					((reg-p to) `(:move-addr-to-reg ,from ,to))))
+			((vm-constant-p from)
+				(cond
+					((reg-p to)
+						`(:move-constant-to-reg ,from ,to))
+					((reg-dot-p to)
+						(if ref-type-p
+							`(:move-constant-to-field-ref ,from ,to)
+							`(:move-constant-to-field ,from ,to)))))
+			((vm-host-id-p from)
+				(cond
+					((reg-dot-p to) `(:move-host-id-to-field ,from ,to))
+					((reg-p to) `(:move-host-id-to-reg ,from ,to))))
+			((vm-nil-p from)
+				(cond
+					((reg-p to) `(:move-nil-to-reg ,from ,to))
+					((reg-dot-p to) `(:move-nil-to-field ,from ,to))))
+			((vm-ptr-p from)
+				(cond
+					((reg-p to) `(:move-ptr-to-reg ,from ,to))))
+			((int-p from)
+				(cond
+					((reg-p to) `(:move-int-to-reg ,from ,to))
+					((reg-dot-p to) `(:move-int-to-field ,from ,to))))
+			((reg-p from)
+				(cond
+					((reg-p to)
+						`(:move-reg-to-reg ,from ,to))
+					((reg-dot-p to)
+						(if ref-type-p
+							`(:move-reg-to-field-ref ,from ,to)
+							`(:move-reg-to-field ,from ,to)))
+					((vm-constant-p to)
+						`(:move-reg-to-constant ,from ,to))
+					((vm-stack-p to)
+						`(:move-reg-to-stack ,from ,to))))
+			((reg-dot-p from)
+				(cond
+					((reg-dot-p to)
+						(if ref-type-p
+							`(:move-field-to-field-ref ,from ,to)
+							`(:move-field-to-field ,from ,to)))
+					((reg-p to) `(:move-field-to-reg ,from ,to)))))))
+
+(defun make-move (from to &optional typ)
 	(assert (not (null from)))
 	(assert (not (null to)))
-	`(:move ,from ,to))
+	"We specialize the move instruction."
+	(let ((ret (specialize-move from to typ)))
+		(assert ret)
+		(cond
+			(ret ret)
+			(t (warn "could not specialize move ~a ~a" from to)
+				`(:move ,from ,to)))))
+				
 (defun move-to (mv) (third mv))
 (defun move-from (mv) (second mv))
-
-(defun make-move-nil (to) `(:move-nil ,to))
-(defun move-nil-to (mv) (second mv))
-(defun move-nil-p (mv) (tagged-p mv :move-nil))
 
 (defun make-return () '(:return))
 (defun make-return-linear () '(:return-linear))
@@ -65,8 +140,8 @@
 (defun vm-stack-p (x) (tagged-p x :stack))
 (defun vm-stack-offset (x) (second x))
 
-(defun make-vm-pcounter () `(:pc-counter))
-(defun vm-pcounter-p (x) (tagged-p x :pc-counter))
+(defun make-vm-pcounter () `(:pcounter))
+(defun vm-pcounter-p (x) (tagged-p x :pcounter))
 
 (defun make-vm-ptr (v) `(:ptr ,v))
 (defun vm-ptr-val (x) (second x))
@@ -94,11 +169,13 @@
 (defun make-vm-world () :world)
 (defun vm-world-p (w) (eq w :world))
 
-(defun make-vm-not (place dest) `(:not ,place ,dest))
+(defun make-vm-not (place dest)
+	(assert (and (reg-p place) (reg-p dest)))
+	`(:not ,place ,dest))
 (defun vm-not-place (n) (second n))
 (defun vm-not-dest (n) (third n))
 
-(defun make-vm-test-nil (place dest) `(:test-nil ,place ,dest))
+(defun make-vm-test-nil (place dest) (assert (and (reg-p place) (reg-p dest))) `(:test-nil ,place ,dest))
 (defun vm-test-nil-place (tn) (second tn))
 (defun vm-test-nil-dest (tn) (third tn))
 
@@ -109,13 +186,43 @@
 (defun vm-cons-type (c) (fifth c))
 (defun vm-cons-p (c) (tagged-p c :cons))
 
-(defun make-vm-head (con dest typ) `(:head ,con ,dest ,typ))
+(defun make-vm-head (con dest typ)
+	(assert (type-list-p typ))
+	(let* ((subtype (type-list-element typ))
+			 (ref-type-p (reference-type-p typ)))
+		(cond
+			((and (reg-p con) (reg-p dest))
+		 	 `(:head-rr ,con ,dest))
+			((and (reg-dot-p con) (reg-p dest))
+		 	 `(:head-fr ,con ,dest))
+			((and (reg-dot-p con) (reg-dot-p dest))
+				(if ref-type-p
+					`(:head-ffr ,con ,dest)
+		 	 		`(:head-ff ,con ,dest)))
+			((and (reg-p dest) (reg-dot-p dest))
+				(if ref-type-p
+					`(:head-rfr ,con ,dest)
+		 	 		`(:head-rf ,con ,dest)))
+			(t (assert nil)))))
+
 (defun vm-head-cons (h) (second h))
 (defun vm-head-dest (h) (third h))
 (defun vm-head-type (h) (fourth h))
 (defun vm-head-p (h) (tagged-p h :head))
 
-(defun make-vm-tail (con dest typ) `(:tail ,con ,dest ,typ))
+(defun make-vm-tail (con dest typ)
+	(assert (type-list-p typ))
+	(cond
+		((and (reg-p con) (reg-p dest))
+	 	 `(:tail-rr ,con ,dest))
+		((and (reg-dot-p con) (reg-p dest))
+	 	 `(:tail-fr ,con ,dest))
+		((and (reg-dot-p con) (reg-dot-p dest))
+	 	 `(:tail-ff ,con ,dest))
+		((and (reg-p dest) (reg-dot-p dest))
+	 	 `(:tail-rf ,con ,dest))
+		(t (assert nil))))
+
 (defun vm-tail-cons (tail) (second tail))
 (defun vm-tail-dest (tail) (third tail))
 (defun vm-tail-type (tail) (fourth tail))
@@ -135,11 +242,46 @@
 (defun vm-if-instrs (i) (third i))
 (defun vm-if-p (i) (tagged-p i :if))
 
-(defun make-vm-op (dst v1 op v2) (list :op dst :to v1 op v2))
+(defun specialize-op (dst v1 op v2)
+	(case op
+		(:addr-not-equal `(:addr-not-equal ,dst ,v1 ,v2 ,dst))
+		(:addr-equal `(:addr-equal ,dst ,v1 ,v2 ,dst))
+		(:int-minus `(:int-minus ,dst ,v1 ,v2 ,dst))
+		(:int-equal `(:int-equal ,dst ,v1 ,v2 ,dst))
+		(:int-plus `(:int-plus ,dst ,v1 ,v2 ,dst))
+		(:int-lesser `(:int-lesser ,dst ,v1 ,v2 ,dst))
+		(:int-greater-equal `(:int-greater-equal ,dst ,v1 ,v2 ,dst))
+		(:int-not-equal `(:int-not-equal ,dst ,v1 ,v2 ,dst))
+		(:int-lesser-equal `(:int-lesser-equal ,dst ,v1 ,v2 ,dst))
+		(:int-greater `(:int-greater ,dst ,v1 ,v2 ,dst))
+		(:int-mul `(:int-mul ,dst ,v1 ,v2 ,dst))
+		(:int-div `(:int-div ,dst ,v1 ,v2 ,dst))
+		(:float-plus `(:float-plus ,dst ,v1 ,v2 ,dst))
+		(:float-minus `(:float-minus ,dst ,v1 ,v2 ,dst))
+		(:float-mul `(:float-mul ,dst ,v1 ,v2 ,dst))
+		(:float-div `(:float-div ,dst ,v1 ,v2 ,dst))
+		(:float-equal `(:float-equal ,dst ,v1 ,v2 ,dst))
+		(:float-not-equal `(:float-not-equal ,dst ,v1 ,v2 ,dst))
+		(:float-lesser `(:float-lesser ,dst ,v1 ,v2 ,dst))
+		(:float-lesser-equal `(:float-lesser-equal ,dst ,v1 ,v2 ,dst))
+		(:float-greater `(:float-greater ,dst ,v1 ,v2 ,dst))
+		(:float-greater-equal `(:float-greater-equal ,dst ,v1 ,v2 ,dst))
+		(:bool-equal `(:bool-equal ,dst ,v1 ,v2 ,dst))
+		(:bool-not-equal `(:bool-not-equal ,dst ,v1 ,v2 ,dst))
+		(:bool-or `(:bool-or ,dst ,v1 ,v2 ,dst))))
+
+(defun make-vm-op (dst v1 op v2)
+	(assert (and (reg-p dst) (reg-p v1) (reg-p v2)))
+	(let ((sp (specialize-op dst v1 op v2)))
+		(cond
+			(sp sp)
+			(t
+				(warn "NOT SPECIALIZING op ~a" op) 
+				`(:op ,dst ,v1 ,v2 ,op)))))
 (defun vm-op-dest (st) (second st))
-(defun vm-op-v1 (st) (fourth st))
+(defun vm-op-v1 (st) (third st))
+(defun vm-op-v2 (st) (fourth st))
 (defun vm-op-op (st) (fifth st))
-(defun vm-op-v2 (st) (sixth st))
 (defun vm-op-p (st) (tagged-p st :op))
 
 (defun make-iterate (name reg matches instrs &key (random-p nil) (to-delete-p nil) (min-p nil) (min-arg nil))

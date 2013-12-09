@@ -3,9 +3,22 @@
 (define-condition compile-invalid-error (error)
    ((text :initarg :text :reader text)))
 
+(defun has-reg-p (regs reg)
+	(find-if #'(lambda (x) (reg-eq-p x reg)) regs))
+	
+(defun extend-regs (regs reg)
+	(if (has-reg-p regs reg)
+		regs
+		(cons reg regs)))
+(defun find-unused-reg (regs)
+	(loop for i upto (1- *num-regs*)
+		do (if (not (has-reg-p regs (make-reg i)))
+				(return-from find-unused-reg (make-reg i)))))
+		
 (defun alloc-reg (regs data)
-   (let ((reg (make-reg (length regs))))
-      (values reg (cons data regs))))
+	(assert (< (length regs) *num-regs*))
+	(let ((new-reg (find-unused-reg regs)))
+		(values new-reg (extend-regs regs new-reg))))
 
 (defparameter *vars-places* nil)
 (defparameter *used-regs* nil)
@@ -25,7 +38,15 @@
 (defmacro with-reg ((reg &optional data) &body body)
    `(multiple-value-bind (,reg *used-regs*) (alloc-new-reg ,data)
       ,@body))
-      
+(defmacro with-old-reg ((reg) &body body)
+	"Adds a new register to the context so it is not allocated inside body."
+	`(cond
+		((reg-p ,reg)
+			(let ((*used-regs* (extend-regs *used-regs* ,reg)))
+				,@body))
+		(t
+			,@body)))
+			
 (defun lookup-used-var (var-name)
    (multiple-value-bind (data found) (gethash var-name *vars-places*)
       (when found data)))
@@ -47,27 +68,75 @@
 (defun low-constraint-v1 (lc) (second lc))
 (defun low-constraint-v2 (lc) (third lc))
 
-(defmacro return-expr (place &optional code) `(values ,place ,code *used-regs*))
+(defmacro return-expr (place &optional code) `(values ,place ,code (if (reg-p ,place) (extend-regs *used-regs* ,place) *used-regs*)))
+
+(defmacro return-chained-expr-on-reg (place code op dest)
+	`(cond
+		((reg-p ,dest)
+			(return-expr ,dest (append ,code (append (list (,op ,place ,dest))))))
+		((null ,dest)
+			(return-expr ,place
+				(append ,code (list (,op ,place ,place)))))
+		(t
+			(return-expr ,dest
+				(append ,code (list (,op ,place ,place) (make-move ,place ,dest)))))))
 
 (defmacro with-compiled-expr ((place code &key (force-dest nil)) expr &body body)
-   `(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr ,force-dest)
+	`(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr ,force-dest)
+			,@body))
+			
+(defmacro with-compilation ((place code) expr &body body)
+	`(multiple-value-bind (,place ,code) (compile-expr ,expr)
 		,@body))
-   
+		
+(defmacro with-compilation-on-reg ((place code) expr &body body)
+	"Ensures that place is a register."
+	(with-gensyms (new-reg)
+		`(with-compilation (,place ,code) ,expr
+			(unless (reg-p ,place)
+				(with-reg (,new-reg)
+					(setf ,code (append ,code (list (make-move ,place ,new-reg))))
+					(setf ,place ,new-reg)))
+			,@body)))
+		
+(defmacro with-compilation-on-rf ((place code) expr &body body)
+	"Ensures that place is either a field or register."
+	(with-gensyms (new-reg)
+		`(with-compilation (,place ,code) ,expr
+			(unless (or (reg-p ,place) (reg-dot-p ,place))
+				(with-reg (,new-reg)
+					(setf ,code (append ,code (list (make-move ,place ,new-reg))))
+					(setf ,place ,new-reg)))
+			,@body)))
+
 (defmacro with-dest-or-new-reg ((dest) &body body)
    `(if (null ,dest)
       (with-reg (,dest) ,@body)
       (progn ,@body)))
 
-(defun build-special-move (from to)
-   (cond
-      ((vm-nil-p from) (make-move-nil to))
-      (t (make-move from to))))
+(defmacro with-dest-or-reg ((dest reg) &body body)
+	`(if (null ,dest)
+		(progn
+			(setf ,dest ,reg)
+			(with-old-reg (,reg)
+				,@body))
+		(progn ,@body)))
+		
+(defmacro with-dest-or-try-reg ((dest reg) &body body)
+	`(cond
+		((and (null ,dest) (not (reg-p ,reg)))
+			(with-reg (,dest) ,@body))
+		((and (null ,dest) (reg-p ,reg))
+			(setf ,dest ,reg)
+			(with-old-reg (,reg)
+				,@body))
+		(t ,@body)))
 
 (defmacro compile-expr-to (expr place)
-   (with-gensyms (new-place code)
+	(with-gensyms (new-place code)
       `(multiple-value-bind (,new-place ,code *used-regs*) (compile-expr ,expr ,place)
-         (if (not (equal ,new-place ,place))
-            (append ,code (list (build-special-move ,new-place ,place)))
+		   (if (not (equal ,new-place ,place))
+            (append ,code (list (make-move ,new-place ,place (expr-type ,expr))))
             ,code))))
 
 (defun decide-external-function (name new-reg regs)
@@ -143,9 +212,8 @@
 											,(make-vm-pop)
 											,(make-vm-pop)))))
       ((convert-float-p expr)
-         (with-compiled-expr (place code) (convert-float-expr expr)
-            (with-dest-or-new-reg (dest)
-               (return-expr dest `(,@code ,(make-vm-convert-float place dest))))))
+			(with-compilation-on-reg (place code) (convert-float-expr expr)
+				(return-chained-expr-on-reg place code make-vm-convert-float dest)))
       ((let-p expr)
          (with-dest-or-new-reg (dest)
             (with-compiled-expr (place-expr code-expr) (let-expr expr)
@@ -160,37 +228,46 @@
                      (code2 (compile-expr-to (if-e2 expr) dest)))
                   (return-expr dest `(,@code-cmp ,(make-vm-if place-cmp code1)
                         ,(make-vm-not place-cmp place-cmp) ,(make-vm-if place-cmp code2)))))))
-      ((tail-p expr) (with-compiled-expr (place code) (tail-list expr)
-                        (with-dest-or-new-reg (dest)
-                           (return-expr dest `(,@code ,(make-vm-tail place dest (expr-type expr)))))))
-      ((head-p expr) (with-compiled-expr (place code) (head-list expr)
-                        (with-dest-or-new-reg (dest)
-                           (let ((typ (expr-type (vm-head-cons expr))))
-                              (return-expr dest `(,@code ,(make-vm-head place dest typ)))))))
-      ((cons-p expr) (with-compiled-expr (place-head code-head) (cons-head expr)
-                        (with-compiled-expr (place-tail code-tail) (cons-tail expr)
-                           (with-dest-or-new-reg (dest)
-                              (let ((cons (make-vm-cons place-head place-tail dest (expr-type expr))))
-                                 (return-expr dest `(,@code-head ,@code-tail ,cons)))))))
-      ((not-p expr) (with-compiled-expr (place-expr code-expr) (not-expr expr)
-                        (with-dest-or-new-reg (dest)
-                           (return-expr dest `(,@code-expr ,(make-vm-not place-expr dest))))))
-      ((test-nil-p expr) (with-compiled-expr (place-expr code-expr) (test-nil-expr expr)
-                           (with-dest-or-new-reg (dest)
-                              (return-expr dest `(,@code-expr ,(make-vm-test-nil place-expr dest))))))
+      ((tail-p expr)
+			(with-compilation-on-rf (place code) (head-list expr)
+				(with-dest-or-try-reg (dest place)
+					(return-expr dest `(,@code ,(make-vm-tail place dest (expr-type expr)))))))
+      ((head-p expr)
+			(with-compilation-on-rf (place code) (head-list expr)
+				(with-dest-or-try-reg (dest place)
+					(return-expr dest `(,@code ,(make-vm-head place dest (expr-type (vm-head-cons expr))))))))
+      ((cons-p expr)
+				(with-compilation-on-rf (place-tail code-tail) (cons-tail expr)
+					(with-old-reg (place-tail)
+						(with-compilation-on-rf (place-head code-head) (cons-head expr)
+							(with-dest-or-reg (dest place-tail)
+								(return-expr dest `(,@code-tail ,@code-head ,(make-vm-cons place-head place-tail dest (expr-type expr)))))))))
+      ((not-p expr)
+			(with-compilation-on-reg (place-expr code-expr) (not-expr expr)
+				(return-chained-expr-on-reg place-expr code-expr make-vm-not dest)))
+      ((test-nil-p expr)
+			(with-compilation-on-reg (place-expr code-expr) (test-nil-expr expr)
+				(return-chained-expr-on-reg place-expr code-expr make-vm-test-nil dest)))
       ((nil-p expr) (return-expr (make-vm-nil)))
       ((world-p expr) (return-expr (make-vm-world)))
-      ((colocated-p expr)
-         (with-compiled-expr (first-place first-code) (colocated-first expr)
-            (with-compiled-expr (second-place second-code) (colocated-second expr)
-               (with-dest-or-new-reg (dest)
-                  (return-expr dest `(,@first-code ,@second-code ,(make-vm-colocated first-place second-place dest)))))))
       ((op-p expr)
-         (with-compiled-expr (place1 code1) (op-op1 expr)
-            (with-compiled-expr (place2 code2) (op-op2 expr)
-               (with-dest-or-new-reg (dest)
-                  (return-expr dest (generate-op-instr expr dest place1 place2 code1 code2))))))
+			(with-compilation-on-reg (place1 code1) (op-op1 expr)
+				(with-old-reg (place1)
+					(with-compilation-on-reg (place2 code2) (op-op2 expr)
+						(compile-op-expr expr place1 place2 code1 code2 dest)))))
       (t (error 'compile-invalid-error :text (tostring "Unknown expression to compile: ~a" expr)))))
+
+(defun compile-op-expr (expr new-place1 new-place2 new-code1 new-code2 dest)
+	(cond
+		((and dest (or (reg-dot-p dest) (vm-stack-p dest)))
+			(with-reg (new-dest)
+				(return-expr dest `(,@(generate-op-instr expr new-dest new-place1 new-place2 new-code1 new-code2) ,(make-move new-dest dest)))))
+		((and dest (reg-p dest))
+			(return-expr dest (generate-op-instr expr dest new-place1 new-place2 new-code1 new-code2)))
+		((null dest)
+			(with-reg (new-dest)
+				(return-expr new-dest (generate-op-instr expr new-dest new-place1 new-place2 new-code1 new-code2))))
+		(t (error 'compile-invalid-error :text (tostring "can't compile operation to ~a" dest)))))
       
 (defun generate-op-instr (expr dest place1 place2 code1 code2)
    (let* ((base-op (op-op expr))
@@ -324,12 +401,12 @@
           (minus-1 (make-minus iter '- (make-forced-int 2))))
       (with-compiled-expr (place instrs) minus-1
          (with-reg (reg)
-            (let ((greater-instr (make-vm-op reg place :int-greater-equal (make-vm-int 0))))
+            (let ((greater-instr `(,(make-move (make-vm-int 0) reg) (make-vm-op reg place :int-greater-equal reg))))
                (multiple-value-bind (remain-instrs places) (compile-remain-delete-args 2 remain)
                   ;(format t "remain-instrs ~a places ~a~%" remain-instrs places)
                   (let* ((delete-code (make-vm-delete (subgoal-name subgoal) `(,(cons 1 place) ,@places)))
                          (if-instr (make-vm-if reg `(,delete-code))))
-                     `(,@instrs ,@remain-instrs ,greater-instr ,if-instr))))))))
+                     `(,@instrs ,@remain-instrs ,@greater-instr ,if-instr))))))))
             
 (defun compile-inner-delete (clause)
    (when (clause-has-delete-p clause)
@@ -360,7 +437,7 @@
 (defun agg-construct-start (op acc)
 	(case op
 		(:collect
-			`(,(make-move-nil acc)))
+			`(,(make-move (make-vm-nil) acc)))
 		((:count :sum)
 			`(,(make-move (make-vm-float 0.0) acc)))
 		(:min
@@ -382,13 +459,18 @@
 				`(,(make-vm-cons dest acc acc (expr-type var)))))
 		(:sum
 			(let ((src (lookup-used-var (var-name var))))
-			`(,(make-vm-op acc acc :float-plus src))))
+				(assert (reg-dot-p src))
+				(with-reg (new)
+					`(,(make-move src new) ,(make-vm-op acc acc :float-plus new)))))
 		(:count
-			`(,(make-vm-op acc acc :int-plus (make-vm-int 1))))
+			(with-reg (new)
+				`(,(make-move (make-vm-int 1) new) ,(make-vm-op acc acc :int-plus new))))
 		(:min
 			(let ((src (lookup-used-var (var-name var))))
+				(assert (reg-dot-p src))
 				(with-reg (new)
-					`(,(make-vm-op new src :int-lesser acc) ,(make-vm-if new `(,(make-move src acc))))))) 
+					(with-reg (tmp)
+						`(,(make-move src tmp) ,(make-vm-op new tmp :int-lesser acc) ,(make-vm-if new `(,(make-move tmp acc))))))))
 		(otherwise (error 'compile-invalid-error
 								:text (tostring "agg-construct-step: op ~a not recognized" op)))))
 	
@@ -659,7 +741,7 @@
 (defun compile-consts ()
 	(do-constant-list *consts* (:name name :expr expr :operation append)
 		(with-compiled-expr (place code) expr
-			`(,@code ,(make-move place (make-vm-constant name))))))
+			`(,@code ,(make-move place (make-vm-constant name) (expr-type expr))))))
 			
 (defun compile-function-arguments (body args n)
 	(if (null args)

@@ -139,19 +139,6 @@
          host
          (clause-head-host-node clause))))
 
-(defun make-colocated (h1 h2)
-   (list :colocated h1 h2))
-(defun colocated-first (c) (second c))
-(defun colocated-second (c) (third c))
-
-(defun set-colocated-first (c new)
-   (setf (second c) new))
-(defsetf colocated-first set-colocated-first)
-
-(defun set-colocated-second (c new)
-   (setf (third c) new))
-(defsetf colocated-second set-colocated-second)
-
 (defun make-definition (name typs options) `(:definition ,name ,typs ,options))
 (defun definition-p (def) (tagged-p def :definition))
 (defun definition-name (def) (second def))
@@ -452,11 +439,7 @@
 ;;;; SUBGOALS
 
 (defun make-subgoal (name args &optional options)
-   (if (equal name "colocated")
-       (cond
-          ((= (length args) 2) (make-constraint (make-colocated (first args) (second args))))
-          (t (error 'expr-invalid-error "Colocated expression must have two arguments")))
-       (list :subgoal name args options)))
+	(list :subgoal name args options))
 
 (defun subgoal-p (ls) (tagged-p ls :subgoal))
 (defun subgoal-name (subgoal) (second subgoal))

@@ -154,7 +154,7 @@
      (format stream "~a" (print-val var))))
    
 (defun print-clause (stream clause)
-   (with-clause clause (:head head :body body)
+	(with-clause clause (:head head :body body)
       (with-print-context
          (print-subgoal-body stream body)
          (format stream " -o ")

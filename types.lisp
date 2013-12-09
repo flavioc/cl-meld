@@ -73,7 +73,7 @@
       
 (defun expr-type (expr)
    (cond
-      ((or (nil-p expr) (host-id-p expr)) (second expr))
+      ((or (nil-p expr) (host-id-p expr) (world-p expr)) (second expr))
       ((or (var-p expr) (int-p expr) (bool-p expr) (float-p expr) (addr-p expr) (tail-p expr)
            (head-p expr) (not-p expr) (test-nil-p expr)
            (convert-float-p expr)
@@ -99,3 +99,6 @@
 	(set-equal-p types1 types2))
 
 (defun type-eq-p (ty1 ty2) (equal ty1 ty2))
+
+(defun reference-type-p (typ)
+	(or (type-string-p typ) (type-struct-p typ) (type-list-p typ)))
