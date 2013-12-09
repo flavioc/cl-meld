@@ -116,12 +116,16 @@
       (progn ,@body)))
 
 (defmacro with-dest-or-reg ((dest reg) &body body)
-	`(if (null ,dest)
-		(progn
+	`(cond
+		((and (null ,dest) (reg-p ,reg))
 			(setf ,dest ,reg)
 			(with-old-reg (,reg)
 				,@body))
-		(progn ,@body)))
+		((null ,dest)
+			(with-reg (,dest)
+				,@body))
+		(t
+			,@body)))
 		
 (defmacro with-dest-or-try-reg ((dest reg) &body body)
 	`(cond
