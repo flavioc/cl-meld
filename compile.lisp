@@ -55,6 +55,22 @@
 (defun remove-used-var (var-name) (remhash var-name *vars-places*))
 (defun all-used-var-names () (hash-table-keys *vars-places*))
 
+(defun hash-table-to-stack (hash)
+	(let ((new-hash (make-hash-table)))
+		(loop for key in (all-used-var-names)
+			do (let ((now (gethash key hash)))
+					(setf (gethash key new-hash)
+								(if (reg-p now)
+									(let ((stack-off (reg-num now)))
+										(warn "~a -> ~a" now stack-off)
+										(make-vm-stack stack-off))
+									now))))
+		new-hash))
+
+(defmacro with-stack-compile-context (&body body)
+`(let ((*vars-places* (hash-table-to-stack *vars-places*)))
+	,@body))
+
 (defun valid-constraint-p (all-vars) #L(subsetp (all-variable-names !1) all-vars))
 (defun get-compile-constraints-and-assignments (body)
    (let* ((assignments (select-valid-assignments body nil (all-used-var-names)))
@@ -85,13 +101,13 @@
 (defmacro with-compiled-expr ((place code &key (force-dest nil)) expr &body body)
 	`(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr ,force-dest)
 		(cond
-			((and ,force-dest (not (equal-p ,place)))
+			((and ,force-dest (not (equalp ,place ,force-dest)))
 				(setf ,code (append ,code (list (make-move ,place ,force-dest))))
 				(setf ,place ,force-dest)
 				,@body)
 			(t
 				,@body))))
-			
+
 (defmacro with-compilation ((place code) expr &body body)
 	`(multiple-value-bind (,place ,code) (compile-expr ,expr)
 		,@body))
@@ -181,8 +197,6 @@
 	(if (null args)
 		args-code
 		(with-compiled-expr (arg-place arg-code :force-dest (make-reg n)) (first args)
-			(if (not (equal arg-place (make-reg n)))
-				(setf arg-code `(,@arg-code ,(make-move arg-place (make-reg n)))))
 			(compile-callf-args (rest args) `(,@args-code ,@arg-code) (1+ n)))))
 
 (defun compile-expr (expr &optional dest)
@@ -223,7 +237,8 @@
 							,(make-vm-make-struct (expr-type expr) dest))))))
 		((callf-p expr)
 			(with-dest-or-new-reg (dest)
-				(return-expr dest `(,(make-vm-push) ;; for pcounter
+				(with-stack-compile-context
+					(return-expr dest `(,(make-vm-push) ;; for pcounter
 											,(make-vm-push) ;; for return value
 											,(make-vm-push-registers)
 											,@(compile-callf-args (callf-args expr) (list) 0)
@@ -232,7 +247,7 @@
 											,(make-vm-pop-registers)
 											,(make-move (make-vm-stack 0) dest)
 											,(make-vm-pop)
-											,(make-vm-pop)))))
+											,(make-vm-pop))))))
       ((convert-float-p expr)
 			(with-compilation-on-reg (place code) (convert-float-expr expr)
 				(return-chained-expr-on-reg place code make-vm-convert-float dest)))
