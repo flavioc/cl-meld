@@ -373,7 +373,9 @@
 (defun make-vm-callf (name) `(:callf ,name))
 (defun vm-callf-name (call) (second call))
 
-(defun make-vm-call (name dest args) `(:call ,name ,dest ,args))
+(defun make-vm-call (name dest args)
+	(assert (and (every #'reg-p args) (reg-p dest)))
+	`(:call ,name ,dest ,args))
 (defun vm-call-name (call) (second call))
 (defun vm-call-dest (call) (third call))
 (defun vm-call-args (call) (fourth call))

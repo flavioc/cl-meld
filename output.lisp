@@ -103,15 +103,17 @@
                               ,all))
                   vals-code :initial-value instrs-code :from-end nil))))
 
+(defun compile-values (vec vals)
+	(loop for val in vals
+			do
+				(if (reg-p val)
+					(add-byte (reg-to-byte val) vec)
+					(output-list-bytes vec (second (output-value val))))))
+					
 (defun compile-instr-and-values-extra (vec instr extra-bytes vals)
-	(let ((vals-code (mapcar #'(lambda (val) (if (reg-p val) (list (first (output-value val))) (rest (output-value val)))) vals)))
-		(add-byte instr vec)
-		(output-list-bytes vec extra-bytes)
-		(loop for val in vals
-				do
-					(if (reg-p val)
-						(add-byte (reg-to-byte val) vec)
-						(output-list-bytes vec (second (output-value val)))))))
+	(add-byte instr vec)
+	(output-list-bytes vec extra-bytes)
+	(compile-values vec vals))
 	
 (defun compile-instr-and-values (vec instr &rest vals)
 	(compile-instr-and-values-extra vec instr nil vals))
@@ -279,10 +281,7 @@
                (add-byte (logand *extern-id-mask* extern-id) vec)
                (add-byte (length args) vec)
                (add-byte (logand *reg-mask* (reg-to-byte (vm-call-dest instr))) vec)
-               (dolist (arg args)
-                  (let ((res (output-value arg)))
-                     (add-byte (first res) vec)
-                     (add-bytes vec (second res))))))
+               (compile-values vec args)))
 		(:calle (let ((extern-id (lookup-custom-external-function-id (vm-calle-name instr)))
 						 (args (vm-calle-args instr)))
 						(add-byte #b00011011 vec)

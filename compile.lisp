@@ -84,7 +84,13 @@
 
 (defmacro with-compiled-expr ((place code &key (force-dest nil)) expr &body body)
 	`(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr ,force-dest)
-			,@body))
+		(cond
+			((and ,force-dest (not (equal-p ,place)))
+				(setf ,code (append ,code (list (make-move ,place ,force-dest))))
+				(setf ,place ,force-dest)
+				,@body)
+			(t
+				,@body))))
 			
 (defmacro with-compilation ((place code) expr &body body)
 	`(multiple-value-bind (,place ,code) (compile-expr ,expr)
@@ -151,14 +157,25 @@
 		(make-vm-calle name new-reg regs)))
 
 (defun compile-call (name args regs code)
-   (if (null args)
-      (with-reg (new-reg)
-         (let ((new-code `(,@code ,(decide-external-function name new-reg regs))))
-            (return-expr new-reg new-code)))
-      (with-compiled-expr (arg-place arg-code) (first args)
-         (multiple-value-bind (place code *used-regs*)
-            (compile-call name (rest args) `(,@regs ,arg-place) `(,@code ,@arg-code))
-            (return-expr place code)))))
+		(if (null args)
+			(cond
+				((null regs)
+					(with-reg (new-reg)
+         			(let ((new-code `(,@code ,(decide-external-function name new-reg regs))))
+            			(return-expr new-reg new-code))))
+				(t
+					(let ((reused-reg (first (last regs))))
+						(let ((new-code `(,@code ,(decide-external-function name reused-reg regs))))
+							(return-expr reused-reg new-code)))))
+      	(with-compiled-expr (arg-place arg-code) (first args)
+				(cond
+					((reg-p arg-place)
+						(multiple-value-bind (place code) (compile-call name (rest args) `(,@regs ,arg-place) `(,@code ,@arg-code))
+							(return-expr place code)))
+					(t
+						(with-reg (new-reg)
+							(multiple-value-bind (place code) (compile-call name (rest args) `(,@regs ,new-reg) `(,@code ,@arg-code ,(make-move arg-place new-reg)))
+								(return-expr place code))))))))
 
 (defun compile-callf-args (args args-code n)
 	(if (null args)
