@@ -485,6 +485,11 @@
 			(output-call vec instr #b01101010))
 		(:call3
 			(output-call vec instr #b01101011))
+		(:move-int-to-stack
+			(output-instr-and-values vec #b01101100 (move-from instr) (move-to instr)))
+		(:push-n
+			(add-byte #b01101101 vec)
+			(add-byte (vm-push-n instr) vec))
       (:convert-float
 			(output-instr-and-values vec #b00001001 (vm-convert-float-place instr) (vm-convert-float-dest instr)))
       (:select-node

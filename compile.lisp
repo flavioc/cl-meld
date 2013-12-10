@@ -232,8 +232,10 @@
 				(let ((ls (struct-list expr))
 						instrs)
 					(return-expr dest
-						`(,@(loop for x in ls
-								append `(,(make-vm-push) ,@(compile-expr-to x (make-vm-stack 0))))
+						`(,(make-vm-push-n (length ls))
+							,@(loop for x in ls
+										for i from 0
+								append (compile-expr-to x (make-vm-stack i)))
 							,(make-vm-make-struct (expr-type expr) dest))))))
 		((callf-p expr)
 			(with-dest-or-new-reg (dest)

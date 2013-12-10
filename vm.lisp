@@ -81,7 +81,8 @@
 			((int-p from)
 				(cond
 					((reg-p to) `(:move-int-to-reg ,from ,to))
-					((reg-dot-p to) `(:move-int-to-field ,from ,to))))
+					((reg-dot-p to) `(:move-int-to-field ,from ,to))
+					((vm-stack-p to) `(:move-int-to-stack ,from ,to))))
 			((reg-p from)
 				(cond
 					((reg-p to)
@@ -123,6 +124,9 @@
 
 (defun make-vm-push () `(:push))
 (defun make-vm-pop () `(:pop))
+
+(defun make-vm-push-n (n) `(:push-n ,n))
+(defun vm-push-n (p) (second p))
 
 (defun instr-is-return-p (instr)
    (case (instr-type instr)
