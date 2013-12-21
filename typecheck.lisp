@@ -12,6 +12,15 @@
          
 (defun no-types-p (ls) (null ls))
 
+(defun valid-type-p (ty)
+	(cond
+		((null ty) nil)
+		((symbolp ty) t)
+		((type-list-p ty)
+			(valid-type-p (type-list-element ty)))
+		((type-struct-p ty)
+			(every #'valid-type-p (type-struct-list ty)))))
+
 (defun merge-type (t1 t2)
 	(assert (not (null t1)))
 	(assert (not (null t2)))
@@ -20,6 +29,8 @@
 	(cond
 		((eq t1 :all) t2)
 		((eq t2 :all) t1)
+		((and (listp t1) (not (listp t2)) (eq t2 (first t1))) t2)
+		((and (listp t2) (not (listp t1)) (eq t1 (first t2))) t1)
 		((and (listp t1) (not (listp t2))) nil)
 		((and (not (listp t2)) (listp t2)) nil)
 		((and (type-list-p t1) (type-list-p t2))
@@ -28,6 +39,19 @@
 				  (merged (merge-type sub1 sub2)))
 			(if merged
 				(make-list-type merged))))
+		((and (type-struct-p t1) (type-struct-p t2))
+			(let ((l1 (type-struct-list t1))
+					(l2 (type-struct-list t2)))
+				(cond
+					((not (= (length l1) (length l2))) nil)
+					(t
+						(let ((result
+									(loop for t1 in l1
+											for t2 in l2
+											collect (merge-types t1 t2))))
+							(if (find-if #'null result)
+								nil
+								(make-struct-type result)))))))
 		((and (listp t1) (listp t2))
 			(merge-types t1 t2))
 		((and (not (listp t1)) (not (listp t2)))
@@ -110,8 +134,7 @@
 					(get-constant-p expr) (struct-p expr))
             (setf (cddr expr) typ))
          ((or (call-p expr) (op-p expr) (callf-p expr)
-				  (cons-p expr) (colocated-p expr)
-				  (struct-val-p expr))
+				  (cons-p expr) (struct-val-p expr))
 				(setf (cdddr expr) typ))
          ((or (let-p expr) (if-p expr)) (setf (cddddr expr) typ))
 			((or (argument-p expr))) ; do nothing
@@ -121,7 +144,7 @@
    (multiple-value-bind (types ok) (gethash var *constraints*)
       (when ok
 			(setf new-types (merge-types types new-types))
-         (when (no-types-p new-types)
+			(when (no-types-p new-types)
             (error 'type-invalid-error :text
                   (tostring "Type error in variable ~a: new constraint are types ~a but variable is set as ~a" var new-types types))))
       (set-var-constraint var new-types)))
@@ -161,7 +184,7 @@
 (defun get-type (expr forced-types body-p)
 	(assert (not (null forced-types)))
 	(assert (not (null (first forced-types))))
-   (labels ((do-get-type (expr forced-types)
+	(labels ((do-get-type (expr forced-types)
             (cond
 					((string-constant-p expr) (merge-types forced-types '(:type-string)))
 					((host-id-p expr)
@@ -247,10 +270,6 @@
                   (merge-types forced-types '(:type-float)))
                ((nil-p expr) (merge-types forced-types *list-types*))
                ((world-p expr) (merge-types '(:type-int) forced-types))
-               ((colocated-p expr)
-                  (get-type (colocated-first expr) '(:type-addr) body-p)
-                  (get-type (colocated-second expr) '(:type-addr) body-p)
-                  (merge-types forced-types '(:type-bool)))
 					((struct-val-p expr)
 						(let* ((idx (struct-val-idx expr))
 							    (var (struct-val-var expr)) ;; var is already typed
@@ -262,7 +281,10 @@
 							(cond
 								((is-all-type-p types)
 									(list (make-struct-type (loop for subexpr in (struct-list expr)
-																collect (get-type subexpr types body-p)))))
+																		collect (let ((ty (get-type subexpr types body-p)))
+																						(if (and (listp ty) (one-elem-p ty))
+																							(first ty)
+																							ty))))))
 								(t
 									(loop for typ-list in types
 											do (when (= (length typ-list) (length (struct-list expr)))
@@ -801,6 +823,8 @@
 				(error 'type-invalid-error :text (tostring "could not determine type of const ~a" name)))
 			(unless (same-types-p first-types res)
 				(get-type expr res nil))
+			(unless (valid-type-p (first res))
+				(error 'type-invalid-error :text (tostring "could not determine type of const ~a" name)))
 			(setf (constant-type const) (first res)))))
 			
 (defun type-check-function (fun)

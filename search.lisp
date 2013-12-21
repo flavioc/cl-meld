@@ -230,6 +230,7 @@
 		((cons-p expr) nil)
 		((world-p expr) nil)
 		((struct-p expr) nil)
+		((struct-val-p expr) nil)
 		((if-p expr) 
 			(let ((c (expr-is-constant-aux-p (if-cmp expr) constraints assigns)))
 				(when c

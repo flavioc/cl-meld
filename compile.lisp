@@ -226,7 +226,7 @@
 			(with-dest-or-new-reg (dest)
 				(let ((look (lookup-used-var (var-name (struct-val-var expr)))))
 					(assert look)
-					(return-expr dest `(,(make-vm-struct-val (struct-val-idx expr) look dest))))))
+					(return-expr dest `(,(make-vm-struct-val (struct-val-idx expr) look dest (expr-type expr)))))))
 		((struct-p expr)
 			(with-dest-or-new-reg (dest)
 				(let ((ls (struct-list expr))

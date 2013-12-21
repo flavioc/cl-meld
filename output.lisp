@@ -127,6 +127,9 @@
 (defun output-instr-type-and-values (vec instr type &rest vals)
 	(output-instr-and-values-extra vec instr (list (lookup-type-id type)) vals))
 	
+(defun output-instr-index-and-values (vec instr idx &rest vals)
+	(output-instr-and-values-extra vec instr (list idx) vals))
+	
 (defun output-call (vec call instr &optional extra-bytes)
 	(let ((extern-id (lookup-external-function-id (vm-call-name call)))
              (args (vm-call-args call)))
@@ -315,18 +318,7 @@
                   	(output-matches (iterate-matches instr) vec))
                   (output-instrs (iterate-instrs instr) vec)
                   (add-byte #b00000001 vec)))
-		(:struct-val
-			(do-vm-values vec ((vm-struct-val-from instr) (vm-struct-val-to instr))
-				#b00011100
-				(vm-struct-val-idx instr)
-				(logand *value-mask* first-value)
-				(logand *value-mask* second-value)))
-		(:struct
-			(do-vm-values vec ((vm-make-struct-to instr))
-				#b00011101
-				(lookup-type-id (vm-make-struct-type instr))
-				(logand *value-mask* first-value)))
-      (:move
+		(:move
 				(do-vm-values vec ((move-from instr) (move-to instr))
                 #b00110000
                 (logand *value-mask* first-value)
@@ -490,6 +482,24 @@
 		(:push-n
 			(add-byte #b01101101 vec)
 			(add-byte (vm-push-n instr) vec))
+		(:structr
+			(output-instr-type-and-values vec #b00011101 (vm-make-struct-type instr) (vm-make-struct-to instr)))
+		(:structf
+			(output-instr-and-values vec #b01101110 (vm-make-struct-to instr)))
+		(:struct-valrr
+			(output-instr-index-and-values vec #b01101111 (vm-struct-val-idx instr) (vm-struct-val-from instr) (vm-struct-val-to instr)))
+		(:struct-valfr
+			(output-instr-index-and-values vec #b01110001 (vm-struct-val-idx instr) (vm-struct-val-from instr) (vm-struct-val-to instr)))
+		(:struct-valrf
+			(output-instr-index-and-values vec #b01110010 (vm-struct-val-idx instr) (vm-struct-val-from instr) (vm-struct-val-to instr)))
+		(:struct-valrf-ref
+			(output-instr-index-and-values vec #b01110011 (vm-struct-val-idx instr) (vm-struct-val-from instr) (vm-struct-val-to instr)))
+		(:struct-valff
+			(output-instr-index-and-values vec #b01110100 (vm-struct-val-idx instr) (vm-struct-val-from instr) (vm-struct-val-to instr)))
+		(:struct-valff-ref
+			(output-instr-index-and-values vec #b01110101 (vm-struct-val-idx instr) (vm-struct-val-from instr) (vm-struct-val-to instr)))
+		(:move-float-to-stack
+			(output-instr-and-values vec #b01110110 (move-from instr) (move-to instr)))
       (:convert-float
 			(output-instr-and-values vec #b00001001 (vm-convert-float-place instr) (vm-convert-float-dest instr)))
       (:select-node

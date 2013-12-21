@@ -13,7 +13,9 @@
 (defparameter *list-types* '((:type-list :all)))
 (defparameter *all-types* '(:all))
 
-(defun is-all-type-p (x) (and x (eq (first x) :all)))
+(defun is-all-type-p (x)
+	(or (and (listp x) (one-elem-p x) (eq :all (first x)))
+		 (and x (eq (first x) :all))))
 
 (defmacro deftype-p (&rest types)
    `(on-top-level
@@ -80,7 +82,7 @@
 			  (get-constant-p expr)
 			  (struct-p expr))
          (third expr))
-      ((or (op-p expr) (call-p expr) (callf-p expr) (cons-p expr))
+      ((or (op-p expr) (struct-val-p expr) (call-p expr) (callf-p expr) (cons-p expr))
          (fourth expr))
       ((or (let-p expr) (if-p expr)) (fifth expr))
       (t (error 'type-invalid-error :text (tostring "expr-type: cannot deduce type of expression ~a" expr)))))

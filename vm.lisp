@@ -53,6 +53,7 @@
 						`(:move-world-to-field ,from ,to))))
 			((vm-float-p from)
 				(cond
+					((vm-stack-p to) `(:move-float-to-stack ,from ,to))
 					((reg-dot-p to) `(:move-float-to-field ,from ,to))
 					((reg-p to) `(:move-float-to-reg ,from ,to))))
 			((vm-addr-p from)
@@ -108,10 +109,10 @@
 	(assert (not (null to)))
 	"We specialize the move instruction."
 	(let ((ret (specialize-move from to typ)))
-		(assert ret)
 		(cond
 			(ret ret)
 			(t (warn "could not specialize move ~a ~a" from to)
+				(assert ret)
 				`(:move ,from ,to)))))
 				
 (defun move-to (mv) (third mv))
@@ -254,12 +255,34 @@
 (defun vm-tail-type (tail) (fourth tail))
 (defun vm-tail-p (tail) (tagged-p tail :tail))
 
-(defun make-vm-struct-val (idx from to) `(:struct-val ,idx ,from ,to))
+(defun make-vm-struct-val (idx from to val-type)
+	(assert (or (reg-p from) (reg-dot-p from)))
+	(assert (or (reg-p to) (reg-dot-p to)))
+	(let ((ref-type-p (reference-type-p val-type)))
+		(cond
+			((reg-p from)
+				(cond
+					((reg-p to) `(:struct-valrr ,idx ,from ,to))
+					((reg-dot-p to)
+						(if ref-type-p
+							`(:struct-valrf-ref ,idx ,from ,to)
+							`(:struct-valrf ,idx ,from ,to)))))
+			((reg-dot-p from)
+				(cond
+					((reg-p to) `(:struct-valfr ,idx ,from ,to))
+					((reg-dot-p to)
+						(if ref-type-p
+							`(:struct-valff-ref ,idx ,from ,to)
+							`(:struct-valff ,idx ,from ,to))))))))
 (defun vm-struct-val-idx (x) (second x))
 (defun vm-struct-val-from (x) (third x))
 (defun vm-struct-val-to (x) (fourth x))
 
-(defun make-vm-make-struct (typ to) `(:struct ,typ ,to))
+(defun make-vm-make-struct (typ to)
+	(assert (or (reg-p to) (reg-dot-p to)))
+	(cond
+		((reg-p to) `(:structr ,typ ,to))
+		((reg-dot-p to) `(:structf ,typ ,to))))
 (defun vm-make-struct-to (x) (third x))
 (defun vm-make-struct-type (x) (second x))
 
@@ -498,7 +521,6 @@
 (defun print-instr (instr)
    (case (instr-type instr)
       (:return "RETURN")
-      (:move-nil (tostring "MOVE-NIL ~a" (print-place (move-nil-to instr))))
       (:test-nil (tostring "TEST-NIL ~a TO ~a" (print-place (vm-test-nil-place instr)) (print-place (vm-test-nil-dest instr))))
       (:cons (tostring "CONS (~a::~a) TO ~a" (print-place (vm-cons-head instr))
                (print-place (vm-cons-tail instr)) (print-place (vm-cons-dest instr))))
