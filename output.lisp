@@ -41,6 +41,8 @@
 (defun output-float (flt) (output-float64 flt))
 (defun output-string (str)
 	(map 'list #'char-code str))
+(defun output-addr (addr)
+	(output-int64 (vm-addr-num addr)))
 	
 (defconstant +any-value-flag+ #b001111)
 	
@@ -73,7 +75,7 @@
 			(let* ((str (vm-string-constant-val val))
 					 (code (push-string-constant str)))
 				(list #b000110 (output-int code))))
-      ((vm-addr-p val) (list  #b000101 (output-int (vm-addr-num val))))
+      ((vm-addr-p val) (list  #b000101 (output-addr val)))
       ((vm-ptr-p val) (list #b001011 (output-int64 (vm-ptr-val val))))
 		((vm-host-id-p val) (list #b000011))
       ((vm-nil-p val) (list #b000100))
@@ -203,7 +205,7 @@
          
 (defun output-axiom-argument (arg vec subgoal)
 	(cond
-		((addr-p arg) (output-list-bytes vec (output-int (addr-num arg))))
+		((addr-p arg) (output-list-bytes vec (output-addr arg)))
 		((int-p arg)
 			(if (type-float-p (expr-type arg))
 				(output-list-bytes vec (output-float (int-val arg)))
@@ -773,8 +775,8 @@
       (format t "WARNING: there are no nodes defined in this program~%"))
    (write-int-stream stream (number-of-nodes nodes))
    (iterate-nodes (fake-id real-id nodes)
-      (write-int-stream stream fake-id)
-      (write-int-stream stream real-id)))
+      (write-int64-stream stream fake-id)
+      (write-int64-stream stream real-id)))
 		
 (defun priority-order-bit (order)
 	(case order
