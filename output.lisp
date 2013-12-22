@@ -308,9 +308,11 @@
                (add-byte (logand *reg-mask* reg-b) vec)
                (jumps-here vec)
                (output-instrs (vm-if-instrs instr) vec))))
-      (:iterate (write-jump vec 9 ;; outside jump
-						(write-jump vec 5 ;; inner jump
+      (:iterate (write-jump vec 17 ;; outside jump
+						(write-jump vec 13 ;; inner jump
                   	(add-byte #b10100000 vec)
+							(loop for i from 1 upto 8
+								do (add-byte #b0 vec))
                   	(add-byte (lookup-def-id (iterate-name instr)) vec)
 							(add-byte (logand *reg-mask* (reg-to-byte (iterate-reg instr))) vec)
 							(multiple-value-bind (b1 b2) (iterate-options-bytes instr)
