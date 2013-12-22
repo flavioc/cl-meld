@@ -140,6 +140,15 @@
          (add-byte (logand *reg-mask* (reg-to-byte (vm-call-dest call))) vec)
 			(output-list-bytes vec extra-bytes)
          (output-values vec args)))
+
+(defun output-calle (vec call instr &optional extra-bytes)
+	(let ((extern-id (lookup-custom-external-function-id (vm-calle-name call)))
+             (args (vm-call-args call)))
+         (add-byte instr vec)
+         (add-byte (logand *extern-id-mask* extern-id) vec)
+         (add-byte (logand *reg-mask* (reg-to-byte (vm-call-dest call))) vec)
+			(output-list-bytes vec extra-bytes)
+         (output-values vec args)))
       
 (defun reg-to-byte (reg) (reg-num reg))
       
@@ -291,16 +300,8 @@
 				  (add-byte (lookup-function-id (vm-callf-name instr)) vec))
       (:call
 			(output-call vec instr #b00100000 (list (length (vm-call-args instr)))))
-		(:calle (let ((extern-id (lookup-custom-external-function-id (vm-calle-name instr)))
-						 (args (vm-calle-args instr)))
-						(add-byte #b00011011 vec)
-						(add-byte (logand *extern-id-mask* extern-id) vec)
-						(add-byte (length args) vec)
-						(add-byte (logand *reg-mask* (reg-to-byte (vm-calle-dest instr))) vec)
-						(dolist (arg args)
-							(let ((res (output-value arg)))
-								(add-byte (first res) vec)
-								(add-bytes vec (second res))))))
+		(:calle
+			(output-calle vec instr #b00011011 (list (length (vm-calle-args instr)))))
       (:if (let ((reg-b (reg-to-byte (vm-if-reg instr))))
              (write-jump vec 2
                (add-byte #b01100000 vec)
