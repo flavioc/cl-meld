@@ -62,7 +62,6 @@
 					(setf (gethash key new-hash)
 								(if (reg-p now)
 									(let ((stack-off (reg-num now)))
-										(warn "~a -> ~a" now stack-off)
 										(make-vm-stack stack-off))
 									now))))
 		new-hash))
@@ -458,6 +457,30 @@
    (let ((reg-dot (make-reg-dot tuple-reg i)))
       (compile-expr-to arg reg-dot)))
 
+(defun general-make-send (name tuple-reg send-to appears-body-p)
+	(let ((def (lookup-definition name)))
+		(cond
+			((and (not (is-reused-p def)) (is-linear-p def) (reg-eq-p tuple-reg send-to) (not appears-body-p) (not (is-action-p def)))
+			 	(make-vm-add-linear tuple-reg))
+			((and (or (and (is-reused-p def) (is-linear-p def)) (not (is-linear-p def))) (reg-eq-p tuple-reg send-to) (not (is-action-p def)))
+				(make-vm-add-persistent tuple-reg))
+			((and (is-action-p def) (reg-eq-p tuple-reg send-to))
+				(make-vm-run-action tuple-reg))
+			((and (is-linear-p def) (reg-eq-p tuple-reg send-to) appears-body-p)
+				(make-vm-enqueue-linear tuple-reg))
+			(t
+				(assert (not (reg-eq-p tuple-reg send-to)))
+				(make-send tuple-reg send-to)))))
+				
+(defun subgoal-appears-in-any-body-p (clause name)
+	(do-comprehensions (clause-head clause) (:left body)
+		(when (subgoal-appears-code-p body name)
+			(return-from subgoal-appears-in-any-body-p t)))
+	(do-agg-constructs (clause-head clause) (:body body)
+		(when (subgoal-appears-code-p body name)
+			(return-from subgoal-appears-in-any-body-p t)))
+	(clause-body-matches-subgoal-p clause name))
+
 (defun do-compile-head-subgoals (head clause)
    (do-subgoals head (:name name :args args :operation append :subgoal sub)
       (with-reg (tuple-reg)
@@ -468,7 +491,7 @@
             ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub tuple-reg)
                `(,@extra-code ,(if (subgoal-has-delay-p sub)
 												(make-vm-send-delay tuple-reg send-to (subgoal-delay-value sub))
-												(make-send tuple-reg send-to)))))))
+												(general-make-send name tuple-reg send-to (subgoal-appears-in-any-body-p clause name))))))))
             res))))
 
 (defconstant +plus-infinity+ 2147483647)
@@ -513,21 +536,21 @@
 		(otherwise (error 'compile-invalid-error
 								:text (tostring "agg-construct-step: op ~a not recognized" op)))))
 	
-(defun compile-agg-construct (c)
+(defun compile-agg-construct (c clause)
 	(with-agg-construct c (:specs specs)
-		(compile-agg-construct-specs c specs nil nil)))
+		(compile-agg-construct-specs c specs nil nil clause)))
 
-(defun compile-agg-construct-specs (c specs end vars-regs)
+(defun compile-agg-construct-specs (c specs end vars-regs clause)
 	(cond
 		((null specs)
-			(let ((inner-code (compile-iterate (agg-construct-body c) (agg-construct-body c) nil nil nil nil
+			(let ((inner-code (compile-iterate (agg-construct-body c) (agg-construct-body c) nil clause nil nil
 									:head-compiler #'(lambda (h c d s)
 																(declare (ignore h c d s))
 																(loop for var-reg in vars-regs
 																	append (agg-construct-step (third var-reg) (second var-reg) (first var-reg)))))))
 				(dolist (var-reg vars-regs)
 					(add-used-var (var-name (first var-reg)) (second var-reg)))
-				(let ((head-code (do-compile-head-code (agg-construct-head c) nil nil nil)))
+				(let ((head-code (do-compile-head-code (agg-construct-head c) clause nil nil)))
 					(dolist (var-reg vars-regs)
 						(remove-used-var (var-name (first var-reg))))
 					`(,(make-vm-reset-linear (append inner-code (append end (append head-code `(,(make-vm-reset-linear-end))))))))))
@@ -539,17 +562,17 @@
 						(let ((spec-end (agg-construct-end op acc)))
 							(let ((inner-code (compile-agg-construct-specs c rest-specs
 										(append end spec-end)
-										(cons (list var acc op) vars-regs))))
+										(cons (list var acc op) vars-regs) clause)))
 								`(,@(agg-construct-start op acc) ,@inner-code)))))))))
 
 (defun do-compile-head-comprehensions (head clause def subgoal)
    (let* ((code (do-comprehensions head (:left left :right right :operation collect)
-                  (with-compile-context (make-vm-reset-linear `(,@(compile-iterate left left right nil nil nil) ,(make-vm-reset-linear-end)))))))
+                  (with-compile-context (make-vm-reset-linear `(,@(compile-iterate left left right clause nil nil) ,(make-vm-reset-linear-end)))))))
 		code))
 
 (defun do-compile-head-aggs (head clause def subgoal)
 	(let ((code-agg (do-agg-constructs head (:agg-construct c :operation append)
-				(with-compile-context (compile-agg-construct c)))))
+				(with-compile-context (compile-agg-construct c clause)))))
 		code-agg))
 		
 (defun do-compile-one-exists (vars exists-body clause)

@@ -392,6 +392,18 @@
 (defun send-from (send) (second send))
 (defun send-to (send) (third send))
 
+(defun make-vm-add-linear (reg) `(:add-linear ,reg))
+(defun vm-add-linear-reg (x) (second x))
+
+(defun make-vm-add-persistent (reg) `(:add-persistent ,reg))
+(defun vm-add-persistent-reg (x) (second x))
+
+(defun make-vm-run-action (reg) `(:run-action ,reg))
+(defun vm-run-action-reg (x) (second x))
+
+(defun make-vm-enqueue-linear (reg) `(:enqueue-linear ,reg))
+(defun vm-enqueue-linear-reg (x) (second x))
+
 (defun make-vm-send-delay (from to delay) `(:send-delay ,from ,to ,delay))
 (defun vm-send-delay-from (send) (second send))
 (defun vm-send-delay-to (send) (third send))

@@ -94,23 +94,6 @@
 (defun add-bytes (vec ls)
 	(dolist (b ls) (add-byte b vec)))
 
-(defmacro do-vm-values (vec vals &rest instrs)
-   (labels ((map-value (i) (case i (1 'first-value) (2 'second-value) (3 'third-value)))
-            (map-value-bytes (i) (case i (1 'first-value-bytes) (2 'second-value-bytes) (3 'third-value-bytes))))
-      (let* ((i 0)
-             (vals-code (mapcar #'(lambda (val) `(output-value ,val)) vals))
-             (instrs-code `(progn ,@(mapcar #'(lambda (instr) `(add-byte ,instr ,vec)) instrs)
-                              ,@(loop for i from 1 upto (length vals)
-                                    collect `(dolist (bt ,(map-value-bytes i))
-                                                (add-byte bt ,vec))))))
-         (reduce #'(lambda (all val)
-                     (incf i)
-                     `(let* ((value ,val)
-                           (,(map-value i) (first value))
-                           (,(map-value-bytes i) (second value)))
-                              ,all))
-                  vals-code :initial-value instrs-code :from-end nil))))
-
 (defun output-values (vec vals)
 	(loop for val in vals
 			do
@@ -323,11 +306,6 @@
                   	(output-matches (iterate-matches instr) vec))
                   (output-instrs (iterate-instrs instr) vec)
                   (add-byte #b00000001 vec)))
-		(:move
-				(do-vm-values vec ((move-from instr) (move-to instr))
-                #b00110000
-                (logand *value-mask* first-value)
-                (logand *value-mask* second-value)))
 		(:move-int-to-field
 			(output-instr-and-values vec #b00011110 (move-from instr) (move-to instr)))
 		(:move-int-to-reg
@@ -505,6 +483,14 @@
 			(output-instr-index-and-values vec #b01110101 (vm-struct-val-idx instr) (vm-struct-val-from instr) (vm-struct-val-to instr)))
 		(:move-float-to-stack
 			(output-instr-and-values vec #b01110110 (move-from instr) (move-to instr)))
+		(:add-linear
+			(output-instr-and-values vec #b01110111 (vm-add-linear-reg instr)))
+		(:add-persistent
+			(output-instr-and-values vec #b01111000 (vm-add-persistent-reg instr)))
+		(:run-action
+			(output-instr-and-values vec #b01111001 (vm-run-action-reg instr)))
+		(:enqueue-linear
+			(output-instr-and-values vec #b01111010 (vm-enqueue-linear-reg instr)))
       (:convert-float
 			(output-instr-and-values vec #b00001001 (vm-convert-float-place instr) (vm-convert-float-dest instr)))
       (:select-node
@@ -539,12 +525,6 @@
                                           (write-offset vec (- end-select (1- write-end)) write-end)))
                               (write-offset vec (- end-select (1- start)) start)))))
       (:return-select (add-byte #b00001011 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec))
-      (:colocated
-         (do-vm-values vec ((vm-colocated-first instr) (vm-colocated-second instr))
-            #b00001100
-            (logand *value-mask* first-value)
-            (logand *value-mask* second-value)
-            (logand *reg-mask* (reg-to-byte (vm-colocated-dest instr)))))
       (:rule
          (add-byte #b00010000 vec)
 			(output-list-bytes vec (output-int (vm-rule-id instr))))
