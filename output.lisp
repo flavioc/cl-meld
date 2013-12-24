@@ -27,6 +27,11 @@
       ,@body
       s))
 
+(defparameter *node-values-positions* nil)
+(defun add-node-value (vec)
+	(let ((pos (length vec)))
+		(push pos *node-values-positions*)))
+
 (defmacro add-byte (b vec) `(vector-push-extend ,b ,vec))
 (defun add-bytes (vec ls)
 	(dolist (b ls) (add-byte b vec)))
@@ -79,6 +84,7 @@
 					 (code (push-string-constant str)))
 				(output-list-bytes vec (output-int code))))
 		((vm-addr-p val)
+			(add-node-value vec) 
 			(output-list-bytes vec (output-addr val)))
 		((vm-ptr-p val) (output-list-bytes vec (output-int64 (vm-ptr-val val))))
 		((vm-host-id-p val))
@@ -218,7 +224,9 @@
          
 (defun output-axiom-argument (arg vec subgoal)
 	(cond
-		((addr-p arg) (output-list-bytes vec (output-addr arg)))
+		((addr-p arg)
+			(add-node-value vec)
+			(output-list-bytes vec (output-addr arg)))
 		((int-p arg)
 			(if (type-float-p (expr-type arg))
 				(output-list-bytes vec (output-float (int-val arg)))
@@ -559,11 +567,28 @@
 (defun output-instrs (ls vec)
    (dolist (instr ls)
       (output-instr instr vec)))
-                             
+
+(defmacro make-byte-code (vec &body body)
+	`(progn
+		(let ((*node-values-positions* nil))
+			,@body
+			(list :byte-code ,vec *node-values-positions*))))
+			
+(defun byte-code-vec (b) (second b))
+(defun byte-code-nodes (b) (third b))
+(defun byte-code-size (b) (length (byte-code-vec b)))
+
+(defun write-byte-code (stream bc)
+	(write-vec stream (byte-code-vec bc))
+	(write-int-stream stream (length (byte-code-nodes bc)))
+	(dolist (node (byte-code-nodes bc))
+		(write-int-stream stream node)))
+
 (defun output-processes ()
    (do-processes (:name name :instrs instrs :operation collect)
-      (letret (vec (create-bin-array))
-         (output-instrs instrs vec))))
+      (let ((vec (create-bin-array)))
+			(make-byte-code vec
+         	(output-instrs instrs vec)))))
 
 (defun lookup-type-id (typ)
 	(let ((ret (position typ *program-types* :test #'equal)))
@@ -723,14 +748,16 @@
       )))
 
 (defun output-consts ()
-	(letret (vec (create-bin-array))
-		(output-instrs *consts-code* vec)))
+	(let ((vec (create-bin-array)))
+		(make-byte-code vec
+			(output-instrs *consts-code* vec))))
 
 (defun output-functions ()
 	(printdbg "Processing functions")
 	(loop for code in *function-code*
-		collect (letret (vec (create-bin-array))
-						(output-instrs code vec))))
+		collect (let ((vec (create-bin-array)))
+						(make-byte-code vec
+							(output-instrs code vec)))))
    
 (defparameter *total-written* 0)
 
@@ -818,13 +845,13 @@
 			collect
    			(let ((vec (create-bin-array))
 			 			(code (rule-code code-rule)))
-					(if (and (= count 0) is-data-p)
-						;; for data files just print the select by node instruction
-						(let* ((iterate (second (rule-code code-rule)))
-								(select (find-if #'(lambda (instr) (eq (first instr) :select-node)) (iterate-instrs iterate))))
-							(output-instrs `(,(make-vm-rule 0) ,select ,(make-return-derived)) vec))
-						(output-instrs code vec))
-					vec)))
+					(make-byte-code vec
+						(if (and (= count 0) is-data-p)
+								;; for data files just print the select by node instruction
+								(let* ((iterate (second (rule-code code-rule)))
+								  		 (select (find-if #'(lambda (instr) (eq (first instr) :select-node)) (iterate-instrs iterate))))
+									(output-instrs `(,(make-vm-rule 0) ,select ,(make-return-derived)) vec))
+								(output-instrs code vec))))))
 				
 (defparameter +meld-magic+ '(#x6d #x65 #x6c #x64 #x20 #x66 #x69 #x6c))
 
@@ -878,8 +905,8 @@
 (defun do-output-descriptors (stream descriptors processes)
 	(printdbg "Processing predicates...")
 	(loop for vec-desc in descriptors
-         for vec-proc in processes
-         do (write-int-stream stream (length vec-proc)) ; write code size first
+         for bc in processes
+         do (write-int-stream stream (byte-code-size bc)) ; write code size first
          do (write-vec stream vec-desc)))
 
 (defun do-output-string-constants (stream)
@@ -894,18 +921,17 @@
 	(write-int-stream stream (length *consts*))
 	(do-constant-list *consts* (:type typ)
 		(write-arg-type stream typ))
-	(write-int-stream stream (length consts))
-	(write-vec stream consts))
+	(write-int-stream stream (byte-code-size consts))
+	(write-byte-code stream consts))
 	
 (defun do-output-rules (stream rules)
 	(printdbg "Processing rules...")
 	(write-int-stream stream (length *code-rules*))
-	(dolist2 (vec rules) (code-rule *code-rules*)
+	(dolist2 (bc rules) (code-rule *code-rules*)
 	 (let* ((ids (subgoal-ids code-rule))
 			 (pers-p (persistent-p code-rule)))
-		(write-int-stream stream (length vec))
-		
-		(write-vec stream vec)
+		(write-int-stream stream (byte-code-size bc))
+		(write-byte-code stream bc)
 		
 		(if pers-p
 			(write-hexa stream 1)
@@ -920,8 +946,8 @@
 	(printdbg "Processing functions...")
 	(write-int-stream stream (length functions))
 	(dolist (fun functions)
-		(write-int-stream stream (length fun))
-		(write-vec stream fun)))
+		(write-int-stream stream (byte-code-size fun))
+		(write-byte-code stream fun)))
 		
 (defconstant +max-extern-function-name+ 256)
 (defconstant +max-extern-file-name+ 1024)
@@ -954,8 +980,6 @@
 	(write-rules stream)
 	(let* ((*output-string-constants* nil)
 			 (descriptors (output-descriptors))
-			 (processes (loop for desc in descriptors
-								collect (list)))
 			 (rules (output-all-rules t))
 			 (functions (output-functions))
 			 (consts (output-consts)))
@@ -964,7 +988,7 @@
 		(do-output-functions stream functions)
 		; write external definitions
 		(do-output-externs stream)
-		(do-output-descriptors stream descriptors processes)
+		(do-output-descriptors stream descriptors nil)
 		(output-data-file-info stream)
 		;; write init-code
 		(when (> (length rules) 1)
@@ -994,7 +1018,8 @@
       (do-output-descriptors stream descriptors processes)
 		; output global priority predicate, if any
 		(output-initial-priority stream)
-      (dolist (vec processes) (write-vec stream vec))
+      (dolist (bc processes)
+			(write-byte-code stream bc))
 		(do-output-rules stream rules)))
    
 (defmacro with-output-file ((stream file) &body body)
