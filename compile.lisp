@@ -21,6 +21,8 @@
 	(let ((new-reg (find-unused-reg regs)))
 		(values new-reg (extend-regs regs new-reg))))
 
+(defparameter *compiling-axioms* nil)
+(defparameter *compilation-clause* nil)
 (defparameter *vars-places* nil)
 (defparameter *used-regs* nil)
 
@@ -603,9 +605,14 @@
         
 (defun compile-linear-deletes-and-returns (subgoal def delete-regs inside)
 	(let ((deletes (mapcar #'make-vm-remove delete-regs)))
-      (if (subgoal-to-be-deleted-p subgoal def)
-         `(,@deletes ,(make-return-linear))
-         `(,@deletes ,@(if inside `(,(make-return-derived)) nil)))))
+		(cond
+			(*compiling-axioms* deletes)
+			((and subgoal def) deletes)
+			((and *compilation-clause* (clause-is-persistent-p *compilation-clause*)) deletes)
+			((and (null def) (null subgoal)) `(,@deletes ,(make-return-derived)))
+			((and (not *compilation-clause*) (and subgoal) (subgoal-to-be-deleted-p subgoal def))
+				`(,@deletes ,(make-return-linear)))
+			(t	`(,@deletes ,@(if inside `(,(make-return-derived)) nil))))))
 
 ; head-compiler is isually do-compile-head-code
 (defun do-compile-head (subgoal head clause delete-regs inside head-compiler)
@@ -787,7 +794,8 @@
 			(list vm))))
 	
 (defun compile-init-process ()
-	(let ((const-axiom-code (compile-const-axioms)))
+	(let ((const-axiom-code (compile-const-axioms))
+			(*compiling-axioms* t))
 		;; handle other axioms (non-constant)
    	(append const-axiom-code
 			(do-axioms (:body body :head head :clause clause :operation :append)
@@ -847,10 +855,11 @@
 												,(make-return)))) (list (lookup-def-id "_init")) nil))
 			(other-rules (do-rules (:clause clause :id id :operation collect)
 								(with-clause clause (:body body :head head)
-									(make-rule-code (with-empty-compile-context
-												`(,(make-vm-rule (1+ id)) ,@(compile-iterate body body head clause t nil) ,(make-return)))
-											(rule-subgoal-ids clause)
-											(clause-is-persistent-p clause))))))
+									(let ((*compilation-clause* clause))
+										(make-rule-code (with-empty-compile-context
+													`(,(make-vm-rule (1+ id)) ,@(compile-iterate body body head clause t nil) ,(make-return)))
+												(rule-subgoal-ids clause)
+												(clause-is-persistent-p clause)))))))
 		`(,init-rule ,@other-rules)))
 											
 
