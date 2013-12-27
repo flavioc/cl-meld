@@ -23,6 +23,7 @@
 
 (defparameter *compiling-axioms* nil)
 (defparameter *compilation-clause* nil)
+(defparameter *compiling-rule* nil)
 (defparameter *vars-places* nil)
 (defparameter *used-regs* nil)
 
@@ -483,7 +484,7 @@
 			(return-from subgoal-appears-in-any-body-p t)))
 	(clause-body-matches-subgoal-p clause name))
 
-(defun do-compile-head-subgoals (head clause)
+(defun do-compile-head-subgoals (head)
    (do-subgoals head (:name name :args args :operation append :subgoal sub)
       (with-reg (tuple-reg)
          (let ((res `(,(make-vm-alloc name tuple-reg)
@@ -493,7 +494,7 @@
             ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub tuple-reg)
                `(,@extra-code ,(if (subgoal-has-delay-p sub)
 												(make-vm-send-delay tuple-reg send-to (subgoal-delay-value sub))
-												(general-make-send name tuple-reg send-to (subgoal-appears-in-any-body-p clause name))))))))
+												(general-make-send name tuple-reg send-to (subgoal-appears-in-any-body-p *compilation-clause* name))))))))
             res))))
 
 (defconstant +plus-infinity+ 2147483647)
@@ -538,21 +539,21 @@
 		(otherwise (error 'compile-invalid-error
 								:text (tostring "agg-construct-step: op ~a not recognized" op)))))
 	
-(defun compile-agg-construct (c clause)
+(defun compile-agg-construct (c)
 	(with-agg-construct c (:specs specs)
-		(compile-agg-construct-specs c specs nil nil clause)))
+		(compile-agg-construct-specs c specs nil nil)))
 
-(defun compile-agg-construct-specs (c specs end vars-regs clause)
+(defun compile-agg-construct-specs (c specs end vars-regs)
 	(cond
 		((null specs)
-			(let ((inner-code (compile-iterate (agg-construct-body c) (agg-construct-body c) nil clause nil nil
-									:head-compiler #'(lambda (h c d s)
+			(let ((inner-code (compile-iterate (agg-construct-body c) (agg-construct-body c) nil nil nil
+									:head-compiler #'(lambda (h d s)
 																(declare (ignore h c d s))
 																(loop for var-reg in vars-regs
 																	append (agg-construct-step (third var-reg) (second var-reg) (first var-reg)))))))
 				(dolist (var-reg vars-regs)
 					(add-used-var (var-name (first var-reg)) (second var-reg)))
-				(let ((head-code (do-compile-head-code (agg-construct-head c) clause nil nil)))
+				(let ((head-code (do-compile-head-code (agg-construct-head c) nil nil)))
 					(dolist (var-reg vars-regs)
 						(remove-used-var (var-name (first var-reg))))
 					`(,(make-vm-reset-linear (append inner-code (append end (append head-code `(,(make-vm-reset-linear-end))))))))))
@@ -564,40 +565,40 @@
 						(let ((spec-end (agg-construct-end op acc)))
 							(let ((inner-code (compile-agg-construct-specs c rest-specs
 										(append end spec-end)
-										(cons (list var acc op) vars-regs) clause)))
+										(cons (list var acc op) vars-regs))))
 								`(,@(agg-construct-start op acc) ,@inner-code)))))))))
 
-(defun do-compile-head-comprehensions (head clause def subgoal)
+(defun do-compile-head-comprehensions (head def subgoal)
    (let* ((code (do-comprehensions head (:left left :right right :operation collect)
-                  (with-compile-context (make-vm-reset-linear `(,@(compile-iterate left left right clause nil nil) ,(make-vm-reset-linear-end)))))))
+                  (with-compile-context (make-vm-reset-linear `(,@(compile-iterate left left right nil nil) ,(make-vm-reset-linear-end)))))))
 		code))
 
-(defun do-compile-head-aggs (head clause def subgoal)
+(defun do-compile-head-aggs (head def subgoal)
 	(let ((code-agg (do-agg-constructs head (:agg-construct c :operation append)
-				(with-compile-context (compile-agg-construct c clause)))))
-		code-agg))
+		(with-compile-context (compile-agg-construct c)))))
+			code-agg))
 		
-(defun do-compile-one-exists (vars exists-body clause)
+(defun do-compile-one-exists (vars exists-body)
 	(cond
-		((null vars) (do-compile-head-subgoals exists-body clause))
+		((null vars) (do-compile-head-subgoals exists-body))
 		(t
 			(let ((var (first vars))
 					(other-vars (rest vars)))
 				(with-reg (reg-var)
 					(add-used-var (var-name var) reg-var)
-						`(,(make-vm-new-node reg-var) ,@(do-compile-one-exists other-vars exists-body clause)))))))
+						`(,(make-vm-new-node reg-var) ,@(do-compile-one-exists other-vars exists-body)))))))
 		
-(defun do-compile-head-exists (head clause def subgoal)
+(defun do-compile-head-exists (head def subgoal)
 	(let ((code (do-exists head (:var-list vars :body body :operation append)
 						(with-compile-context
-							(do-compile-one-exists vars body clause)))))
+							(do-compile-one-exists vars body)))))
 		code))
 
-(defun do-compile-head-code (head clause def subgoal)
-   (let ((subgoals-code (do-compile-head-subgoals head clause))
-         (comprehensions-code (do-compile-head-comprehensions head clause def subgoal))
-			(agg-code (do-compile-head-aggs head clause def subgoal))
-			(exists-code (do-compile-head-exists head clause def subgoal)))
+(defun do-compile-head-code (head def subgoal)
+   (let ((subgoals-code (do-compile-head-subgoals head))
+         (comprehensions-code (do-compile-head-comprehensions head def subgoal))
+			(agg-code (do-compile-head-aggs head def subgoal))
+			(exists-code (do-compile-head-exists head def subgoal)))
 		`(,@subgoals-code ,@comprehensions-code ,@agg-code ,@exists-code)))
 		
 (defun subgoal-to-be-deleted-p (subgoal def)
@@ -608,18 +609,18 @@
 		(cond
 			(*compiling-axioms* deletes)
 			((and subgoal def) deletes)
-			((and *compilation-clause* (clause-is-persistent-p *compilation-clause*)) deletes)
+			((and *compiling-rule* (clause-is-persistent-p *compilation-clause*)) deletes)
 			((and (null def) (null subgoal)) `(,@deletes ,(make-return-derived)))
 			((and (not *compilation-clause*) (and subgoal) (subgoal-to-be-deleted-p subgoal def))
 				`(,@deletes ,(make-return-linear)))
 			(t	`(,@deletes ,@(if inside `(,(make-return-derived)) nil))))))
 
 ; head-compiler is isually do-compile-head-code
-(defun do-compile-head (subgoal head clause delete-regs inside head-compiler)
+(defun do-compile-head (subgoal head delete-regs inside head-compiler)
    (let* ((def (if (subgoal-p subgoal) (lookup-definition (subgoal-name subgoal)) nil))
-          (head-code (funcall head-compiler head clause def subgoal))
+          (head-code (funcall head-compiler head def subgoal))
           (linear-code (compile-linear-deletes-and-returns subgoal def delete-regs inside))
-          (delete-code (compile-inner-delete clause)))
+          (delete-code (compile-inner-delete *compilation-clause*)))
       `(,@head-code ,@delete-code ,@linear-code)))
       
 (defun compile-assignments-and-head (assignments head-fun)
@@ -633,9 +634,9 @@
 
 (defun remove-defined-assignments (assignments) (mapcar #L(remove-used-var (var-name (assignment-var !1))) assignments))
 
-(defun compile-head (body head clause subgoal delete-regs inside head-compiler)
+(defun compile-head (body head subgoal delete-regs inside head-compiler)
    (let* ((assigns (filter #'assignment-p body))
-          (head-code (compile-assignments-and-head assigns #L(do-compile-head subgoal head clause delete-regs inside head-compiler))))
+          (head-code (compile-assignments-and-head assigns #L(do-compile-head subgoal head delete-regs inside head-compiler))))
          (remove-defined-assignments assigns)
          (if subgoal
             `(,(make-vm-rule-done) ,@head-code)
@@ -666,14 +667,13 @@
 	#'(lambda (c)
 		(make-low-constraint (low-constraint-type c) (make-reg-dot reg (reg-dot-field (low-constraint-v1 c))) (low-constraint-v2 c))))
                      
-(defun compile-iterate (body orig-body head clause subgoal delete-regs &key (inside nil) (head-compiler #'do-compile-head-code))
-
+(defun compile-iterate (body orig-body head subgoal delete-regs &key (inside nil) (head-compiler #'do-compile-head-code))
    (multiple-value-bind (constraints assignments) (get-compile-constraints-and-assignments body)
 		(let* ((next-sub (select-next-subgoal-for-compilation body))
              (body1 (remove-unneeded-assignments (remove-tree-first next-sub (remove-all body constraints)) head)))
          (compile-constraints-and-assignments constraints assignments
             (if (not next-sub)
-					(compile-head body1 head clause subgoal delete-regs inside head-compiler)
+					(compile-head body1 head subgoal delete-regs inside head-compiler)
                (let ((next-sub-name (subgoal-name next-sub)))
                   (with-reg (reg)
 							(multiple-value-bind (low-constraints body2) (add-subgoal next-sub reg body1 :match)
@@ -685,7 +685,7 @@
 	                            (new-delete-regs (if (subgoal-to-be-deleted-p next-sub def)
 	                                               (cons reg delete-regs) delete-regs))
 	                            (iterate-code (compile-low-constraints inner-constraints
-																	(compile-iterate body2 orig-body head clause subgoal new-delete-regs
+																	(compile-iterate body2 orig-body head subgoal new-delete-regs
 																					:inside t :head-compiler head-compiler))))
 	                       `(,(make-iterate next-sub-name reg
 											match-constraints iterate-code
@@ -742,14 +742,14 @@
 		(when (subgoal-has-min-p sub)
 			(return-from get-first-min-subgoal sub))))
 
-(defun compile-initial-subgoal (body orig-body head clause subgoal)
+(defun compile-initial-subgoal (body orig-body head subgoal)
 	(let ((body1 (remove-tree subgoal body)))
       (if (null (subgoal-args subgoal))
-         (compile-iterate body1 orig-body head clause subgoal nil)
+         (compile-iterate body1 orig-body head subgoal nil)
          (with-reg (sub-reg)
 				(assert (= (reg-num sub-reg) 0))
 				(multiple-value-bind (low-constraints body2) (add-subgoal subgoal sub-reg body1)
-	            (let ((inner-code (compile-iterate body2 orig-body head clause subgoal nil)))
+	            (let ((inner-code (compile-iterate body2 orig-body head subgoal nil)))
 	               `(,@(compile-low-constraints low-constraints inner-code))))))))
 
 (defun get-my-subgoals (body name)
@@ -757,17 +757,18 @@
 						(string-equal (subgoal-name sub) name))
 			(get-subgoals body)))
 
-(defun compile-with-starting-subgoal (body head clause &optional subgoal)
+(defun compile-with-starting-subgoal (body head &optional subgoal)
    (with-empty-compile-context
       (multiple-value-bind (first-constraints first-assignments) (get-compile-constraints-and-assignments body)
          (let* ((remaining (remove-unneeded-assignments (remove-all body first-constraints) head))
-                (inner-code (compile-initial-subgoal remaining body head clause subgoal)))
+                (inner-code (compile-initial-subgoal remaining body head subgoal)))
 				(compile-constraints-and-assignments first-constraints first-assignments inner-code)))))
 
 (defun compile-subgoal-clause (name clause)
    (with-clause clause (:body body :head head)
-      (loop-list (subgoal (get-my-subgoals body name) :operation append)
-         (compile-with-starting-subgoal body head clause subgoal))))
+		(let ((*compilation-clause* clause))
+      	(loop-list (subgoal (get-my-subgoals body name) :operation append)
+         	(compile-with-starting-subgoal body head subgoal)))))
 
 (defun compile-normal-process (name clauses)
    (unless clauses (return-from compile-normal-process nil))
@@ -799,7 +800,7 @@
 		;; handle other axioms (non-constant)
    	(append const-axiom-code
 			(do-axioms (:body body :head head :clause clause :operation :append)
-      		(compile-with-starting-subgoal body head clause)))))
+      		(compile-with-starting-subgoal body head)))))
 
 (defun compile-processes ()
 	(do-definitions (:definition def :name name :operation collect)
@@ -855,9 +856,10 @@
 												,(make-return)))) (list (lookup-def-id "_init")) nil))
 			(other-rules (do-rules (:clause clause :id id :operation collect)
 								(with-clause clause (:body body :head head)
-									(let ((*compilation-clause* clause))
+									(let ((*compilation-clause* clause)
+											(*compiling-rule* t))
 										(make-rule-code (with-empty-compile-context
-													`(,(make-vm-rule (1+ id)) ,@(compile-iterate body body head clause t nil) ,(make-return)))
+													`(,(make-vm-rule (1+ id)) ,@(compile-iterate body body head t nil) ,(make-return)))
 												(rule-subgoal-ids clause)
 												(clause-is-persistent-p clause)))))))
 		`(,init-rule ,@other-rules)))
