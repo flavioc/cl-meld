@@ -326,7 +326,7 @@
 					`(,@code1 ,@code2 ,(make-vm-op dest place1 vm-op place2)))))))
 
 (defun get-remote-dest (subgoal)
-   (lookup-used-var (subgoal-get-remote-dest subgoal)))
+   (lookup-used-var (var-name (subgoal-get-remote-dest subgoal))))
    
 (defun get-remote-reg-and-code (subgoal default)
    (if (subgoal-is-remote-p subgoal)
@@ -337,12 +337,13 @@
                (values new-reg `(,(make-move var new-reg)))))) 
          default))
 
-(defun find-matchable-constraint-for-var (body var reg level)
+(defun find-matchable-constraint-for-var (body var reg level &optional i)
 	(cond
 		((int-p var) (values (make-vm-int (int-val var)) nil))
 		((float-p var) (values (make-vm-float (float-val var)) nil))
 		((var-p var)
 			(let ((already-defined (lookup-used-var (var-name var))))
+			 (multiple-value-bind (cs other-var) (when (zerop level) (find-first-assignment-constraint-to-var body var))
 		   	(cond
 		      	(already-defined
 						(cond
@@ -350,6 +351,14 @@
 							 (values already-defined nil))
 							((not (reg-eq-p (reg-dot-reg already-defined) reg))
 								(values already-defined nil))))
+					((and (not already-defined) (zerop level) cs (lookup-used-var (var-name other-var)))
+						(assert other-var)
+						(assert i)
+						(setf already-defined (lookup-used-var (var-name other-var)))
+						(assert (reg-dot-p already-defined))
+						;(warn "found variable1 ~a ~a ~a" var other-var already-defined)
+						(add-used-var (var-name var) (make-reg-dot reg i))
+						(values already-defined (list cs)))
 					(t
 						(let ((literal-constr (find-if #L(and (op-p (constraint-expr !1)) (literal-p (op-op2 (constraint-expr !1))))
 															(find-assignment-constraints body var)))
@@ -371,7 +380,7 @@
 											(values ls (cons non-nil-constr new-constraints))
 											(values (make-vm-non-nil) (list non-nil-constr)))))
 								(nil-constr
-									(values (make-vm-nil) (list nil-constr)))))))))))
+									(values (make-vm-nil) (list nil-constr))))))))))))
 							
 (defun get-possible-list-constraint (body arg reg level)
 	"Looks into body if the list variable arg has constraints in relation to its structure."
@@ -419,7 +428,7 @@
    (with-subgoal subgoal (:args args)
         (let ((low-constraints (loop for arg in args
 								              for i upto (length args)
-								              append (multiple-value-bind (val constrs-to-remove) (find-matchable-constraint-for-var body arg reg 0)
+								              append (multiple-value-bind (val constrs-to-remove) (find-matchable-constraint-for-var body arg reg 0 i)
 																(when (or (not val) (not (reg-dot-p val)))
 																	(add-used-var (var-name arg) (make-reg-dot reg i)))
 																(when val
@@ -631,34 +640,40 @@
    (if (null assignments)
        (funcall head-fun)
        (let ((ass (find-if (valid-assignment-p (all-used-var-names)) assignments)))
-         (with-compiled-expr (place instrs) (assignment-expr ass)
-            (add-used-var (var-name (assignment-var ass)) place)
-            (let ((other-code (compile-assignments-and-head (remove-tree ass assignments) head-fun)))
-               `(,@instrs ,@other-code))))))
+         (with-reg (new-reg)
+				(with-compiled-expr (place instrs :force-dest new-reg) (assignment-expr ass)
+            	(add-used-var (var-name (assignment-var ass)) place)
+            	(let ((other-code (compile-assignments-and-head (remove-tree ass assignments) head-fun)))
+               	`(,@instrs ,@other-code)))))))
 
 (defun remove-defined-assignments (assignments) (mapcar #L(remove-used-var (var-name (assignment-var !1))) assignments))
 
 (defun compile-head (body head delete-regs inside head-compiler)
-   (let* ((assigns (filter #'assignment-p body))
-          (head-code (compile-assignments-and-head assigns #L(do-compile-head head delete-regs inside head-compiler))))
-         (remove-defined-assignments assigns)
-         (if *starting-subgoal*
-            `(,(make-vm-rule-done) ,@head-code)
-            head-code)))
+	(cond
+		((and (not (null head)) (clause-head-is-recursive-p head))
+			(let* ((assigns (get-assignments body))
+					 (code (compile-assignments-and-head assigns #L(loop for clause in head
+																						append (with-compile-context (compile-iterate (clause-body clause) (clause-body clause) (clause-head clause) delete-regs :inside inside))))))
+				(remove-defined-assignments assigns)
+				code))
+		(t
+   		(let* ((assigns (get-assignments body))
+          		 (head-code (compile-assignments-and-head assigns #L(do-compile-head head delete-regs inside head-compiler))))
+         	(remove-defined-assignments assigns)
+         	(if *starting-subgoal*
+            	`(,(make-vm-rule-done) ,@head-code)
+            	head-code)))))
 
 (defun select-next-subgoal-for-compilation (body)
 	"Selects next subgoal for compilation. We give preference to subgoals with modifiers (random/min/etc)."
 	(let ((no-args (find-if #'(lambda (sub) (and (subgoal-p sub) (null (subgoal-args sub)))) body)))
 		(if no-args
 			no-args
-			(let ((not-blocked (find-if #'(lambda (sub) (and (subgoal-p sub) (not (subgoal-is-blocked-p sub)))) body)))
-				(if not-blocked
-					not-blocked
-					(let ((with-mod (find-if #'(lambda (sub) (and (subgoal-p sub) (or (subgoal-has-random-p sub) (subgoal-has-min-p sub)))) body)))
-						(if with-mod
-							with-mod
-							(find-if #'subgoal-p body))))))))
-							
+			(let ((with-mod (find-if #'(lambda (sub) (and (subgoal-p sub) (or (subgoal-has-random-p sub) (subgoal-has-min-p sub)))) body)))
+				(if with-mod
+					with-mod
+					(find-if #'subgoal-p body))))))
+
 (defun constraints-in-the-same-subgoal-p (reg)
 	#'(lambda (c)
 		(let ((v1 (low-constraint-v1 c))
@@ -735,10 +750,25 @@
       (reduce #'(lambda (c old)
 						(let ((vm-op (set-type-to-op (low-constraint-type c) :type-bool :equal)))
 							(assert (not (null vm-op)))
-                  	(list (make-vm-op reg (low-constraint-v1 c)
-												vm-op
-                                    (low-constraint-v2 c))
-                           (make-vm-if reg old))))
+							(warn "~a" (low-constraint-type c))
+							(let ((v1 (low-constraint-v1 c))
+									(v2 (low-constraint-v2 c)))
+								(cond
+									((and (reg-p v1) (reg-p v2))
+                  				(list (make-vm-op reg v1
+													vm-op
+                                    	v2)
+                           			(make-vm-if reg old)))
+									((and (reg-p v1))
+										(with-reg (r2)
+											(list (make-move v2 r2) (make-vm-op reg v1 vm-op r2) (make-vm-if reg old))))
+									((and (reg-p v2))
+										(with-reg (r1)
+											(list (make-move v1 r1) (make-vm-op reg r1 vm-op v2) (make-vm-if reg old))))
+									(t
+										(with-reg (r1)
+											(with-reg (r2)
+												(list (make-move v1 r1) (make-move v2 r2) (make-vm-op reg r1 vm-op r2) (make-vm-if reg old)))))))))
                constraints :initial-value inner-code :from-end t)))
 
 (defun get-first-min-subgoal (body)
@@ -861,16 +891,129 @@
 												,(make-return)))) (list (lookup-def-id "_init")) nil))
 			(other-rules (do-rules (:clause clause :id id :operation collect)
 								(with-clause clause (:body body :head head)
-									(let ((*compilation-clause* clause)
-											(*compiling-rule* t))
-										(make-rule-code (with-empty-compile-context
-													`(,(make-vm-rule (1+ id)) ,@(compile-iterate body body head nil) ,(make-return)))
-												(rule-subgoal-ids clause)
-												(clause-is-persistent-p clause)))))))
+									(if (clause-is-persistent-p clause)
+										(make-rule-code `(,(make-return)) (rule-subgoal-ids clause) t)
+										(let ((*compilation-clause* clause)
+												(*compiling-rule* t))
+											(make-rule-code (with-empty-compile-context
+														`(,(make-vm-rule (1+ id)) ,@(compile-iterate body body head nil) ,(make-return)))
+													(rule-subgoal-ids clause)
+													(clause-is-persistent-p clause))))))))
 		`(,init-rule ,@other-rules)))
-											
+		
+(defun identical-clause-p (other-clause-subgoals subgoals)
+	(unless (= (length subgoals) (length other-clause-subgoals))
+		(return-from identical-clause-p nil))
+	(loop for subgoal in subgoals
+			do (with-subgoal subgoal (:name name)
+					(let ((found (subgoal-appears-code-p other-clause-subgoals name)))
+						(if found
+							(setf other-clause-subgoals (remove found other-clause-subgoals))
+							(return-from identical-clause-p nil)))))
+	(null other-clause-subgoals))
+	
+(defun find-identical-assignment (ass clause)
+	(find-if #L(equal (assignment-expr ass) (assignment-expr !1)) (get-assignments (clause-body clause))))
+	
+(defun find-common-assignments (original-clause others)
+	(let ((found-some t)
+			(identical nil))
+		(loop while found-some
+				do (progn
+						(setf found-some nil)
+						(loop named inner for ass in (get-assignments (clause-body original-clause))
+								do (let ((founds (mapcar #L(find-identical-assignment ass !1) others)))
+										(when (every #L(not (null !1)) founds)
+											(setf found-some t)
+											(let* ((old-var (assignment-var ass))
+													 (new-assignment-var (generate-random-var (expr-type old-var))))
+												(replace-variable original-clause old-var new-assignment-var)
+												(setf (clause-body original-clause) (delete ass (clause-body original-clause)))
+												(loop for other-clause in others
+														for other-ass in founds
+														do (setf (clause-body other-clause) (delete other-ass (clause-body other-clause)))
+														do (replace-variable other-clause (assignment-var other-ass) new-assignment-var))
+												(push ass identical)
+												(return-from inner nil)))))))
+		identical))
+		
+(defun find-identical-constraint (c clause)
+	(find-if #L(equal c !1) (get-constraints (clause-body clause))))
+		
+(defun find-common-constraints (original-clause others)
+	(loop for c in (get-constraints (clause-body original-clause))
+			append (let ((founds (mapcar #L(find-identical-constraint c !1) others)))
+						(when (every #L(not (null !1)) founds)
+							(setf (clause-body original-clause) (delete c (clause-body original-clause)))
+							(loop for other-clause in others
+									for other-c in founds
+									do (setf (clause-body other-clause) (delete other-c (clause-body other-clause))))
+							(list c)))))
+
+(defun merge-clause (original-clause others)
+	(let* ((body-original (clause-body original-clause))
+			 (body-others (mapcar #'clause-body others))
+			 (subgoals-original (get-subgoals body-original))
+			 (subgoals-others (mapcar #'get-subgoals body-others)))
+		(assert (every #L(= (length !1) (length subgoals-original)) subgoals-others))
+		;; replace all variables in 'others'
+		(loop for subgoal in subgoals-original
+			 	do (with-subgoal subgoal (:name name)
+						(let ((founds (mapcar #L(subgoal-appears-code-p !1 name) subgoals-others))
+								(new-vars (mapcar #L(generate-random-var (var-type !1)) (subgoal-args subgoal))))
+							(assert (every #L(not (null !1)) founds))
+							(loop for var in new-vars
+									for old in (subgoal-args subgoal)
+									do (replace-variable original-clause old var))
+							(loop for other-subgoal in founds
+									for other-clause in others
+									do (loop for original-arg in (subgoal-args subgoal)
+												for other-arg in (subgoal-args other-subgoal)
+												do (progn
+														(assert (and (var-p original-arg) (var-p other-arg)))
+														(unless (var-eq-p original-arg other-arg)
+													;; Change other-arg with original-arg.
+													;(warn "replace ~a with ~a" other-arg original-arg)
+													(replace-variable other-clause other-arg original-arg)
+													))))
+							;; remove already processed subgoals
+							(setf subgoals-others (mapcar #L(remove !1 !2) founds subgoals-others)))))
+		;; remove subgoals from others
+		(loop for clause in others
+				do (setf (clause-body clause) (get-non-subgoals (clause-body clause))))
+		(let ((common-subgoals (get-subgoals (clause-body original-clause))))
+			(setf (clause-body original-clause) (get-non-subgoals (clause-body original-clause)))
+			(let* ((common-ass (find-common-assignments original-clause others))
+				 	 (common-cons (find-common-constraints original-clause others))
+				 	 (rest-original (get-non-subgoals (clause-body original-clause)))
+				 	 (original-head (clause-head original-clause)))
+			(setf (clause-body original-clause) `(,@common-subgoals ,@common-ass ,@common-cons))
+			(setf (clause-head original-clause) `(,(make-clause rest-original original-head) ,@others))
+			))))
+				
+(defun merge-clauses ()
+	"Find subsequent identical clauses, where the body facts are shared."
+	(let ((all-clauses *clauses*)
+			(processed-clauses nil))
+		(loop while all-clauses
+				do (let ((first-clause (first all-clauses))
+							(other-clauses (rest all-clauses)))
+						(with-clause first-clause (:body body)
+							(let ((subgoals-clause (get-subgoals body)))
+								(let ((identical-clauses (filter-first #L(identical-clause-p (get-subgoals (clause-body !1)) subgoals-clause) other-clauses)))
+									(cond
+										((null identical-clauses)
+											(push-end first-clause processed-clauses)
+											(setf all-clauses (rest all-clauses)))
+										(t
+											(merge-clause first-clause identical-clauses)
+											(push-end first-clause processed-clauses)
+											(setf all-clauses (drop-first-n all-clauses (1+ (length identical-clauses)))))))))))
+		(setf *clauses* processed-clauses)))
 
 (defun compile-ast ()
+	(merge-clauses)
+	(find-persistent-rules)
 	(number-clauses)
 	(let ((procs (compile-processes))
 			(consts (compile-consts))

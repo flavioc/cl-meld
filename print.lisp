@@ -66,18 +66,19 @@
 
 (defparameter *current-print-level* 0)
 (defparameter *max-print-level* 4)
-(defvar *number-of-items-printted* 0)
+(defvar *number-of-items-printed* 0)
 
 (defmacro check-print-level (stream)
  `(progn
-      (when (> *number-of-items-printted* 0)
+      (when (> *number-of-items-printed* 0)
          (format ,stream ", "))
-      (incf *number-of-items-printted*)
+      (incf *number-of-items-printed*)
       (cond
          ((= *current-print-level* *max-print-level*)
             (setf *current-print-level* 0)
             (format ,stream "~a~a~a~a" #\Newline #\Tab #\Tab #\Tab))
-         (t (incf *current-print-level*)))))
+         (t (incf *current-print-level*)))
+		*number-of-items-printed*))
 
 (defun print-subgoal-modifier (sub def)
 	(cond
@@ -97,7 +98,7 @@
          (format stream "~a~A" (print-subgoal-modifier sub def) name)
          (print-args stream args)
 			(when (subgoal-is-remote-p sub)
-				(format stream "@~a" (subgoal-get-remote-dest sub)))
+				(format stream "@~a" (var-name (subgoal-get-remote-dest sub))))
 			)))
       
 (defun print-constraints (stream subgoals)
@@ -132,11 +133,11 @@
                   typs :initial-value ""))
 
 (defmacro with-comma-context (&body body)
-   `(let ((*number-of-items-printted* 0))
+   `(let ((*number-of-items-printed* 0))
       ,@body))
 
 (defmacro with-print-context (&body body)
-   `(let ((*current-print-level* 0) (*number-of-items-printted* 0))
+   `(let ((*current-print-level* 0) (*number-of-items-printed* 0))
       ,@body))
 
 (defun print-subgoal-body (stream body)
@@ -153,52 +154,61 @@
          (format stream ", "))
      (format stream "~a" (print-val var))))
    
-(defun print-clause (stream clause)
+(defun print-clause (stream clause &key (end t))
 	(with-clause clause (:head head :body body)
       (with-print-context
          (print-subgoal-body stream body)
          (format stream " -o ")
          (with-comma-context
-				(when (null head)
-					(format stream "1"))
-            (print-subgoals stream head)
-            (do-comprehensions head (:right right :left left :variables vars)
-               (check-print-level stream)
-               (with-comma-context
-                  (format stream "{")
-                  (print-var-list stream vars)
-                  (format stream " | ")
-                  (print-subgoal-body stream left)
-                  (format stream " | ")
-                  (check-print-level stream)
-                  (with-comma-context
-                     (print-subgoals stream right))
-                  (format stream "}")))
-            (do-agg-constructs head (:body body :head head :vlist vars :specs specs)
-               (check-print-level stream)
-               (with-comma-context
-						(format stream "[ ")
-						(do-agg-specs specs (:var to :op op)
-                  	(format stream "~A => ~a, " op (print-val to)))
-                  (format stream " | ")
-						(print-var-list stream vars)
-                  (format stream " | ")
-                  (check-print-level stream)
-                  (with-comma-context
-                     (print-subgoal-body stream body))
-                  (format stream " | ")
-                  (with-comma-context
-                   (print-subgoals stream head))
-                  (format stream "]")))
-				(do-exists head (:var-list vars :body body)
-					(check-print-level stream)
-					(format stream "exists ")
-					(print-var-list stream vars)
-					(format stream ". (")
-					(with-comma-context
-						(print-subgoals stream body))
-					(format stream ")"))
-            (format stream ".")))))
+				(cond
+					((null head) (format stream "1"))
+					((clause-head-is-recursive-p head)
+						(dolist (clause1 head)
+							(if (> (check-print-level stream) 1)
+								(format stream "OR "))
+							(format stream "(")
+							(print-clause stream clause1 :end nil)
+							(format stream ")")))
+					(t
+		            (print-subgoals stream head)
+		            (do-comprehensions head (:right right :left left :variables vars)
+		               (check-print-level stream)
+		               (with-comma-context
+		                  (format stream "{")
+		                  (print-var-list stream vars)
+		                  (format stream " | ")
+		                  (print-subgoal-body stream left)
+		                  (format stream " | ")
+		                  (check-print-level stream)
+		                  (with-comma-context
+		                     (print-subgoals stream right))
+		                  (format stream "}")))
+		            (do-agg-constructs head (:body body :head head :vlist vars :specs specs)
+		               (check-print-level stream)
+		               (with-comma-context
+								(format stream "[ ")
+								(do-agg-specs specs (:var to :op op)
+		                  	(format stream "~A => ~a, " op (print-val to)))
+		                  (format stream " | ")
+								(print-var-list stream vars)
+		                  (format stream " | ")
+		                  (check-print-level stream)
+		                  (with-comma-context
+		                     (print-subgoal-body stream body))
+		                  (format stream " | ")
+		                  (with-comma-context
+		                   (print-subgoals stream head))
+		                  (format stream "]")))
+						(do-exists head (:var-list vars :body body)
+							(check-print-level stream)
+							(format stream "exists ")
+							(print-var-list stream vars)
+							(format stream ". (")
+							(with-comma-context
+								(print-subgoals stream body))
+							(format stream ")"))))
+				(when end
+            	(format stream "."))))))
 
 (defun clause-to-string (clause)
    (with-output-to-string (str)

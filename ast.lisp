@@ -139,7 +139,8 @@
 	(clause-add-tagged-option clause :persistent))
 (defun clause-is-persistent-p (clause)
 	(clause-has-tagged-option-p clause :persistent))
-   
+(defun clause-head-is-recursive-p (clause-head)
+	(every #'clause-p clause-head))
 (defun delete-option-args (delete-opt) (second delete-opt))
 (defun delete-option-name (delete-opt) (first delete-opt))
 

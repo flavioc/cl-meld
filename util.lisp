@@ -77,6 +77,14 @@
 
 (defun mapfilter (trans f l) (mapcar trans (filter f l)))
 
+(defun filter-first (fun ls)
+	"Find all the initial items x from ls where fun(x) is true."
+	(cond
+		((null ls) nil)
+		(t
+			(when (funcall fun (first ls))
+				(cons (first ls) (filter-first fun (rest ls)))))))
+
 (defun enumerate (a b)
    (if (> a b)
       nil

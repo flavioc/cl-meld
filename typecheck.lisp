@@ -566,16 +566,6 @@
 			(let ((new-var (generate-random-var (expr-type arg))))
 				(values new-var `(,(make-constraint (make-equal new-var '= arg))) `(,new-var))))
 		(t (error 'type-invalid-error :text (tostring "subgoal argument ~a is invalid" arg)))))
-
-(defun transform-constants-to-constraints-clause (clause args &optional only-addr-p)
-   (mapcar #'(lambda (arg)
-						(multiple-value-bind (new-arg new-constraints)
-							(transform-constant-to-constraint arg only-addr-p)
-							(dolist (new-constraint new-constraints)
-								(assert (constraint-p new-constraint))
-								(push-end new-constraint (clause-body clause)))
-							new-arg))
-				args))
 				
 (defun optimize-constraints-assignments (assigns constraints &optional constant-assigns constant-constraints)
 	"Optimizes constraints by computing constant expressions.
@@ -622,8 +612,28 @@
 
 (defun transform-clause-constants (clause)
 	"Removes all constants from the subgoal arguments by creating constraints."
-   (do-subgoals (clause-body clause) (:args args :subgoal sub)
-      (setf (subgoal-args sub) (transform-constants-to-constraints-clause clause args))))
+	(let ((found-variables (make-hash-table :test #'equal)))
+   	(do-subgoals (clause-body clause) (:args args :subgoal sub)
+			(let ((new-args (loop for arg in args
+										 for i from 0
+										collect (cond
+														((and (var-p arg) (= i 0)) arg)
+														((var-p arg)
+															(multiple-value-bind (found found-p) (gethash (var-name arg) found-variables)
+																(cond
+																	(found-p
+																		(let ((new-var (generate-random-var (var-type arg))))
+																			(push-end (make-constraint (make-equal new-var '= arg)) (clause-body clause))
+																			new-var))
+																	(t (setf (gethash (var-name arg) found-variables) arg)))))
+														(t
+															(multiple-value-bind (new-arg new-constraints)
+																(transform-constant-to-constraint arg nil)
+																(dolist (new-c new-constraints)
+																	(assert (constraint-p new-c))
+																	(push-end new-c (clause-body clause)))
+																new-arg))))))
+      	(setf (subgoal-args sub) new-args)))))
 
 (defun transform-constants-to-constraints-comprehension (comp args)
 	(mapcar #'(lambda (arg)
@@ -807,13 +817,7 @@
 						(with-subgoal sub (:args args)
 							(dolist (arg (rest args))
 								(unless (var-eq-p var arg)
-									(push arg involved-variables))))))
-				;; mark subgoals that use the same variables (involved-variables)
-				(do-subgoals (clause-body clause) (:subgoal sub)
-					(with-subgoal sub (:args args)
-						(let ((found (find-if #'(lambda (arg) (find-if #'(lambda (v) (var-eq-p v arg)) involved-variables)) (rest args))))
-							(when found
-								(subgoal-mark-as-blocked sub)))))))))
+									(push arg involved-variables))))))))))
 
 (defun type-check-const (const)
 	(with-constant const (:name name :expr expr)
@@ -842,15 +846,25 @@
 				(if (string-equal name1 name2)
 					(error 'type-invalid-error :text (tostring "multiple definitions of ~a: ~a ~a" name1 def1 def2)))))))
 					
-(defun find-same-subgoal (ls sub)
+(defun test-same-arguments-p (args1 args2 constraints)
+	(every #'(lambda (arg1 arg2)
+					(cond
+						((equal arg1 arg2) t)
+						(t
+							(multiple-value-bind (cs other-var) (find-first-assignment-constraint-to-var constraints arg1)
+								(when cs
+									(equal arg2 other-var))))))
+				args1 args2))
+
+(defun find-same-subgoal (ls sub constraints)
 	(when (subgoal-is-remote-p sub)
 		(return-from find-same-subgoal nil))
 	(with-subgoal sub (:name name :args args)
 		(do-subgoals ls (:name other :args args-other :subgoal sub-other)
 			(when (and (string-equal name other)
-							(equal args args-other)
 							(not (subgoal-is-remote-p sub-other)))
-				(return-from find-same-subgoal sub-other))))
+				(when (test-same-arguments-p args args-other constraints)
+					(return-from find-same-subgoal sub-other)))))
 	nil)
 	
 (defun find-persistent-rule (clause)
@@ -858,6 +872,7 @@
 	facts are used, then are re-derived in the head of the rule."
 	(with-clause clause (:body body :head head)
 		(let ((tmp-head (get-subgoals head))
+				(constraints (get-constraints body))
 				(mark-subgoals nil)
 				(to-remove nil)
 				(linear-fail nil))
@@ -867,7 +882,7 @@
 						(cond
 							((subgoal-has-option-p sub :reuse) )
 							(t
-								(let ((found (find-same-subgoal tmp-head sub)))
+								(let ((found (find-same-subgoal tmp-head sub constraints)))
 									(cond
 										(found
 											(push sub mark-subgoals)
@@ -889,9 +904,9 @@
 	"Returns T if we just use persistent facts in the rule and if any linear
 	facts are used, then are re-derived in the head of the rule."
 	(with-clause clause (:body body :head head)
-		;(when (or (get-comprehensions head)
-		;			 (get-agg-constructs head))
-		;	(return-from rule-is-persistent-p nil))
+		(when (or (get-comprehensions head)
+					 (get-agg-constructs head))
+			(return-from rule-is-persistent-p nil))
 		(let ((tmp-head (get-subgoals head)))
 			(do-subgoals body (:name name :subgoal sub)
 				(let ((def (lookup-definition name)))
@@ -940,7 +955,6 @@
 			(do-type-check-subgoal name args opts :axiom-p t)))
    (do-all-axioms (:clause clause)
       (type-check-clause clause t))
-	(find-persistent-rules)
 	;; remove unneeded constants
 	(let (to-remove)
 		;; constants that are really constant do not need to be stored anymore since their values have been computed

@@ -416,6 +416,7 @@
 (defun agg-construct-vlist (a) (third a))
 (defun agg-construct-body (a) (fourth a))
 (defun agg-construct-head (a) (fifth a))
+(defun agg-construct-spec-vars (a) (mapcar #'agg-spec-var (agg-construct-specs a)))
 
 (defun set-agg-construct-body (c body)
 	(setf (fourth c) body))
@@ -458,6 +459,7 @@
 (defun subgoal-add-tagged-option (subgoal opt arg)
 	(subgoal-add-option subgoal `(,opt ,arg)))
 (defun subgoal-add-route (sub route)
+	(assert (var-p route))
 	(subgoal-add-option sub `(:route ,route)))
 	
 (defun subgoal-get-tagged-option (subgoal opt)

@@ -4,6 +4,7 @@
 (defun get-assignments (body) (filter #'assignment-p body))
 (defun get-assignment-vars (assignments) (mapcar #'assignment-var assignments))
 (defun get-subgoals (code) (filter #'subgoal-p code))
+(defun get-non-subgoals (code) (remove-if #'subgoal-p code))
 (defun get-comprehensions (code) (filter #'comprehension-p code))
 (defun get-agg-constructs (code) (filter #'agg-construct-p code))
 (defun get-constraints (code) (remove-if-not #'constraint-p code))
@@ -142,6 +143,21 @@
                      #L(equal-p !1)
                      #L(constraint-by-var1 var !1)))
 
+(defun find-first-assignment-constraint-to-var (body var)
+	"Finds the first constraint assignment of the form var = var2."
+	(let ((ret (find-constraints body
+							#L(equal-p !1)
+							#L(constraint-by-var1 var !1)
+							#L(var-p (op-op2 !1)))))
+		(if ret
+			(values (first ret) (op-op2 (constraint-expr (first ret))))
+			(let ((ret2 (find-constraints body
+								#L(equal-p !1)
+								#L(constraint-by-var2 var !1)
+								#L(var-p (op-op1 !1)))))
+				(when ret2
+					(values (first ret2) (op-op1 (constraint-expr (first ret)))))))))
+
 (defun find-not-constraints (body)
 	(find-constraints body #L(not-p !1)))
 	
@@ -157,11 +173,9 @@
 		(when r
 			(assignment-expr r))))
 
-(defun subgoal-appears-code-p (code subgoal-name)
-   (do-subgoals code (:name name)
-      (when (string-equal name subgoal-name)
-         (return-from subgoal-appears-code-p t)))
-   nil)
+(defun subgoal-appears-code-p (code subname)
+	(find-if #L(string-equal subname (subgoal-name !1)) (get-subgoals code)))
+	
 (defun clause-body-matches-subgoal-p (clause subgoal-name)
    (subgoal-appears-code-p (clause-body clause) subgoal-name))
 (defun clause-head-matches-subgoal-p (clause subgoal-name)
@@ -335,3 +349,4 @@
 				(cons-tail res)))
 		(t
 			(error 'expr-invalid-error :text (tostring "evaluation of ~a is not supported yet." expr)))))
+			
