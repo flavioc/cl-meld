@@ -351,6 +351,9 @@
 (defun match-left (m) (first m))
 (defun match-right (m) (second m))
 
+(defun make-vm-update (reg) `(:update ,reg))
+(defun vm-update-reg (x) (second x))
+
 (defun make-vm-alloc (tuple reg) `(:alloc ,tuple ,reg))
 (defun vm-alloc-tuple (alloc) (second alloc))
 (defun vm-alloc-reg (alloc) (third alloc))

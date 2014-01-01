@@ -83,7 +83,7 @@
 (defun print-subgoal-modifier (sub def)
 	(cond
 		((is-linear-p def)
-			(if (subgoal-has-option-p sub :reuse)
+			(if (subgoal-is-reused-p sub)
 				"!"
 				(if (subgoal-has-option-p sub :linear)
 					"?"

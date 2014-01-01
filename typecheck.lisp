@@ -360,7 +360,7 @@
          ((is-linear-p def) ;; linear fact
             (dolist (opt options)
                (case opt
-                  (:reuse
+                  (:reused
                      (unless body-p
                         (error 'type-invalid-error :text (tostring "Linear reuse of facts must be used in the body, not the head: ~a" name))))
                   (:persistent
@@ -378,7 +378,7 @@
                (dolist (opt options)
                   (case opt
 							(:linear (error 'type-invalid-error :text (tostring "Only linear facts may use ?: ~a" name)))
-                     (:reuse
+                     (:reused
                         (error 'type-invalid-error :text (tostring "Reuse option $ may only be used with linear facts: ~a" name)))
                      (:persistent
                         (setf has-persistent-p t))
@@ -880,7 +880,7 @@
 				(let ((def (lookup-definition name)))
 					(when (is-linear-p def)
 						(cond
-							((subgoal-has-option-p sub :reuse) )
+							((subgoal-is-reused-p sub) )
 							(t
 								(let ((found (find-same-subgoal tmp-head sub constraints)))
 									(cond
@@ -892,10 +892,10 @@
 			(dolist (sub to-remove)
 				(setf (clause-head clause) (delete sub (clause-head clause))))
 			(dolist (sub mark-subgoals)
-				(subgoal-add-option sub :reuse))
+				(subgoal-set-reused sub))
 			(unless linear-fail
 				(do-subgoals body (:name name :subgoal sub)
-					(when (subgoal-has-option-p sub :reuse)
+					(when (subgoal-is-reused-p sub)
 						(let ((def (lookup-definition name)))
 							(unless (is-reused-p def)
 								(definition-set-reused def)))))))))
@@ -911,7 +911,7 @@
 			(do-subgoals body (:name name :subgoal sub)
 				(let ((def (lookup-definition name)))
 					(when (and (is-linear-p def)
-									(not (subgoal-has-option-p sub :reuse)))
+									(not (subgoal-is-reused-p sub)))
 						(return-from rule-is-persistent-p nil)))))
 		t))
 		

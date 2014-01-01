@@ -520,6 +520,8 @@
 			(output-instr-and-values vec #b01111001 (vm-run-action-reg instr)))
 		(:enqueue-linear
 			(output-instr-and-values vec #b01111010 (vm-enqueue-linear-reg instr)))
+		(:update
+			(output-instr-and-values vec #b01111011 (vm-update-reg instr)))
       (:convert-float
 			(output-instr-and-values vec #b00001001 (vm-convert-float-place instr) (vm-convert-float-dest instr)))
       (:select-node

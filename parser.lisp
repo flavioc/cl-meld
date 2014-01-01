@@ -455,7 +455,7 @@
 	   (inner-subgoal  #'identity)
 	   (:dollar inner-subgoal #'(lambda (d sub)
 	                                 (declare (ignore d))
-	                                 (subgoal-add-option sub :reuse)
+	                                 (subgoal-set-reused sub)
 	                                 sub))
 	 	(:bang inner-subgoal  #'(lambda (o sub)
 	 	                                 (declare (ignore o))
