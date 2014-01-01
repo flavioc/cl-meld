@@ -717,14 +717,27 @@
 	#'(lambda (c)
 		(make-low-constraint (low-constraint-type c) (make-reg-dot reg (reg-dot-field (low-constraint-v1 c))) (low-constraint-v2 c))))
 		
+(defun subgoal-must-be-ordered-p (sub)
+	(or (subgoal-has-min-p sub)
+		(subgoal-has-random-p sub)))
+		
 (defun create-iterate-instruction (sub def match-constraints tuple-reg iterate-code)
 	(with-subgoal sub (:name name)
-		(make-iterate name tuple-reg match-constraints iterate-code
-			:random-p (subgoal-has-random-p sub)
-			:min-p (subgoal-has-min-p sub)
-			:min-arg (subgoal-get-min-variable-position sub)
-			:to-delete-p (subgoal-to-be-deleted-p sub def))))
-                     
+		(cond
+			((and (not (is-linear-p def)) (not (subgoal-must-be-ordered-p sub)))
+				(make-persistent-iterate name tuple-reg match-constraints iterate-code))
+			((and (not (is-linear-p def)) (subgoal-must-be-ordered-p sub))
+				(make-order-persistent-iterate name tuple-reg match-constraints iterate-code sub))
+			((and (is-linear-p def) (subgoal-to-be-deleted-p sub def) (not (subgoal-must-be-ordered-p sub)))
+				(make-linear-iterate name tuple-reg match-constraints iterate-code))
+			((and (is-linear-p def) (not (subgoal-to-be-deleted-p sub def)) (not (subgoal-must-be-ordered-p sub)))
+				(make-rlinear-iterate name tuple-reg match-constraints iterate-code))
+			((and (is-linear-p def) (subgoal-to-be-deleted-p sub def) (subgoal-must-be-ordered-p sub))
+				(make-order-linear-iterate name tuple-reg match-constraints iterate-code sub))
+			((and (is-linear-p def) (not (subgoal-to-be-deleted-p sub def)) (subgoal-must-be-ordered-p sub))
+				(make-order-rlinear-iterate name tuple-reg match-constraints iterate-code sub))
+			(t (assert nil)))))
+
 (defun compile-iterate (body orig-body head sub-regs &key (inside nil) (head-compiler #'do-compile-head-code))
    (multiple-value-bind (constraints assignments) (get-compile-constraints-and-assignments body)
 		(let* ((next-sub (select-next-subgoal-for-compilation body))
@@ -911,15 +924,14 @@
 	(let ((init-rule (make-rule-code (with-empty-compile-context
 										(with-reg (reg)
 											`(,(make-vm-rule 0)
-											  	,(make-iterate "_init"
+											  	,(make-linear-iterate "_init"
 													reg
 													nil 
 													`(,(make-vm-rule-done)
 														,(make-vm-remove reg)
 														,@(compile-init-process)
 														,(make-move (make-vm-ptr 0) (make-reg 0))
-														,(make-return-derived))
-												:to-delete-p t)
+														,(make-return-derived)))
 												,(make-return)))) (list (lookup-def-id "_init")) nil))
 			(other-rules (do-rules (:clause clause :id id :operation collect)
 								(with-clause clause (:body body :head head)
@@ -1045,9 +1057,9 @@
 
 (defun find-reusable-fact-in-head (head sub)
 	(cond
-		((null head) t)
+		((null head) nil)
 		((clause-head-is-recursive-p head)
-			(do-clauses head (:head subhead)
+			(do-clauses head (:clause c :head subhead)
 				(when (find-reusable-fact-in-head subhead sub)
 					(return-from find-reusable-fact-in-head t)))
 			nil)

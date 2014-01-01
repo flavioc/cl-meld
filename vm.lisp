@@ -333,23 +333,26 @@
 (defun vm-op-op (st) (fifth st))
 (defun vm-op-p (st) (tagged-p st :op))
 
-(defun make-iterate (name reg matches instrs &key (random-p nil) (to-delete-p nil) (min-p nil) (min-arg nil))
-	`(:iterate ,name ,reg ,matches ,instrs ,random-p ,to-delete-p ,min-p ,min-arg))
 (defun iterate-name (i) (second i))
 (defun iterate-reg (i) (third i))
 (defun iterate-matches (i) (fourth i))
 (defun iterate-instrs (i) (fifth i))
-(defun iterate-random-p (i) (sixth i))
-(defun iterate-to-delete-p (i) (seventh i))
 
 (defun set-iterate-instrs (i instrs)
 	(setf (fifth i) instrs))
 (defsetf iterate-instrs set-iterate-instrs) 
-
-(defun iterate-min-p (i) (nth 7 i))
-(defun iterate-min-arg (i) (nth 8 i))
 (defun match-left (m) (first m))
 (defun match-right (m) (second m))
+
+(defun make-persistent-iterate (name reg matches instrs) `(:persistent-iterate ,name ,reg ,matches ,instrs))
+(defun make-order-persistent-iterate (name reg matches instrs sub) `(:order-persistent-iterate ,name ,reg ,matches ,instrs ,sub))
+(defun make-order-linear-iterate (name reg matches instrs sub) `(:order-linear-iterate ,name ,reg ,matches ,instrs ,sub))
+(defun make-order-rlinear-iterate (name reg matches instrs sub) `(:order-rlinear-iterate ,name ,reg ,matches ,instrs ,sub))
+
+(defun make-linear-iterate (name reg matches instrs) `(:linear-iterate ,name ,reg ,matches ,instrs))
+(defun make-rlinear-iterate (name reg matches instrs) `(:rlinear-iterate ,name ,reg ,matches ,instrs))
+
+(defun order-iterate-subgoal (x) (sixth x))
 
 (defun make-vm-update (reg) `(:update ,reg))
 (defun vm-update-reg (x) (second x))

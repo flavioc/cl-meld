@@ -246,20 +246,31 @@
 					(when (variable-value-p val)
 						(return-from constant-matches-p nil))))
 	t)
-
-(defun iterate-options-bytes (iter)
-	(let ((opt #b00000000)
-			(snd #b00000000))
-		(when (iterate-random-p iter)
-			(setf opt (logior opt #b00000001)))
-		(when (iterate-to-delete-p iter)
-			(setf opt (logior opt #b00000010)))
-		(when (iterate-min-p iter)
-			(setf snd (iterate-min-arg iter))
-			(setf opt (logior opt #b00000100)))
-		(when (constant-matches-p (iterate-matches iter))
-			(setf opt (logior opt #b00001000)))
-		(values opt snd)))
+		
+(defun iterate-options-byte-list (iter)
+	(let ((sub (order-iterate-subgoal iter)))
+		(cond
+			((subgoal-has-random-p sub)
+				(list #b00000001 #b0))
+			((subgoal-has-min-p sub)
+				(list #b00000100 (subgoal-get-min-variable-position sub)))
+			(t (assert nil)))))
+		
+(defun output-iterate (vec instr-code instr optional-bytes)
+	(write-jump vec 16 ;; outside jump
+		(write-jump vec 12 ;; inner jump
+      	(add-byte instr-code vec)
+			(loop for i from 1 upto 8
+				do (add-byte #b0 vec))
+      	(add-byte (lookup-def-id (iterate-name instr)) vec)
+			(add-byte (logand *reg-mask* (reg-to-byte (iterate-reg instr))) vec)
+			(add-byte (if (constant-matches-p (iterate-matches instr)) #b1 #b0) vec)
+			(jumps-here vec)
+			(jumps-here vec)
+			(add-bytes vec optional-bytes)
+      	(output-matches (iterate-matches instr) vec))
+      (output-instrs (iterate-instrs instr) vec)
+      (add-byte #b00000001 vec))) ; next
 
 (defun output-instr (instr vec)
    (case (instr-type instr)
@@ -320,21 +331,12 @@
                (add-byte (logand *reg-mask* reg-b) vec)
                (jumps-here vec)
                (output-instrs (vm-if-instrs instr) vec))))
-      (:iterate (write-jump vec 17 ;; outside jump
-						(write-jump vec 13 ;; inner jump
-                  	(add-byte #b10100000 vec)
-							(loop for i from 1 upto 8
-								do (add-byte #b0 vec))
-                  	(add-byte (lookup-def-id (iterate-name instr)) vec)
-							(add-byte (logand *reg-mask* (reg-to-byte (iterate-reg instr))) vec)
-							(multiple-value-bind (b1 b2) (iterate-options-bytes instr)
-								(add-byte b1 vec)
-								(add-byte b2 vec))
-                  	(jumps-here vec)
-							(jumps-here vec)
-                  	(output-matches (iterate-matches instr) vec))
-                  (output-instrs (iterate-instrs instr) vec)
-                  (add-byte #b00000001 vec)))
+		(:persistent-iterate (output-iterate vec #b00000010 instr nil))
+		(:order-persistent-iterate (output-iterate vec #b00000100 instr (iterate-options-byte-list instr)))
+		(:linear-iterate (output-iterate vec #b00000101 instr nil))
+		(:rlinear-iterate (output-iterate vec #b00000110 instr nil))
+		(:order-linear-iterate (output-iterate vec #b00001100 instr (iterate-options-byte-list instr)))
+		(:order-rlinear-iterate (output-iterate vec #b00010010 instr (iterate-options-byte-list instr)))
 		(:move-int-to-field
 			(output-instr-and-values vec #b00011110 (move-from instr) (move-to instr)))
 		(:move-int-to-reg
