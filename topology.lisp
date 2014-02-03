@@ -5,6 +5,11 @@
    
 (defun add-mapping (mapping-set node map)
    (setf (gethash node mapping-set) map))
+
+(defun has-mapping-p (mapping-set node)
+	(multiple-value-bind (x found-p) (gethash node mapping-set)
+		(declare (ignore x))
+		found-p))
    
 (defun make-mapping-set ()
    (make-hash-table :test #'eq))
@@ -109,8 +114,14 @@
    mapping)
 
 (defun in-file-ordering (nodes &key (mapping (make-mapping-set)))
-	(loop for node in nodes
-			do (add-mapping mapping node node))
+	(let ((max-node 0))
+		(loop for node in nodes
+				do (add-mapping mapping node node)
+				do (when (> node max-node)
+						(setf max-node node)))
+		(loop for i from 0 to max-node
+				do (unless (has-mapping-p mapping i)
+						(add-mapping mapping i i))))
 	mapping)
 
 (defun random-ordering (nodes &key (start-count 0) (mapping (make-mapping-set)))
