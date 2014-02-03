@@ -309,6 +309,7 @@
 		(:int-greater `(:int-greater ,dst ,v1 ,v2 ,dst))
 		(:int-mul `(:int-mul ,dst ,v1 ,v2 ,dst))
 		(:int-div `(:int-div ,dst ,v1 ,v2 ,dst))
+		(:int-mod `(:int-mod ,dst ,v1 ,v2 ,dst))
 		(:float-plus `(:float-plus ,dst ,v1 ,v2 ,dst))
 		(:float-minus `(:float-minus ,dst ,v1 ,v2 ,dst))
 		(:float-mul `(:float-mul ,dst ,v1 ,v2 ,dst))

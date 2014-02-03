@@ -415,6 +415,8 @@
 			(output-instr-and-values vec #b01000100 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
 		(:int-div
 			(output-instr-and-values vec #b01000101 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
+		(:int-mod
+			(output-instr-and-values vec #b01111101 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
 		(:float-plus
 			(output-instr-and-values vec #b01000110 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
 		(:float-minus
