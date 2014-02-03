@@ -913,11 +913,14 @@
 		(clause-add-id clause (1+ id))))
 
 (defun rule-subgoal-ids (clause)
-	(with-clause clause (:body body)
+	(with-clause clause (:body body :head head)
 		(let ((ids nil))
 			(do-subgoals body (:name name)
-				(let ((id (lookup-def-id name)))
-					(push-dunion id ids)))
+				(push-dunion (lookup-def-id name) ids))
+			(when (clause-head-is-recursive-p head)
+				(do-clauses head (:body sub-body)
+					(do-subgoals sub-body (:name name)
+						(push-dunion (lookup-def-id name) ids))))
 			ids)))
 
 (defun compile-ast-rules ()
@@ -983,7 +986,7 @@
 		
 (defun find-identical-constraint (c clause)
 	(find-if #L(equal c !1) (get-constraints (clause-body clause))))
-		
+
 (defun find-common-constraints (original-clause others)
 	(loop for c in (get-constraints (clause-body original-clause))
 			append (let ((founds (mapcar #L(find-identical-constraint c !1) others)))
@@ -999,44 +1002,46 @@
 			 (body-others (mapcar #'clause-body others))
 			 (subgoals-original (get-subgoals body-original))
 			 (subgoals-others (mapcar #'get-subgoals body-others))
-			 (common-subgoals nil))
+			 common-subgoals)
 		(assert (every #L(= (length !1) (length subgoals-original)) subgoals-others))
 		;; replace all variables in 'others'
-		(let ((subgoal (first subgoals-original)))
-			 	(with-subgoal subgoal (:name name)
-						(push subgoal common-subgoals) 
-						(let ((founds (mapcar #L(subgoal-appears-code-p !1 name) subgoals-others))
-								(new-vars (mapcar #L(generate-random-var (var-type !1)) (subgoal-args subgoal))))
-							(assert (every #L(not (null !1)) founds))
-							(loop for var in new-vars
-									for old in (subgoal-args subgoal)
-									do (replace-variable original-clause old var))
-							(loop for other-subgoal in founds
-									for other-clause in others
-									do (loop for original-arg in (subgoal-args subgoal)
-												for other-arg in (subgoal-args other-subgoal)
-												do (progn
-														(assert (and (var-p original-arg) (var-p other-arg)))
-														(unless (var-eq-p original-arg other-arg)
-													;; Change other-arg with original-arg.
-													(replace-variable other-clause other-arg original-arg)
-													))))
-							;; remove already processed subgoals
-							(setf subgoals-others (mapcar #L(remove !1 !2) founds subgoals-others))
-							(setf (clause-body original-clause) (remove subgoal (clause-body original-clause) :test #'equal))
-							(loop for other-subgoal in founds
-									for other-clause in others
-									do (setf (clause-body other-clause) (remove other-subgoal (clause-body other-clause) :test #'equal))))))
-		;; remove subgoals from others
-		;(loop for clause in others
-		;		do (setf (clause-body clause) (get-non-subgoals (clause-body clause))))
-		(let* ((common-ass (find-common-assignments original-clause others))
-			 	 (common-cons (find-common-constraints original-clause others))
-			 	 (rest-original (clause-body original-clause))
-			 	 (original-head (clause-head original-clause)))
-			(setf (clause-body original-clause) `(,@common-subgoals ,@common-ass ,@common-cons))
-			(setf (clause-head original-clause) `(,(make-clause rest-original original-head) ,@others))
-			)))
+		(cond
+			((= (length subgoals-original) 1)
+				(let ((subgoal (first subgoals-original)))
+					 	(with-subgoal subgoal (:name name)
+								(push subgoal common-subgoals) 
+								(let ((founds (mapcar #L(subgoal-appears-code-p !1 name) subgoals-others))
+										(new-vars (mapcar #L(generate-random-var (var-type !1)) (subgoal-args subgoal))))
+									(assert (every #L(not (null !1)) founds))
+									(loop for var in new-vars
+											for old in (subgoal-args subgoal)
+											do (replace-variable original-clause old var))
+									(loop for other-subgoal in founds
+											for other-clause in others
+											do (loop for original-arg in (subgoal-args subgoal)
+														for other-arg in (subgoal-args other-subgoal)
+														do (progn
+																(assert (and (var-p original-arg) (var-p other-arg)))
+																(unless (var-eq-p original-arg other-arg)
+															;; Change other-arg with original-arg.
+															(replace-variable other-clause other-arg original-arg)
+															))))
+									;; remove already processed subgoals
+									(setf subgoals-others (mapcar #L(remove !1 !2) founds subgoals-others))
+									(setf (clause-body original-clause) (remove subgoal (clause-body original-clause) :test #'equal))
+									(loop for other-subgoal in founds
+											for other-clause in others
+											do (setf (clause-body other-clause) (remove other-subgoal (clause-body other-clause) :test #'equal))))))
+				(let* ((common-ass (find-common-assignments original-clause others))
+					 	 (common-cons (find-common-constraints original-clause others))
+					 	 (rest-original (clause-body original-clause))
+					 	 (original-head (clause-head original-clause)))
+					(setf (clause-body original-clause) `(,@common-subgoals ,@common-ass ,@common-cons))
+					(setf (clause-head original-clause) `(,(make-clause rest-original original-head) ,@others))))
+			(t
+				(setf (clause-body original-clause) nil)
+				(setf (clause-head original-clause) `(,(make-clause body-original (clause-head original-clause)) ,@others))
+				))))
 				
 (defun merge-clauses ()
 	"Find subsequent identical clauses, where the body facts are shared."

@@ -916,11 +916,13 @@
 		t))
 		
 (defun find-persistent-rules ()
-	(do-rules (:clause clause)
-		(find-persistent-rule clause))
-	(do-rules (:clause clause)
-		(when (rule-is-persistent-p clause)
-			(clause-set-persistent clause))))
+	(do-rules (:clause clause :head head)
+		(unless (clause-head-is-recursive-p head)
+			(find-persistent-rule clause)))
+	(do-rules (:clause clause :head head)
+		(unless (clause-head-is-recursive-p head)
+			(when (rule-is-persistent-p clause)
+				(clause-set-persistent clause)))))
 					
 (defun type-check ()
 	(do-definitions (:name name :types typs)
