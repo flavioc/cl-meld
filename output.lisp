@@ -246,7 +246,7 @@
 					(when (variable-value-p val)
 						(return-from constant-matches-p nil))))
 	t)
-		
+
 (defun iterate-options-byte-list (iter)
 	(let ((sub (order-iterate-subgoal iter)))
 		(cond
@@ -255,7 +255,7 @@
 			((subgoal-has-min-p sub)
 				(list #b00000100 (subgoal-get-min-variable-position sub)))
 			(t (assert nil)))))
-		
+
 (defun output-iterate (vec instr-code instr optional-bytes)
 	(write-jump vec 16 ;; outside jump
 		(write-jump vec 12 ;; inner jump

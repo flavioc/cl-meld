@@ -884,7 +884,7 @@
 
 (defun compile-processes ()
 	(do-definitions (:definition def :name name :operation collect)
-      (if (is-init-p def)
+		(if (is-init-p def)
          (make-process name `(,(make-return-linear)))
          (make-process name `(,@(compile-normal-process name (filter #'clause-is-persistent-p (find-clauses-with-subgoal-in-body name)))
                                  ,(make-return))))))
@@ -998,11 +998,13 @@
 	(let* ((body-original (clause-body original-clause))
 			 (body-others (mapcar #'clause-body others))
 			 (subgoals-original (get-subgoals body-original))
-			 (subgoals-others (mapcar #'get-subgoals body-others)))
+			 (subgoals-others (mapcar #'get-subgoals body-others))
+			 (common-subgoals nil))
 		(assert (every #L(= (length !1) (length subgoals-original)) subgoals-others))
 		;; replace all variables in 'others'
-		(loop for subgoal in subgoals-original
-			 	do (with-subgoal subgoal (:name name)
+		(let ((subgoal (first subgoals-original)))
+			 	(with-subgoal subgoal (:name name)
+						(push subgoal common-subgoals) 
 						(let ((founds (mapcar #L(subgoal-appears-code-p !1 name) subgoals-others))
 								(new-vars (mapcar #L(generate-random-var (var-type !1)) (subgoal-args subgoal))))
 							(assert (every #L(not (null !1)) founds))
@@ -1017,23 +1019,24 @@
 														(assert (and (var-p original-arg) (var-p other-arg)))
 														(unless (var-eq-p original-arg other-arg)
 													;; Change other-arg with original-arg.
-													;(warn "replace ~a with ~a" other-arg original-arg)
 													(replace-variable other-clause other-arg original-arg)
 													))))
 							;; remove already processed subgoals
-							(setf subgoals-others (mapcar #L(remove !1 !2) founds subgoals-others)))))
+							(setf subgoals-others (mapcar #L(remove !1 !2) founds subgoals-others))
+							(setf (clause-body original-clause) (remove subgoal (clause-body original-clause) :test #'equal))
+							(loop for other-subgoal in founds
+									for other-clause in others
+									do (setf (clause-body other-clause) (remove other-subgoal (clause-body other-clause) :test #'equal))))))
 		;; remove subgoals from others
-		(loop for clause in others
-				do (setf (clause-body clause) (get-non-subgoals (clause-body clause))))
-		(let ((common-subgoals (get-subgoals (clause-body original-clause))))
-			(setf (clause-body original-clause) (get-non-subgoals (clause-body original-clause)))
-			(let* ((common-ass (find-common-assignments original-clause others))
-				 	 (common-cons (find-common-constraints original-clause others))
-				 	 (rest-original (get-non-subgoals (clause-body original-clause)))
-				 	 (original-head (clause-head original-clause)))
+		;(loop for clause in others
+		;		do (setf (clause-body clause) (get-non-subgoals (clause-body clause))))
+		(let* ((common-ass (find-common-assignments original-clause others))
+			 	 (common-cons (find-common-constraints original-clause others))
+			 	 (rest-original (clause-body original-clause))
+			 	 (original-head (clause-head original-clause)))
 			(setf (clause-body original-clause) `(,@common-subgoals ,@common-ass ,@common-cons))
 			(setf (clause-head original-clause) `(,(make-clause rest-original original-head) ,@others))
-			))))
+			)))
 				
 (defun merge-clauses ()
 	"Find subsequent identical clauses, where the body facts are shared."
@@ -1042,27 +1045,33 @@
 		(loop while all-clauses
 				do (let ((first-clause (first all-clauses))
 							(other-clauses (rest all-clauses)))
-						(with-clause first-clause (:body body)
-							(let ((subgoals-clause (get-subgoals body)))
-								(let ((identical-clauses (filter-first #L(identical-clause-p (get-subgoals (clause-body !1)) subgoals-clause) other-clauses)))
-									(cond
-										((null identical-clauses)
-											(push-end first-clause processed-clauses)
-											(setf all-clauses (rest all-clauses)))
-										(t
-											(merge-clause first-clause identical-clauses)
-											(push-end first-clause processed-clauses)
-											(setf all-clauses (drop-first-n all-clauses (1+ (length identical-clauses)))))))))))
+						(cond
+							((clause-is-persistent-p first-clause)
+								(push-end first-clause processed-clauses)
+								(setf all-clauses (rest all-clauses)))
+							(t
+								(with-clause first-clause (:body body)
+									(let ((subgoals-clause (get-subgoals body)))
+										(let ((identical-clauses (filter-first #L(identical-clause-p (get-subgoals (clause-body !1)) subgoals-clause) other-clauses)))
+											(cond
+												((null identical-clauses)
+													(push-end first-clause processed-clauses)
+													(setf all-clauses (rest all-clauses)))
+												(t
+													(merge-clause first-clause identical-clauses)
+													(push-end first-clause processed-clauses)
+													(setf all-clauses (drop-first-n all-clauses (1+ (length identical-clauses)))))))))))))
 		(setf *clauses* processed-clauses)))
 
 (defun find-reusable-fact-in-head (head sub)
 	(cond
 		((null head) nil)
 		((clause-head-is-recursive-p head)
-			(do-clauses head (:clause c :head subhead)
-				(when (find-reusable-fact-in-head subhead sub)
-					(return-from find-reusable-fact-in-head t)))
-			nil)
+			(let ((ret nil))
+				(do-clauses head (:clause c :head subhead)
+					(when (find-reusable-fact-in-head subhead sub)
+						(setf ret t)))
+			ret))
 		(t
 			(do-subgoals head (:name name :subgoal sub2)
 				(when (and (string-equal name (subgoal-name sub))
@@ -1072,15 +1081,21 @@
 						(subgoal-will-reuse-other sub2 sub)
 						(return-from find-reusable-fact-in-head t))))
 			nil)))
+			
+(defun find-reusable-facts-body (body head)
+	(do-subgoals body (:subgoal sub :name name)
+		(let ((def (lookup-definition name)))
+			(when (is-linear-p def)
+				(unless (subgoal-is-reused-p sub)
+					(find-reusable-fact-in-head head sub))))))
 	
 (defun find-reusable-facts ()
 	(do-rules (:clause clause :body body :head head)
 		(unless (clause-is-persistent-p clause)
-			(do-subgoals body (:subgoal sub :name name)
-				(let ((def (lookup-definition name)))
-					(when (is-linear-p def)
-						(unless (subgoal-is-reused-p sub)
-							(find-reusable-fact-in-head head sub))))))))
+			(find-reusable-facts-body body head)
+			(when (clause-head-is-recursive-p head)
+				(do-clauses head (:body sub-body :head sub-head)
+					(find-reusable-facts-body sub-body sub-head))))))
 
 (defun compile-ast ()
 	(merge-clauses)
