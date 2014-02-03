@@ -33,6 +33,10 @@
 (defun specialize-move (from to typ)
 	(let ((ref-type-p (reference-type-p typ)))
 		(cond
+			((vm-argument-p from)
+				(cond
+					((reg-p to)
+						`(:move-argument-to-reg ,from ,to))))
 			((vm-pcounter-p from)
 				(cond
 					((vm-stack-p to)

@@ -387,6 +387,8 @@
 			(output-instr-and-values vec #b00110110 (move-from instr) (move-to instr)))
 		(:move-host-id-to-reg
 			(output-instr-and-values vec #b00110111 (move-to instr)))
+		(:move-argument-to-reg
+			(output-instr-and-values vec #b01111100 (move-from instr) (move-to instr)))
 		(:addr-not-equal
 			(output-instr-and-values vec #b00111000 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
 		(:addr-equal
