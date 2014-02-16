@@ -7,7 +7,7 @@
 (defun matches-op-addr-equal-p (instr)
    (and (eq (first instr) :addr-equal)
         (reg-p (vm-op-dest instr))
-        (reg-eq-p (vm-op-dest instr) (make-reg 1))
+        (reg-eq-p (vm-op-dest instr) (make-reg 2))
         (reg-p (vm-op-v1 instr))
         (reg-p (vm-op-v2 instr))
 		  (reg-eq-p (vm-op-v1 instr) (make-reg 0))
@@ -19,7 +19,7 @@
         
 (defun matches-op-if-1-p (instr)
    (and (vm-if-p instr)
-        (reg-eq-p (vm-if-reg instr) (make-reg 1))))
+        (reg-eq-p (vm-if-reg instr) (make-reg 2))))
         
 (defun add-instrs-to-node (hash node instrs)
    (multiple-value-bind (other-instrs found-p) (gethash node hash)
