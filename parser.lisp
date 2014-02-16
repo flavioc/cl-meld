@@ -487,7 +487,7 @@
 	(comprehension-terms
 		()
 		(terms #'identity))
-	                                      
+
 	(variable-list
 		(variable #'list)
 	   (variable :comma variable-list #'(lambda (v c l) (declare (ignore c)) (cons v l))))

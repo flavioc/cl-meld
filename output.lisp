@@ -530,6 +530,14 @@
 			(output-instr-and-values vec #b01111011 (vm-update-reg instr)))
       (:convert-float
 			(output-instr-and-values vec #b00001001 (vm-convert-float-place instr) (vm-convert-float-dest instr)))
+		(:set-priority
+			(output-instr-and-values vec #b00011100 (vm-set-priority-priority instr) (vm-set-priority-node instr)))
+		(:set-priority-here
+			(output-instr-and-values vec #b00110000 (vm-set-priority-priority instr)))
+		(:add-priority
+			(output-instr-and-values vec #b10100000 (vm-add-priority-priority instr) (vm-add-priority-node instr)))
+		(:add-priority-here
+			(output-instr-and-values vec #b10100001 (vm-add-priority-priority instr)))
       (:select-node
 							(when (vm-select-node-empty-p instr)
 								(return-from output-instr nil))

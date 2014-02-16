@@ -119,11 +119,12 @@
 	"Ensures that place is a register."
 	(with-gensyms (new-reg)
 		`(with-compilation (,place ,code) ,expr
-			(unless (reg-p ,place)
+			(if (not (reg-p ,place))
 				(with-reg (,new-reg)
 					(setf ,code (append ,code (list (make-move ,place ,new-reg))))
-					(setf ,place ,new-reg)))
-			,@body)))
+					(setf ,place ,new-reg)
+					,@body)
+				,@body))))
 		
 (defmacro with-compilation-on-rf ((place code) expr &body body)
 	"Ensures that place is either a field or register."
@@ -493,18 +494,9 @@
 		(when (subgoal-appears-code-p body name)
 			(return-from subgoal-appears-in-any-body-p t)))
 	(clause-body-matches-subgoal-p clause name))
-
-
-(defun do-compile-normal-subgoal (sub name args)
-	(with-reg (tuple-reg)
-      `(,(make-vm-alloc name tuple-reg)
-         ,@(loop for arg in args
-               for i upto (length args)
-               append (compile-head-move arg i tuple-reg))
-         ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub tuple-reg)
-            `(,@extra-code ,(if (subgoal-has-delay-p sub)
-											(make-vm-send-delay tuple-reg send-to (subgoal-delay-value sub))
-											(general-make-send name tuple-reg send-to (subgoal-appears-in-any-body-p *compilation-clause* name))))))))
+	
+(defun subgoal-is-set-priority-p (name) (string-equal name "set-priority"))
+(defun subgoal-is-add-priority-p (name) (string-equal name "add-priority"))
 
 (defun expression-is-the-same-p (arg1 arg2) (equal arg1 arg2))
 	
@@ -517,12 +509,45 @@
 					 append (unless (expression-is-the-same-p old-arg new-arg)
 									(compile-head-move new-arg i reg)))
 			,(make-vm-update reg))))
+			
+(defun do-compile-normal-subgoal (sub name args)
+	(with-reg (tuple-reg)
+      `(,(make-vm-alloc name tuple-reg)
+         ,@(loop for arg in args
+               for i upto (length args)
+               append (compile-head-move arg i tuple-reg))
+         ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub tuple-reg)
+            `(,@extra-code ,(if (subgoal-has-delay-p sub)
+											(make-vm-send-delay tuple-reg send-to (subgoal-delay-value sub))
+											(general-make-send name tuple-reg send-to (subgoal-appears-in-any-body-p *compilation-clause* name))))))))
+											
+(defun do-compile-set-priority (sub args)
+	(assert (= (length args) 1))
+	(with-compilation-on-reg (priority priority-instrs) (first args)
+		(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub nil)
+			(if (null send-to)
+				`(,@priority-instrs ,(make-vm-set-priority-here priority))
+				`(,@extra-code ,@priority-instrs ,(make-vm-set-priority priority send-to))))))
+				
+(defun do-compile-add-priority (sub args)
+	(assert (= (length args) 1))
+	(with-compilation-on-reg (priority priority-instrs) (first args)
+		(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub nil)
+			(if (null send-to)
+				`(,@priority-instrs ,(make-vm-add-priority-here priority))
+				`(,@extra-code ,@priority-instrs ,(make-vm-add-priority priority send-to))))))
 	
 (defun do-compile-head-subgoals (head sub-regs)
    (do-subgoals head (:name name :args args :operation append :subgoal sub)
-		(if (subgoal-will-reuse-other-p sub)
-			(do-compile-reused-subgoal sub name args sub-regs)
-      	(do-compile-normal-subgoal sub name args))))
+		(cond
+			((subgoal-will-reuse-other-p sub)
+				(do-compile-reused-subgoal sub name args sub-regs))
+			((subgoal-is-set-priority-p name)
+				(do-compile-set-priority sub args))
+			((subgoal-is-add-priority-p name)
+				(do-compile-add-priority sub args))
+			(t
+      		(do-compile-normal-subgoal sub name args)))))
 
 (defconstant +plus-infinity+ 2147483647)
 
@@ -1051,7 +1076,7 @@
 				do (let ((first-clause (first all-clauses))
 							(other-clauses (rest all-clauses)))
 						(cond
-							((clause-is-persistent-p first-clause)
+							((rule-is-persistent-p first-clause)
 								(push-end first-clause processed-clauses)
 								(setf all-clauses (rest all-clauses)))
 							(t

@@ -507,6 +507,16 @@
 (defun vm-new-node-p (nn) (tagged-p nn :new-node))
 (defun vm-new-node-reg (nn) (second nn))
 
+(defun make-vm-set-priority-here (prio) `(:set-priority-here ,prio))
+(defun make-vm-set-priority (prio node) `(:set-priority ,prio ,node))
+(defun vm-set-priority-priority (x) (second x))
+(defun vm-set-priority-node (x) (third x))
+
+(defun make-vm-add-priority-here (prio) `(:add-priority-here ,prio))
+(defun make-vm-add-priority (prio node) `(:add-priority ,prio ,node))
+(defun vm-add-priority-priority (x) (second x))
+(defun vm-add-priority-node (x) (third x))
+
 (defun print-place (place)
    (cond
       ((vm-int-p place) (tostring "~a" (vm-int-val place)))
