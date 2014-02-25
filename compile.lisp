@@ -225,7 +225,19 @@
 				(assert look)
 				(return-expr look)))
       ((call-p expr)
-         (compile-call (call-name expr) (call-args expr) nil nil))
+			(let ((name (call-name expr))
+					(args (call-args expr)))
+				(cond
+					((string-equal name "cpu-id")
+						(with-dest-or-new-reg (dest)
+							(with-compiled-expr (arg-place arg-code :force-dest dest) (first args)
+								(return-expr dest `(,@arg-code ,(make-vm-cpu-id arg-place dest))))))
+					((string-equal name "nodepriority")
+						(with-dest-or-new-reg (dest)
+							(with-compiled-expr (arg-place arg-code :force-dest dest) (first args)
+								(return-expr dest `(,@arg-code ,(make-vm-node-priority arg-place dest))))))
+					(t 
+         			(compile-call name args nil nil)))))
 		((struct-val-p expr)
 			(with-dest-or-new-reg (dest)
 				(let ((look (lookup-used-var (var-name (struct-val-var expr)))))
@@ -497,6 +509,7 @@
 	
 (defun subgoal-is-set-priority-p (name) (string-equal name "set-priority"))
 (defun subgoal-is-add-priority-p (name) (string-equal name "add-priority"))
+(defun subgoal-is-stop-program-p (name) (string-equal name "stop-program"))
 
 (defun expression-is-the-same-p (arg1 arg2) (equal arg1 arg2))
 	
@@ -538,7 +551,7 @@
 				(if (null send-to)
 					`(,@priority-instrs ,(make-vm-add-priority-here priority))
 					`(,@priority-instrs ,@extra-code ,(make-vm-add-priority priority send-to)))))))
-	
+
 (defun do-compile-head-subgoals (head sub-regs)
    (do-subgoals head (:name name :args args :operation append :subgoal sub)
 		(cond
@@ -548,6 +561,8 @@
 				(do-compile-set-priority sub args))
 			((subgoal-is-add-priority-p name)
 				(do-compile-add-priority sub args))
+			((subgoal-is-stop-program-p name)
+				`(,(make-vm-stop-program)))
 			(t
       		(do-compile-normal-subgoal sub name args)))))
 

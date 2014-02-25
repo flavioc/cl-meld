@@ -538,6 +538,12 @@
 			(output-instr-and-values vec #b10100000 (vm-add-priority-priority instr) (vm-add-priority-node instr)))
 		(:add-priority-here
 			(output-instr-and-values vec #b10100001 (vm-add-priority-priority instr)))
+		(:stop-program
+			(output-instr-and-values vec #b10100010))
+		(:cpu-id
+			(output-instr-and-values vec #b01111110 (vm-cpu-id-node instr) (vm-cpu-id-dest instr)))
+		(:node-priority
+			(output-instr-and-values vec #b01111111 (vm-node-priority-node instr) (vm-node-priority-dest instr)))
       (:select-node
 							(when (vm-select-node-empty-p instr)
 								(return-from output-instr nil))

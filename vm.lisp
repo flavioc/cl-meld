@@ -517,6 +517,16 @@
 (defun vm-add-priority-priority (x) (second x))
 (defun vm-add-priority-node (x) (third x))
 
+(defun make-vm-stop-program () `(:stop-program))
+
+(defun make-vm-cpu-id (node dest) `(:cpu-id ,node ,dest))
+(defun vm-cpu-id-node (x) (second x))
+(defun vm-cpu-id-dest (x) (third x))
+
+(defun make-vm-node-priority (node dest) `(:node-priority ,node ,dest))
+(defun vm-node-priority-node (x) (second x))
+(defun vm-node-priority-dest (x) (third x))
+
 (defun print-place (place)
    (cond
       ((vm-int-p place) (tostring "~a" (vm-int-val place)))
