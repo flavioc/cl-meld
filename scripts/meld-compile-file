@@ -9,7 +9,6 @@
 (format t "==> Launching the Lisp system...~%")
 (require 'asdf)
 (setf asdf:*asdf-verbose* nil) ; die messages die!
-(require 'asdf-install)
 (format t "==> Loading CL-Meld...~%")
 (asdf:oos 'asdf:load-op 'cl-meld)
 
