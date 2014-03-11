@@ -272,6 +272,7 @@
 (define-term-construct agg-construct #'agg-construct-p (specs vlist body head spec-vars))
 (define-term-construct agg-spec #'agg-spec-p (op var))
 (define-term-construct constant #'constant-p (name expr type))
+(define-term-construct conditional #'conditional-p (cmp term1 term2))
 
 (define-with process (name instrs) :use-self-p t)
 (define-with get-constant (name))

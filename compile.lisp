@@ -281,8 +281,7 @@
             (with-dest-or-new-reg (dest)
                (let ((code1 (compile-expr-to (if-e1 expr) dest))
                      (code2 (compile-expr-to (if-e2 expr) dest)))
-                  (return-expr dest `(,@code-cmp ,(make-vm-if place-cmp code1)
-                        ,(make-vm-not place-cmp place-cmp) ,(make-vm-if place-cmp code2)))))))
+                  (return-expr dest `(,@code-cmp ,(make-vm-if-else place-cmp code1 code2)))))))
       ((tail-p expr)
 			(with-compilation-on-rf (place code) (head-list expr)
 				(with-dest-or-try-reg (dest place)
@@ -639,8 +638,12 @@
 
 (defun do-compile-head-comprehensions (head def subgoal)
    (let* ((*starting-subgoal* nil)
-			 (code (do-comprehensions head (:left left :right right :operation collect)
-                  (with-compile-context (make-vm-reset-linear `(,@(compile-iterate left left right nil) ,(make-vm-reset-linear-end)))))))
+			 (code (do-comprehensions head (:left left :right right :operation append)
+					  (with-compile-context
+							(let ((body-comp (compile-iterate left left right nil)))
+								(if (get-subgoals left)
+									(list (make-vm-reset-linear `(,@body-comp ,(make-vm-reset-linear-end))))
+									body-comp))))))
 		code))
 
 (defun do-compile-head-aggs (head def subgoal)
@@ -664,14 +667,23 @@
 						(with-compile-context
 							(do-compile-one-exists vars sub-regs body)))))
 		code))
+		
+(defun do-compile-head-conditionals (head sub-regs def subgoal)
+	(do-conditionals head (:cmp cmp :term1 term1 :term2 term2 :operation append)
+		(let ((head1 (do-compile-head-code term1 sub-regs def subgoal))
+				(head2 (do-compile-head-code term2 sub-regs def subgoal)))
+			(with-compiled-expr (cmp-place cmp-code) cmp
+				`(,@cmp-code ,(make-vm-if-else cmp-place head1 head2))))))
 
 (defun do-compile-head-code (head sub-regs def subgoal)
 	"Head is the head expression. Subgoal is the starting subgoal and def its definition."
+	(warn "~a" head)
    (let ((subgoals-code (do-compile-head-subgoals head sub-regs))
+			(conditional-code (do-compile-head-conditionals head sub-regs def subgoal))
          (comprehensions-code (do-compile-head-comprehensions head def subgoal))
 			(agg-code (do-compile-head-aggs head def subgoal))
 			(exists-code (do-compile-head-exists head sub-regs def subgoal)))
-		`(,@subgoals-code ,@comprehensions-code ,@agg-code ,@exists-code)))
+		`(,@subgoals-code ,@comprehensions-code ,@agg-code ,@exists-code ,@conditional-code)))
 		
 (defun subgoal-to-be-deleted-p (subgoal def)
    (and (is-linear-p def)
@@ -695,7 +707,7 @@
 			(*compiling-axioms* deletes)
 			((and subgoal def) deletes)
 			((and *compiling-rule* (clause-is-persistent-p *compilation-clause*)) deletes)
-			((and (null def) (null subgoal)) `(,@deletes ,(make-return-derived)))
+			((and (null def) (null subgoal)) `(,@deletes ,@(unless (null sub-regs) (list (make-return-derived)))))
 			((and (not *compilation-clause*) (and subgoal) (subgoal-to-be-deleted-p subgoal def))
 				`(,@deletes ,(make-return-linear)))
 			(t	`(,@deletes ,@(if inside `(,(make-return-derived)) nil))))))

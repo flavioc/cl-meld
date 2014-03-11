@@ -8,6 +8,11 @@
 (defun get-comprehensions (code) (filter #'comprehension-p code))
 (defun get-agg-constructs (code) (filter #'agg-construct-p code))
 (defun get-constraints (code) (remove-if-not #'constraint-p code))
+(defun recursively-get-subgoals (code)
+	(append (get-subgoals code)
+		(do-conditionals code (:term1 term1 :term2 term2 :operation append)
+			(append (recursively-get-subgoals term1)
+						(recursively-get-subgoals term2)))))
 
 (defun iterate-expr (fn expr)
    (unless expr
@@ -38,6 +43,11 @@
                         (with-comprehension expr (:left left :right right)
                            (aux left)
                            (aux right)))
+							((conditional-p expr)
+								(with-conditional expr (:cmp cmp :term1 term1 :term2 term2)
+									(aux cmp)
+									(aux term1)
+									(aux term2)))
                      ((constraint-p expr) (aux (constraint-expr expr)))
                      ((assignment-p expr)
                         (aux (assignment-var expr))

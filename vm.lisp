@@ -295,6 +295,12 @@
 (defun vm-if-instrs (i) (third i))
 (defun vm-if-p (i) (tagged-p i :if))
 
+(defun make-vm-if-else (r instrs1 instrs2) (list :if-else r instrs1 instrs2))
+(defun vm-if-else-reg (i) (second i))
+(defun vm-if-else-instrs1 (i) (third i))
+(defun vm-if-else-instrs2 (i) (fourth i))
+(defun vm-if-else-p (i) (tagged-p i :if-else))
+
 (defun specialize-op (dst v1 op v2)
 	(case op
 		(:addr-not-equal `(:addr-not-equal ,dst ,v1 ,v2 ,dst))

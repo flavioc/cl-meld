@@ -99,6 +99,7 @@
 										("then" :then)
 										("fun" :fun)
 										("else" :else)
+										("otherwise" :otherwise)
 										("min" :min)
 										("priority" :prio)
 										("true" :true)
@@ -247,7 +248,7 @@
 								:output :input :immediate :linear
 								:dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :fun :end :colon
-								:not-equal :if :then :else :prio :random
+								:not-equal :if :then :else :otherwise :prio :random
 								:min :asc :desc :or :export :import :as :from
 								:exists :initial-priority :priority-type :priority-order
 								:delay-seconds :delay-ms :question-mark
@@ -418,8 +419,8 @@
 								(:random (clause-add-random clause v))
 								(:min (clause-add-min clause v)))
 							clause)))
-	   (terms :lolli head :dot #'(lambda (body l head d) (declare (ignore l d)) (make-clause body head)))
-	   (terms :lolli :dot #'(lambda (body l d) (declare (ignore l d)) (make-clause body nil)))
+	   (body :lolli head :dot #'(lambda (body l head d) (declare (ignore l d)) (make-clause body head)))
+	   (body :lolli :dot #'(lambda (body l d) (declare (ignore l d)) (make-clause body nil)))
 	   (:arrow terms :dot #'(lambda (x body y) (declare (ignore x y)) (make-clause body nil)))
 	   (head :dot #'(lambda (head d) (declare (ignore d)) (make-clause nil head)))
 		(head :arrow terms :dot #'(lambda (conc y perm w) (declare (ignore y w)) (make-clause perm conc))))
@@ -436,16 +437,26 @@
 								(error (make-condition 'parse-failure-error :text (tostring "invalid head number ~a" str) :line *line-number*))))))
 		(terms #'identity))
 		
+	(body
+		terms)
+		
    (terms
       (term #'list)
-      (term :comma terms #'(lambda (el x ls) (declare (ignore x)) (cons el ls))))
-      
-   (term
+		(term :comma terms #'(lambda (el x ls) (declare (ignore x)) (cons el ls))))
+   
+	(subhead-term
 		(exists #'identity)
-      (comprehension #'identity)
-      (subgoal #'identity)
-      (constraint #'identity)
-      (aggregate-thing #'identity))
+		(subgoal #'identity))
+		
+	(head-term
+		(conditional #'identity)
+		(subhead-term #'identity)
+		(comprehension #'identity)
+		(aggregate-thing #'identity))
+		
+   (term
+		(head-term #'identity)
+      (constraint #'identity))
 
 	(exists
 		(:exists variable-list :dot :lparen terms :rparen #'(lambda (e var-list d l terms r)
@@ -480,6 +491,11 @@
 		(:delay-seconds #L(parse-delay-seconds !1))
 		(:delay-ms #L(parse-delay-ms !1)))
 		
+	(conditional
+		(:lparen :if cmp :then head :otherwise head :end :rparen #'(lambda (l i cmp then terms-true otherwise terms-false end r)
+																(declare (ignore l i then otherwise end r))
+																(make-conditional cmp terms-true terms-false))))
+
 	(comprehension
 	    (:lcparen variable-list :bar terms :bar comprehension-terms :rcparen #'(lambda (l vl b1 left b2 right r) (declare (ignore l b1 b2 r))
                                               (make-comprehension left right vl))))
@@ -489,6 +505,7 @@
 		(terms #'identity))
 
 	(variable-list
+		(:dot #'(lambda (x) (declare (ignore x)) (list)))
 		(variable #'list)
 	   (variable :comma variable-list #'(lambda (v c l) (declare (ignore c)) (cons v l))))
 	

@@ -221,7 +221,13 @@
       `(save-pos (,pos ,vec)
           ,@body
          (write-offset ,vec (- (length ,vec) ,pos) (+ ,pos ,jump-many)))))
-         
+(defmacro backwards-write-jump (vec jump-many &body body)
+	(with-gensyms (pos)
+		`(save-pos (,pos ,vec)
+			,@body
+			(write-offset ,vec
+				(- (length ,vec) ,pos) (- ,pos (+ ,jump-many +code-offset-size+))))))
+				
 (defun output-axiom-argument (arg vec subgoal)
 	(cond
 		((addr-p arg)
@@ -331,6 +337,18 @@
                (add-byte (logand *reg-mask* reg-b) vec)
                (jumps-here vec)
                (output-instrs (vm-if-instrs instr) vec))))
+		(:if-else (let ((reg-b (reg-to-byte (vm-if-else-reg instr))))
+						(write-jump vec (+ 2 +code-offset-size+)
+							(write-jump vec 2
+								(add-byte #b10000001 vec)
+								(add-byte (logand *reg-mask* reg-b) vec)
+								(jumps-here vec) ;; jump to else code
+								(jumps-here vec) ;; jump outside this instruction
+								(output-instrs (vm-if-else-instrs1 instr) vec)
+								(add-byte #b10000010 vec) ;; jump instruction
+								(jumps-here vec))
+							(backwards-write-jump vec 0
+								(output-instrs (vm-if-else-instrs2 instr) vec)))))
 		(:persistent-iterate (output-iterate vec #b00000010 instr nil))
 		(:order-persistent-iterate (output-iterate vec #b00000100 instr (iterate-options-byte-list instr)))
 		(:linear-iterate (output-iterate vec #b00000101 instr nil))
