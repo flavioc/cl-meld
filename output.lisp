@@ -898,7 +898,14 @@
 (defun add-type-to-typelist (types new)
 	(if (member new types :test #'equal)
 		types
-		(push new types)))
+		(cond
+			((type-list-p new)
+				(cons new (add-type-to-typelist types (type-list-element new))))
+			((type-struct-p new)
+				(dolist (x (type-struct-list new))
+					(setf types (add-type-to-typelist types x)))
+				(cons new types))
+			(t (cons new types)))))
 		
 (defun collect-all-types ()
 	(setf *program-types* nil)

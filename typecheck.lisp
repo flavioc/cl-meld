@@ -483,7 +483,7 @@
                                        (has-variables-defined (assignment-expr a)))
                                  assignments)
             do (unless assign
-                  (error 'type-invalid-error :text "undefined variables"))
+                  (error 'type-invalid-error :text (tostring "undefined variables ~a" assignments)))
 					(setf assignments (delete assign assignments :test #'equal))
                (when (< 1 (count-if #L(var-eq-p (assignment-var assign) !1) (get-assignment-vars assignments)))
                   (error 'type-invalid-error :text "cannot set multiple variables"))

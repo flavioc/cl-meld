@@ -392,7 +392,10 @@
 (defun vm-argument-p (a) (tagged-p a :argument))
 (defun vm-argument-id (a) (second a))
 
-(defun make-vm-convert-float (place dest) `(:convert-float ,place ,dest))
+(defun make-vm-convert-float (place dest)
+	(assert (reg-p place))
+	(assert (reg-p dest))
+	`(:convert-float ,place ,dest))
 (defun vm-convert-float-p (flt) (tagged-p flt :convert-float))
 (defun vm-convert-float-place (flt) (second flt))
 (defun vm-convert-float-dest (flt) (third flt))

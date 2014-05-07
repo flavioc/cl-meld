@@ -102,5 +102,8 @@
 
 (defun type-eq-p (ty1 ty2) (equal ty1 ty2))
 
+(defun recursive-type-p (typ)
+	(or (type-struct-p typ) (type-list-p typ)))
+
 (defun reference-type-p (typ)
-	(or (type-string-p typ) (type-struct-p typ) (type-list-p typ)))
+	(or (eq typ :all) (type-string-p typ) (recursive-type-p typ)))

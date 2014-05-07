@@ -90,17 +90,6 @@
 
 (defmacro return-expr (place &optional code) `(values ,place ,code (if (reg-p ,place) (extend-regs *used-regs* ,place) *used-regs*)))
 
-(defmacro return-chained-expr-on-reg (place code op dest)
-	`(cond
-		((reg-p ,dest)
-			(return-expr ,dest (append ,code (append (list (,op ,place ,dest))))))
-		((null ,dest)
-			(return-expr ,place
-				(append ,code (list (,op ,place ,place)))))
-		(t
-			(return-expr ,dest
-				(append ,code (list (,op ,place ,place) (make-move ,place ,dest)))))))
-
 (defmacro with-compiled-expr ((place code &key (force-dest nil)) expr &body body)
 	`(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr ,force-dest)
 		(cond
@@ -112,7 +101,7 @@
 				,@body))))
 
 (defmacro with-compilation ((place code) expr &body body)
-	`(multiple-value-bind (,place ,code) (compile-expr ,expr)
+	`(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr)
 		,@body))
 		
 (defmacro with-compilation-on-reg ((place code) expr &body body)
@@ -124,44 +113,23 @@
 					(setf ,code (append ,code (list (make-move ,place ,new-reg))))
 					(setf ,place ,new-reg)
 					,@body)
-				,@body))))
+				(progn ,@body)))))
 		
 (defmacro with-compilation-on-rf ((place code) expr &body body)
 	"Ensures that place is either a field or register."
 	(with-gensyms (new-reg)
 		`(with-compilation (,place ,code) ,expr
-			(unless (or (reg-p ,place) (reg-dot-p ,place))
+			(if (not (or (reg-p ,place) (reg-dot-p ,place)))
 				(with-reg (,new-reg)
 					(setf ,code (append ,code (list (make-move ,place ,new-reg))))
-					(setf ,place ,new-reg)))
-			,@body)))
+					(setf ,place ,new-reg)
+					,@body)
+				(progn ,@body)))))
 
 (defmacro with-dest-or-new-reg ((dest) &body body)
    `(if (null ,dest)
       (with-reg (,dest) ,@body)
       (progn ,@body)))
-
-(defmacro with-dest-or-reg ((dest reg) &body body)
-	`(cond
-		((and (null ,dest) (reg-p ,reg))
-			(setf ,dest ,reg)
-			(with-old-reg (,reg)
-				,@body))
-		((null ,dest)
-			(with-reg (,dest)
-				,@body))
-		(t
-			,@body)))
-		
-(defmacro with-dest-or-try-reg ((dest reg) &body body)
-	`(cond
-		((and (null ,dest) (not (reg-p ,reg)))
-			(with-reg (,dest) ,@body))
-		((and (null ,dest) (reg-p ,reg))
-			(setf ,dest ,reg)
-			(with-old-reg (,reg)
-				,@body))
-		(t ,@body)))
 
 (defmacro compile-expr-to (expr place)
 	(with-gensyms (new-place code)
@@ -175,28 +143,31 @@
 	(if (lookup-standard-external-function name)
 		(make-vm-call name new-reg regs)
 		(make-vm-calle name new-reg regs)))
+		
+(defun get-external-function-ret-type (name)
+	(let ((fun (lookup-standard-external-function name)))
+		(when fun
+			(extern-ret-type fun))))
 
-(defun compile-call (name args regs code)
-		(if (null args)
-			(cond
-				((null regs)
-					(with-reg (new-reg)
-         			(let ((new-code `(,@code ,(decide-external-function name new-reg regs))))
-            			(return-expr new-reg new-code))))
-				(t
-					(let ((reused-reg (first (last regs))))
-						(let ((new-code `(,@code ,(decide-external-function name reused-reg regs))))
-							(return-expr reused-reg new-code)))))
-      	(with-compiled-expr (arg-place arg-code) (first args)
-				(cond
-					((reg-p arg-place)
-						(multiple-value-bind (place code) (compile-call name (rest args) `(,@regs ,arg-place) `(,@code ,@arg-code))
-							(return-expr place code)))
-					(t
-						(with-reg (new-reg)
-							(multiple-value-bind (place code) (compile-call name (rest args) `(,@regs ,new-reg) `(,@code ,@arg-code ,(make-move arg-place new-reg)))
-								(return-expr place code))))))))
-
+(defun compile-call-args (args)
+	(if (null args)
+		(values nil nil)
+		(with-compilation-on-reg (arg-place arg-code) (first args)
+			(multiple-value-bind (regs codes) (compile-call-args (rest args))
+				(values (cons arg-place regs) `(,@arg-code ,@codes))))))
+				
+(defun compile-call (name args dest)
+	(multiple-value-bind (regs codes) (compile-call-args args)
+		(cond
+			((null dest)
+		 		(with-reg (new-dest)
+					(return-expr new-dest `(,@codes ,(decide-external-function name new-dest regs)))))
+			((and dest (reg-p dest))
+				(return-expr dest `(,@codes ,(decide-external-function name dest regs))))
+			(t
+				(with-reg (new-dest)
+					(return-expr dest `(,@codes ,(decide-external-function name new-dest regs) ,(make-move new-dest dest (get-external-function-ret-type name)))))))))
+			
 (defun compile-callf-args (args args-code n)
 	(if (null args)
 		args-code
@@ -237,7 +208,7 @@
 							(with-compiled-expr (arg-place arg-code :force-dest dest) (first args)
 								(return-expr dest `(,@arg-code ,(make-vm-node-priority arg-place dest))))))
 					(t 
-         			(compile-call name args nil nil)))))
+         			(compile-call name args dest)))))
 		((struct-val-p expr)
 			(with-dest-or-new-reg (dest)
 				(let ((look (lookup-used-var (var-name (struct-val-var expr)))))
@@ -267,8 +238,17 @@
 											,(make-vm-pop)
 											,(make-vm-pop))))))
       ((convert-float-p expr)
-			(with-compilation-on-reg (place code) (convert-float-expr expr)
-				(return-chained-expr-on-reg place code make-vm-convert-float dest)))
+			(let (p c)
+				(with-compilation-on-reg (place code) (convert-float-expr expr)
+					(setf p place
+							c code))
+				(with-dest-or-new-reg (dest)
+					(cond
+						((reg-p dest)
+							(return-expr dest `(,@c ,(make-vm-convert-float p dest))))
+						(t
+							(with-reg (new-reg)
+								(return-expr dest `(,@c ,(make-vm-convert-float p new-reg) ,(make-move new-reg dest)))))))))
       ((let-p expr)
          (with-dest-or-new-reg (dest)
             (with-compiled-expr (place-expr code-expr) (let-expr expr)
@@ -283,32 +263,55 @@
                      (code2 (compile-expr-to (if-e2 expr) dest)))
                   (return-expr dest `(,@code-cmp ,(make-vm-if-else place-cmp code1 code2)))))))
       ((tail-p expr)
-			(with-compilation-on-rf (place code) (head-list expr)
-				(with-dest-or-try-reg (dest place)
-					(return-expr dest `(,@code ,(make-vm-tail place dest (expr-type expr)))))))
+			(let (p c)
+				(with-compilation-on-rf (place code) (head-list expr)
+					(setf p place
+							c code))
+				(with-dest-or-new-reg (dest)
+					(return-expr dest `(,@c ,(make-vm-tail p dest (expr-type expr)))))))
       ((head-p expr)
-			(with-compilation-on-rf (place code) (head-list expr)
-				(with-dest-or-try-reg (dest place)
-					(return-expr dest `(,@code ,(make-vm-head place dest (expr-type (vm-head-cons expr))))))))
+			(let (p c)
+				(with-compilation-on-rf (place code) (head-list expr)
+					(setf p place
+							c code))
+				(with-dest-or-new-reg (dest)
+					(return-expr dest `(,@c ,(make-vm-head p dest (expr-type (vm-head-cons expr))))))))
       ((cons-p expr)
-				(with-compilation-on-rf (place-tail code-tail) (cons-tail expr)
-					(with-old-reg (place-tail)
-						(with-compilation-on-rf (place-head code-head) (cons-head expr)
-							(with-dest-or-reg (dest place-tail)
-								(return-expr dest `(,@code-tail ,@code-head ,(make-vm-cons place-head place-tail dest (expr-type expr)))))))))
+			(let (phead chead ptail ctail)
+				(with-compilation-on-rf (place-head code-head) (cons-head expr)
+					(with-compilation-on-rf (place-tail code-tail) (cons-tail expr)
+						(setf phead place-head
+								chead code-head
+								ptail place-tail
+								ctail code-tail)))
+				(with-dest-or-new-reg (dest)
+					(return-expr dest `(,@chead ,@ctail ,(make-vm-cons phead ptail dest (expr-type expr)))))))
       ((not-p expr)
-			(with-compilation-on-reg (place-expr code-expr) (not-expr expr)
-				(return-chained-expr-on-reg place-expr code-expr make-vm-not dest)))
+			(let (p c)
+				(with-compilation-on-reg (place-expr code-expr) (not-expr expr)
+					(setf p place-expr
+							c code-expr))
+				(with-dest-or-new-reg (dest)
+					(return-expr dest `(,@c ,(make-vm-not p dest))))))
       ((test-nil-p expr)
-			(with-compilation-on-reg (place-expr code-expr) (test-nil-expr expr)
-				(return-chained-expr-on-reg place-expr code-expr make-vm-test-nil dest)))
+			(let (p c)
+				(with-compilation-on-reg (place-expr code-expr) (test-nil-expr expr)
+					(setf p place-expr
+							c code-expr))
+				(with-dest-or-new-reg (dest)
+					(return-expr dest `(,@c ,(make-vm-test-nil p dest))))))
       ((nil-p expr) (return-expr (make-vm-nil)))
       ((world-p expr) (return-expr (make-vm-world)))
       ((op-p expr)
-			(with-compilation-on-reg (place1 code1) (op-op1 expr)
-				(with-old-reg (place1)
+			(let (p1 c1 p2 c2)
+				(with-compilation-on-reg (place1 code1) (op-op1 expr)
 					(with-compilation-on-reg (place2 code2) (op-op2 expr)
-						(compile-op-expr expr place1 place2 code1 code2 dest)))))
+						(setf p1 place1
+								c1 code1
+								p2 place2
+								c2 code2)))
+				(with-dest-or-new-reg (dest)
+					(compile-op-expr expr p1 p2 c1 c2 dest))))
       (t (error 'compile-invalid-error :text (tostring "Unknown expression to compile: ~a" expr)))))
 
 (defun compile-op-expr (expr new-place1 new-place2 new-code1 new-code2 dest)
@@ -368,7 +371,6 @@
 						(assert i)
 						(setf already-defined (lookup-used-var (var-name other-var)))
 						(assert (reg-dot-p already-defined))
-						;(warn "found variable1 ~a ~a ~a" var other-var already-defined)
 						(add-used-var (var-name var) (make-reg-dot reg i))
 						(values already-defined (list cs)))
 					(t
@@ -677,8 +679,7 @@
 
 (defun do-compile-head-code (head sub-regs def subgoal)
 	"Head is the head expression. Subgoal is the starting subgoal and def its definition."
-	(warn "~a" head)
-   (let ((subgoals-code (do-compile-head-subgoals head sub-regs))
+	(let ((subgoals-code (do-compile-head-subgoals head sub-regs))
 			(conditional-code (do-compile-head-conditionals head sub-regs def subgoal))
          (comprehensions-code (do-compile-head-comprehensions head def subgoal))
 			(agg-code (do-compile-head-aggs head def subgoal))
@@ -797,21 +798,21 @@
 		(let* ((next-sub (select-next-subgoal-for-compilation body))
              (body1 (remove-unneeded-assignments (remove-tree-first next-sub (remove-all body constraints)) head)))
          (compile-constraints-and-assignments constraints assignments
-            (if (not next-sub)
-					(compile-head body1 head sub-regs inside head-compiler)
-               (let ((next-sub-name (subgoal-name next-sub)))
-                  (with-reg (reg)
-							(multiple-value-bind (low-constraints body2) (add-subgoal next-sub reg body1 :match)
-								; body2 may have a reduced number of constraints
-								(let* ((match-constraints (mapcar #'rest (remove-if (constraints-in-the-same-subgoal-p reg) low-constraints)))
-										;; these constraints related arguments inside the matching subgoal
-										 (inner-constraints (mapcar (transform-reg-matches reg) (filter (constraints-in-the-same-subgoal-p reg) low-constraints)))
-	                            (def (lookup-definition next-sub-name))
-	                            (iterate-code (compile-low-constraints inner-constraints
-																	(compile-iterate body2 orig-body head
-																					(acons next-sub reg sub-regs)
-																					:inside t :head-compiler head-compiler))))
-	                       `(,(create-iterate-instruction next-sub def match-constraints reg iterate-code)))))))))))
+					(if (not next-sub)
+						(compile-head body1 head sub-regs inside head-compiler)
+               	(let ((next-sub-name (subgoal-name next-sub)))
+                  	(with-reg (reg)
+								(multiple-value-bind (low-constraints body2) (add-subgoal next-sub reg body1 :match)
+									; body2 may have a reduced number of constraints
+									(let* ((match-constraints (mapcar #'rest (remove-if (constraints-in-the-same-subgoal-p reg) low-constraints)))
+											;; these constraints related arguments inside the matching subgoal
+										 	(inner-constraints (mapcar (transform-reg-matches reg) (filter (constraints-in-the-same-subgoal-p reg) low-constraints)))
+	                            	(def (lookup-definition next-sub-name))
+	                            	(iterate-code (compile-low-constraints inner-constraints
+																		(compile-iterate body2 orig-body head
+																						(acons next-sub reg sub-regs)
+																						:inside t :head-compiler head-compiler))))
+	                       	`(,(create-iterate-instruction next-sub def match-constraints reg iterate-code)))))))))))
      
 (defun compile-constraint (inner-code constraint)
    (let ((c-expr (constraint-expr constraint)))
@@ -825,17 +826,17 @@
          (first (sort all #'> :key #'constraint-priority)))))
    
 (defun do-compile-constraints-and-assignments (constraints assignments inner-code)
-   (if (null constraints)
-      inner-code
+	(if (null constraints)
+		inner-code
       (let* ((all-vars (all-used-var-names))
             (new-constraint (select-best-constraint constraints all-vars)))
          (if (null new-constraint)
             (let ((ass (find-if (valid-assignment-p all-vars) assignments)))
                (with-compiled-expr (place instrs) (assignment-expr ass)
-               (add-used-var (var-name (assignment-var ass)) place)
-               (let ((other-code (do-compile-constraints-and-assignments
-                                    constraints (remove-tree ass assignments) inner-code)))
-                  `(,@instrs ,@other-code))))
+               	(add-used-var (var-name (assignment-var ass)) place)
+               	(let ((other-code (do-compile-constraints-and-assignments
+                                    	constraints (remove-tree ass assignments) inner-code)))
+                  	`(,@instrs ,@other-code))))
             (let ((inner-code (do-compile-constraints-and-assignments
                                        (remove-tree new-constraint constraints) assignments inner-code)))
                (compile-constraint inner-code new-constraint))))))
@@ -894,10 +895,9 @@
 (defun compile-with-starting-subgoal (body head &optional subgoal)
    (with-empty-compile-context
       (multiple-value-bind (first-constraints first-assignments) (get-compile-constraints-and-assignments body)
-         (let* ((remaining (remove-unneeded-assignments (remove-all body first-constraints) head))
-                (inner-code (compile-initial-subgoal remaining body head subgoal)))
-				(compile-constraints-and-assignments first-constraints first-assignments inner-code)))))
-
+         (let* ((remaining (remove-unneeded-assignments (remove-all body first-constraints) head)))
+				(compile-constraints-and-assignments first-constraints first-assignments (compile-initial-subgoal remaining body head subgoal))))))
+				
 (defun compile-subgoal-clause (name clause)
    (with-clause clause (:body body :head head)
 		(let ((*compilation-clause* clause))
