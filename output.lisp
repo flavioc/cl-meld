@@ -349,6 +349,8 @@
 								(jumps-here vec))
 							(backwards-write-jump vec 0
 								(output-instrs (vm-if-else-instrs2 instr) vec)))))
+		(:move-stack-to-field
+			(output-instr-and-values vec #b10000011 (move-from instr) (move-to instr)))
 		(:persistent-iterate (output-iterate vec #b00000010 instr nil))
 		(:order-persistent-iterate (output-iterate vec #b00000100 instr (iterate-options-byte-list instr)))
 		(:linear-iterate (output-iterate vec #b00000101 instr nil))

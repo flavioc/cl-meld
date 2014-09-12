@@ -45,6 +45,8 @@
 				(cond
 					((vm-pcounter-p to)
 						`(:move-stack-to-pcounter ,from ,to))
+					((reg-dot-p to)
+						`(:move-stack-to-field ,from ,to))
 					((reg-p to)
 						`(:move-stack-to-reg ,from ,to))))
 			((vm-world-p from)
