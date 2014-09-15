@@ -311,7 +311,7 @@
 			nil)))
 			
 (defmacro compute-arith-expr (expr c1 c2 op)
-	(with-gensyms (typ)
+	(alexandria:with-gensyms (typ)
 		`(let ((,typ (expr-type ,expr)))
 			(cond
 				((and (int-p ,c1) (int-p ,c2))

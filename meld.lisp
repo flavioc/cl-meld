@@ -64,7 +64,7 @@
 ;; this is to be removed... soon
       
 (defun create-debug-file (prog ext)
-   (concatenate 'string "/Users/flaviocruz/Projects/meld/master/" prog ext))
+   (concatenate 'string "/Users/flaviocruz/Projects/meld/" prog ext))
 
 (defun comp (prog &optional (out nil))
 	(let ((output-file (if out out (pathname-name (pathname prog)))))

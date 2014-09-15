@@ -57,7 +57,7 @@
       (when found data)))
 (defun add-used-var (var-name data) (setf (gethash var-name *vars-places*) data))
 (defun remove-used-var (var-name) (remhash var-name *vars-places*))
-(defun all-used-var-names () (hash-table-keys *vars-places*))
+(defun all-used-var-names () (alexandria:hash-table-keys *vars-places*))
 
 (defun hash-table-to-stack (hash)
 	(let ((new-hash (make-hash-table)))
@@ -106,7 +106,7 @@
 		
 (defmacro with-compilation-on-reg ((place code) expr &body body)
 	"Ensures that place is a register."
-	(with-gensyms (new-reg)
+	(alexandria:with-gensyms (new-reg)
 		`(with-compilation (,place ,code) ,expr
 			(if (not (reg-p ,place))
 				(with-reg (,new-reg)
@@ -117,7 +117,7 @@
 		
 (defmacro with-compilation-on-rf ((place code) expr &body body)
 	"Ensures that place is either a field or register."
-	(with-gensyms (new-reg)
+	(alexandria:with-gensyms (new-reg)
 		`(with-compilation (,place ,code) ,expr
 			(if (not (or (reg-p ,place) (reg-dot-p ,place)))
 				(with-reg (,new-reg)
@@ -132,7 +132,7 @@
       (progn ,@body)))
 
 (defmacro compile-expr-to (expr place)
-	(with-gensyms (new-place code)
+	(alexandria:with-gensyms (new-place code)
       `(multiple-value-bind (,new-place ,code *used-regs*) (compile-expr ,expr ,place)
 		   (if (not (equal ,new-place ,place))
             (append ,code (list (make-move ,new-place ,place (expr-type ,expr))))

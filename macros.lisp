@@ -13,7 +13,7 @@
       (format str ,@args)))
 	  
 (defmacro format-keyword (control &rest arguments)
- `(format-symbol "KEYWORD" ,control ,@arguments))
+ `(alexandria:format-symbol "KEYWORD" ,control ,@arguments))
 		 
 (defmacro output-symbol (control &rest arguments)
  `(intern (string-upcase (tostring ,control ,@arguments))))
@@ -60,12 +60,12 @@
       ,var))
 
 (defmacro always-ret (form &body body)
-   (with-gensyms (ret)
+   (alexandria:with-gensyms (ret)
       `(letret (,ret ,form)
          ,@body)))
 
 (defmacro iff (test thing)
-   (with-gensyms (ret)
+   (alexandria:with-gensyms (ret)
       `(let ((,ret ,thing))
          (when (,test ,ret) ,ret))))
       
@@ -116,7 +116,7 @@
           do (progn ,@body)))
          
 (defmacro loop-cons-car ((el-car list) &body body)
-   (with-gensyms (el)
+   (alexandria:with-gensyms (el)
       `(loop-cons (,el ,list)
          (with-car (,el-car ,el)
             ,@body))))
@@ -131,7 +131,7 @@
           
 (defmacro in-directory (new-dir &body body)
    "Executes a piece of code inside directory 'new-dir' and goes back to the initial directory."
-   (with-gensyms (old-dir)
+   (alexandria:with-gensyms (old-dir)
       `(let ((,old-dir *default-pathname-defaults*))
          (unwind-protect
             (progn
@@ -140,7 +140,7 @@
             (setf *default-pathname-defaults* ,old-dir)))))
 
 (defmacro define-with (name list-keywords &key use-self-p)
-   (with-gensyms (thing)
+   (alexandria:with-gensyms (thing)
       (let ((with-name (output-symbol "with-~a" name))
             (self (if use-self-p `((build-bind ,`,name ,`,thing)) nil))
             (build-binds (loop for kw in list-keywords
@@ -154,16 +154,14 @@
                   
 (defmacro define-loop (name with-name list-name list-keywords &key filter-p)
    (let* ((key-keys (loop for kw in list-keywords
-                  append
-                     (let ((key (format-keyword "~a" kw))
-                           (part (rest ``(,,`,kw))))
-                        `(,key ,@part))))
+                       append
+                        `(,(format-keyword "~a" kw) ,kw)))
             (base ``(,',with-name ,el (,,@key-keys)
                               ,@code-body)))
    `(on-top-level
       (defmacro ,list-name (ls (&key (id nil) (,name nil) (operation 'do)
                   ,@(mapcar #'(lambda (kw) `(,kw nil)) list-keywords)) &body code-body)
-          (with-gensyms (el)
+          (alexandria:with-gensyms (el)
              `(loop-list (,el ,,(if filter-p ``(filter ,',filter-p ,ls) ``,ls) :id ,id :operation ,operation)
                 (let (,@(build-bind ,name el))
                   ,,base)))))))
@@ -198,7 +196,7 @@
       ,@body))
             
 (defmacro par-collect-definitions ((&key definition name types options) &body body)
-   (with-gensyms (el)
+   (alexandria:with-gensyms (el)
       `(par-mapcar #'(lambda (,el)
                         (with-definition ,el (:name ,name :types ,types :options ,options :definition ,definition)
                            ,@body))
@@ -224,7 +222,7 @@
      
 (defmacro par-do-clauses (clauses (&key (head nil) (body nil) (clause nil)
                                     (options nil)) &body rest)
-   (with-gensyms (el)
+   (alexandria:with-gensyms (el)
       `(par-dolist (,el ,clauses)
          (let (,@(build-bind clause el))
             (with-clause ,el (:head ,head :body ,body :options ,options)
@@ -250,7 +248,7 @@
       ,@rest))
 
 (defmacro do-const-axioms ((&key subgoal) &body rest)
-	(with-gensyms (head)
+	(alexandria:with-gensyms (head)
 		`(do-clauses *const-axioms* (:head ,head)
 			(do-subgoals ,head (:subgoal ,subgoal)
 				,@rest))))
@@ -278,7 +276,7 @@
 (define-with get-constant (name))
 
 (defmacro do-processes ((&key (process nil) (name nil) (instrs nil) (operation 'do)) &body body)
-   (with-gensyms (el)
+   (alexandria:with-gensyms (el)
       `(loop-list (,el *processes* :operation ,operation)
          (with-process ,el (:name ,name :instrs ,instrs :process ,process)
             ,@body))))

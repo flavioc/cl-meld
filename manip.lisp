@@ -535,7 +535,7 @@
 	(subgoal-has-tagged-option-p sub :will-modify))
 
 (defun lookup-definition-types (pred)
-   (when-let ((def (lookup-definition pred)))
+   (alexandria:when-let ((def (lookup-definition pred)))
       (definition-types def)))
 
 (defun lookup-definition (pred &optional (defs *definitions*))

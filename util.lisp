@@ -97,7 +97,7 @@
 	`(setf ,from (delete ,item ,from :test #'equal)))
 
 (defmacro delete-all (from ls)
-   (with-gensyms (el)
+   (alexandria:with-gensyms (el)
       `(progn
          (dolist (,el ,ls)
             (setf ,from (delete ,el ,from :test #'equal)))
@@ -106,7 +106,7 @@
 (defun remove-all (from ls) (reduce #L(remove-tree !2 !1) ls :initial-value from))
 
 (defmacro push-all (ls to)
-   (with-gensyms (el)
+   (alexandria:with-gensyms (el)
       `(dolist (,el ,ls)
          (push ,el ,to))))
          
@@ -193,7 +193,7 @@
         (every #'listp ls)))
         
 (defmacro loop-pairwise ((a b) ls &body body)
-   (with-gensyms (tail)
+   (alexandria:with-gensyms (tail)
       `(loop for (,a . ,tail) on ,ls by #'cdr
              do (unless (null ,tail)
                   (let ((,b (car ,tail)))

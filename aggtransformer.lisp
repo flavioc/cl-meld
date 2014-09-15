@@ -70,7 +70,7 @@
       (unless (<= total 1)
          (error 'type-invalid-error
             :text (concatenate 'string "tuple " name " must have only one aggregate")))
-      (when-let ((agg (find-if #'aggregate-p typs)))
+      (alexandria:when-let ((agg (find-if #'aggregate-p typs)))
          (unless (valid-aggregate-p agg)
             (error 'type-invalid-error
                :text (tostring "invalid aggregate type: ~a" agg)))

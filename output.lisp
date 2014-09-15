@@ -73,7 +73,7 @@
 (defun output-value-data (val vec)
 	(cond
 		((vm-any-p val))
-		((vm-bool-p val) (if (vm-bool-val val val)
+		((vm-bool-p val) (if (vm-bool-val val)
 									(add-byte #b1 vec)
 									(add-byte #b0 vec)))
 		((vm-int-p val) (output-list-bytes vec (output-int (vm-int-val val))))
@@ -217,12 +217,12 @@
       ,@body))
       
 (defmacro write-jump (vec jump-many &body body)
-   (with-gensyms (pos)
+   (alexandria:with-gensyms (pos)
       `(save-pos (,pos ,vec)
           ,@body
          (write-offset ,vec (- (length ,vec) ,pos) (+ ,pos ,jump-many)))))
 (defmacro backwards-write-jump (vec jump-many &body body)
-	(with-gensyms (pos)
+	(alexandria:with-gensyms (pos)
 		`(save-pos (,pos ,vec)
 			,@body
 			(write-offset ,vec
@@ -588,11 +588,11 @@
                            (save-pos (end-select vec)
                               (loop for i from 0 to (1- total-nodes)
                                     for pos = (* i +code-offset-size+)
-                                    do (when-let ((offset (gethash i hash)))
+                                    do (alexandria:when-let ((offset (gethash i hash)))
                                           ;; offset is always one more, since when 0 it means there is
                                           ;; no code for the corresponding node
                                           (write-offset vec (1+ offset) (+ start size-header pos)))
-                                    do (when-let ((write-end (gethash i end-hash)))
+                                    do (alexandria:when-let ((write-end (gethash i end-hash)))
                                           (write-offset vec (- end-select (1- write-end)) write-end)))
                               (write-offset vec (- end-select (1- start)) start)))))
       (:return-select (add-byte #b00001011 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec))
@@ -712,7 +712,7 @@
 (defparameter *max-agg-info* 32)
 
 (defmacro refill-up-to ((vec max) &body body)
-   (with-gensyms (pos new-pos)
+   (alexandria:with-gensyms (pos new-pos)
       `(save-pos (,pos ,vec)
          ,@body
          (save-pos (,new-pos ,vec)
@@ -735,7 +735,7 @@
       
 (defun get-aggregate-remote (def)
    "Gets remote aggregate info from a definition (only applicable to aggregates)."
-   (when-let ((agg (definition-aggregate def)))
+   (alexandria:when-let ((agg (definition-aggregate def)))
       (let ((mod (aggregate-mod agg)))
          (cond
             ((and *use-stratification* (aggregate-mod-is-input-p mod))

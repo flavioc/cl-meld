@@ -98,7 +98,7 @@
 					(setf (iterate-instrs iterate) `(,(make-vm-remove (make-reg 0)) ,new-instr ,@(remove-if #'(lambda (x) (and (vm-remove-p x) (= 0 (reg-num (vm-remove-reg x))))) to-keep))))))))
                   
 (defmacro iterate-code ((&key instrs proc) &body body)
-   (with-gensyms (name)
+   (alexandria:with-gensyms (name)
       `(do-definitions (:name ,name)
          (with-process (vm-find ,name) (:instrs ,instrs :process ,proc)
             ,@body))))

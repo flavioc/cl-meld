@@ -461,7 +461,7 @@
 
 (defun make-vm-select-node () (list :select-node (make-hash-table)))
 (defmacro vm-select-node-iterate (vsn (n instrs &optional (operation 'do)) &body body)
-	(with-gensyms (instrs1)
+	(alexandria:with-gensyms (instrs1)
 		`(loop for ,n being the hash-keys of (second ,vsn)
 				using (hash-value ,instrs1)
 				,operation (let ((,instrs (append ,instrs1 (list (make-return-select)))))

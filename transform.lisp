@@ -2,7 +2,7 @@
 (in-package :cl-meld)
 
 (defmacro transform-part-expression (part &optional (stop-here nil))
-   (with-gensyms (x)
+   (alexandria:with-gensyms (x)
       `(with-symbol (,x ,part)
          (if (funcall test-fn ,x)
             (multiple-value-bind (new-val stop-p) (funcall transform-fn ,x)

@@ -19,8 +19,8 @@
 
 (defmacro deftype-p (&rest types)
    `(on-top-level
-         ,@(mapcar #'(lambda (x) `(defun ,(format-symbol t "TYPE-~A-P" (symbol-name x)) (ty)
-                                       (eq ,(format-symbol "KEYWORD" "TYPE-~A" (symbol-name x)) ty)))
+         ,@(mapcar #'(lambda (x) `(defun ,(alexandria:format-symbol t "TYPE-~A-P" (symbol-name x)) (ty)
+                                       (eq ,(alexandria:format-symbol "KEYWORD" "TYPE-~A" (symbol-name x)) ty)))
                   types)))
 
 (deftype-p int addr bool string float)
@@ -32,7 +32,9 @@
 			  (type-float-p typ))
 			t)
 		((type-list-p typ)
-			(valid-type-p (type-list-element typ)))))
+			(valid-type-p (type-list-element typ)))
+		((type-struct-p typ)
+			(every #'valid-type-p (type-struct-list typ)))))
 
 (defun type-operands (op &optional forced-types)
    (cond

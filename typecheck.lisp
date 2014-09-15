@@ -12,15 +12,6 @@
          
 (defun no-types-p (ls) (null ls))
 
-(defun valid-type-p (ty)
-	(cond
-		((null ty) nil)
-		((symbolp ty) t)
-		((type-list-p ty)
-			(valid-type-p (type-list-element ty)))
-		((type-struct-p ty)
-			(every #'valid-type-p (type-struct-list ty)))))
-
 (defun merge-type (t1 t2)
 	(assert (not (null t1)))
 	(assert (not (null t2)))
@@ -466,7 +457,7 @@
 				(force-constraint var-name ty)
             (set-type var ty)
 				(dolist (used-var (all-variables (assignment-expr assign)))
-               (when-let ((other (find-if #'(lambda (a)
+               (alexandria:when-let ((other (find-if #'(lambda (a)
                                              (and (var-eq-p used-var (assignment-var a))
                                                    (not (one-elem-p (expr-type (assignment-var a))))))
                                     assignments)))
