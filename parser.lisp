@@ -548,7 +548,7 @@
 		(:false (return-const (make-bool nil)))
 		(:string #'(lambda (x) (make-string-constant (subseq x 1 (1- (length x)))))) ;; need to trim the first and final ""
 	   (const :lparen args :rparen #'(lambda (name l args r) (declare (ignore l r))
-	            (acond
+	            (cond
 	               ((has-function-call-p name)
 							(make-callf name args))
 	                  ;(generate-expression-by-function-call it args))

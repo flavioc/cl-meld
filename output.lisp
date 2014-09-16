@@ -627,7 +627,7 @@
 		(write-int-stream stream node)))
 
 (defun output-processes ()
-   (do-processes (:name name :instrs instrs :operation collect)
+   (do-processes (:instrs instrs :operation collect)
       (let ((vec (create-bin-array)))
 			(make-byte-code vec
          	(output-instrs instrs vec)))))

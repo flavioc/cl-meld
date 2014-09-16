@@ -156,7 +156,7 @@
    (let* ((key-keys (loop for kw in list-keywords
                        append
                         `(,(format-keyword "~a" kw) ,kw)))
-            (base ``(,',with-name ,el (,,@key-keys)
+          (base ``(,',with-name ,el (,,@key-keys)
                               ,@code-body)))
    `(on-top-level
       (defmacro ,list-name (ls (&key (id nil) (,name nil) (operation 'do)
