@@ -1134,6 +1134,7 @@
 		(t
 			(do-subgoals head (:name name :subgoal sub2)
 				(when (and (string-equal name (subgoal-name sub))
+                        (not (subgoal-has-delay-p sub2))
 								(not (subgoal-is-remote-p sub2)))
 					(unless (subgoal-will-reuse-other-p sub2)
 						(subgoal-will-modify sub sub2)
@@ -1152,6 +1153,7 @@
 	(do-rules (:clause clause :body body :head head)
 		(unless (clause-is-persistent-p clause)
 			(find-reusable-facts-body body head)
+         ;; If there are recursive head clauses, look for reusable facts there.
 			(when (clause-head-is-recursive-p head)
 				(do-clauses head (:body sub-body :head sub-head)
 					(find-reusable-facts-body sub-body sub-head))))))

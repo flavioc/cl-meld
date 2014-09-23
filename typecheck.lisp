@@ -931,6 +931,51 @@
 		(unless (clause-head-is-recursive-p head)
 			(when (rule-is-persistent-p clause)
 				(clause-set-persistent clause)))))
+
+(defun find-action-problems ()
+   "Build rule dependency graph and check if an action
+   can be derived in rules that dependent on each other.
+   
+   For example:
+
+   a -o setColor, b.
+
+   b, c -o setColor.
+
+   This case is problematic because retraction will not work as intended when retracting c.
+   "
+   (let ((rgraph (make-hash-table)))
+      (do-all-rules (:clause clause :head head)
+         (do-subgoals head (:name name)
+            (let ((fired-rules (find-clauses-with-subgoal-in-body name)))
+             (push-dunion-all ;; add new rules affected by this head subgoal
+                   (loop for rule in fired-rules
+                         unless (eq clause rule)
+                         collect rule)
+                   (gethash clause rgraph)))))
+     (iterate-hash (rgraph rule rules)
+      ;; For each rule perform a DFS and check if there is any rule
+      ;; that fires the same actions.
+      (with-clause rule (:head head)
+         (do-subgoals head (:name action-name)
+            (let ((def (lookup-definition action-name)))
+             ;; head subgoal must be an action.
+             (when (is-action-p def)
+               (let ((visited (make-hash-table)))
+                (setf (gethash rule visited) t)
+                (labels ((dfs (visited-rule)
+                          (multiple-value-bind (in found-p) (gethash visited-rule visited)
+                              (unless found-p
+                                 (when (clause-head-matches-subgoal-p visited-rule action-name)
+                                    (warn "Action ~a in rule ~a may be used incorrectly"
+                                       action-name (clause-to-string rule)))
+                                 (setf (gethash visited-rule visited) t)
+                                 (multiple-value-bind (ls found-p) (gethash visited-rule rgraph)
+                                    (dolist (new-rule ls)
+                                     (dfs new-rule)))))))
+                     (multiple-value-bind (ls found-p) (gethash rule rgraph)
+                        (dolist (new-rule ls)
+                           (dfs new-rule))))))))))))
 					
 (defun type-check ()
 	(do-definitions (:name name :types typs)
@@ -972,4 +1017,5 @@
 			(with-constant const (:name name :expr expr)
 				(when (expr-is-constant-p expr nil nil)
 					(push const to-remove))))
-		(delete-all *consts* to-remove)))
+		(delete-all *consts* to-remove))
+   (find-action-problems))

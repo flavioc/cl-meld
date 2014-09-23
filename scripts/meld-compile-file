@@ -7,10 +7,14 @@
 	(quit))
 
 (format t "==> Launching the Lisp system...~%")
-(require 'asdf)
-(setf asdf:*asdf-verbose* nil) ; die messages die!
 (format t "==> Loading CL-Meld...~%")
-(asdf:oos 'asdf:load-op 'cl-meld)
+#-quicklisp
+(let ((quicklisp-init (merge-pathnames "quicklisp/setup.lisp"
+                                       (user-homedir-pathname))))
+  (when (probe-file quicklisp-init)
+    (load quicklisp-init)))
+
+(ql:quickload "cl-meld")
 
 (let ((ls (loop for (in . (out . nil)) on *params* by #'cddr
 								collect (list in out))))

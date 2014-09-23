@@ -833,8 +833,8 @@
 	(write-list-stream stream (output-float flt)))
 
 (defun write-nodes (stream nodes)
-   (when (zerop (number-of-nodes nodes))
-      (format t "WARNING: there are no nodes defined in this program~%"))
+   ;(when (zerop (number-of-nodes nodes))
+   ;   (format t "WARNING: there are no nodes defined in this program~%"))
    (write-int-stream stream (number-of-nodes nodes))
    (iterate-nodes (fake-id real-id nodes)
       (write-int64-stream stream fake-id)

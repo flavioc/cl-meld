@@ -36,7 +36,10 @@
 
 (defun meld-compile (file out &optional (is-data-p nil))
    (format t "==> Compiling file ~a~%      to ~a.m~%" file out)
-   (handler-case (do-meld-compile file out is-data-p)
+   (handler-case
+      (progn
+         (do-meld-compile file out is-data-p)
+         t)
       (file-not-found-error (c) (format t "File not found: ~a~%" (text c)))
       (parse-failure-error (c) (format t "Parse error at line ~a: ~a~%" (line c) (text c)))
       (expr-invalid-error (c) (format t "Expression error: ~a~%" (text c)))
@@ -46,6 +49,11 @@
       (compile-invalid-error (c) (format t "Compile error: ~a~%" (text c)))
 		(external-invalid-error (c) (format t "External functions: ~a~%" (text c)))
       (output-invalid-error (c) (format t "Output error: ~a~%" (text c)))))
+
+(defun meld-compile-exit (file out &optional (is-data-p nil))
+   (if (meld-compile file out is-data-p)
+    (sb-ext:exit :code 0)
+    (sb-ext:exit :code 1)))
 
 (defun meld-clear-variables ()
 	(setf *ast* nil)
