@@ -530,6 +530,19 @@
 
 (defun make-vm-stop-program () `(:stop-program))
 
+(defun make-vm-set-default-priority-here (prio) `(:set-default-priority-here ,prio))
+(defun make-vm-set-default-priority (prio node) `(:set-default-priority ,prio ,node))
+(defun vm-set-default-priority-priority (x) (second x)) 
+(defun vm-set-default-priority-node (x) (third x)) 
+
+(defun make-vm-set-static (node) `(:set-static ,node))
+(defun make-vm-set-static-here () `(:set-static-here))
+(defun vm-set-static-node (x) (second x))
+
+(defun make-vm-set-moving (node) `(:set-moving ,node))
+(defun make-vm-set-moving-here () `(:set-moving-here))
+(defun vm-set-moving-node (x) (second x))
+
 (defun make-vm-cpu-id (node dest) `(:cpu-id ,node ,dest))
 (defun vm-cpu-id-node (x) (second x))
 (defun vm-cpu-id-dest (x) (third x))

@@ -508,10 +508,6 @@
 			(return-from subgoal-appears-in-any-body-p t)))
 	(clause-body-matches-subgoal-p clause name))
 	
-(defun subgoal-is-set-priority-p (name) (string-equal name "set-priority"))
-(defun subgoal-is-add-priority-p (name) (string-equal name "add-priority"))
-(defun subgoal-is-stop-program-p (name) (string-equal name "stop-program"))
-
 (defun expression-is-the-same-p (arg1 arg2) (equal arg1 arg2))
 	
 (defun do-compile-reused-subgoal (sub name args sub-regs)
@@ -535,6 +531,13 @@
 											(make-vm-send-delay tuple-reg send-to (subgoal-delay-value sub))
 											(general-make-send name tuple-reg send-to (subgoal-appears-in-any-body-p *compilation-clause* name))))))))
 											
+(defun subgoal-is-set-priority-p (name) (string-equal name "set-priority"))
+(defun subgoal-is-add-priority-p (name) (string-equal name "add-priority"))
+(defun subgoal-is-stop-program-p (name) (string-equal name "stop-program"))
+(defun subgoal-is-set-default-priority-p (name) (string-equal name "set-default-priority"))
+(defun subgoal-is-set-static-p (name) (string-equal name "set-static"))
+(defun subgoal-is-set-moving-p (name) (string-equal name "set-moving"))
+
 (defun do-compile-set-priority (sub args)
 	(assert (= (length args) 1))
 	(with-compilation-on-reg (priority priority-instrs) (first args)
@@ -553,6 +556,29 @@
 					`(,@priority-instrs ,(make-vm-add-priority-here priority))
 					`(,@priority-instrs ,@extra-code ,(make-vm-add-priority priority send-to)))))))
 
+(defun do-compile-set-default-priority (sub args)
+   (assert (= (length args) 1))
+   (with-compilation-on-reg (priority priority-instrs) (first args)
+      (with-old-reg (priority)
+         (multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub nil)
+            (if (null send-to)
+               `(,@priority-instrs ,(make-vm-set-default-priority-here priority))
+               `(,@priority-instrs ,@extra-code ,(make-vm-set-default-priority priority send-to)))))))
+
+(defun do-compile-set-static (sub args)
+   (assert (= (length args) 0))
+   (multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub nil)
+      (if (null send-to)
+          `(,(make-vm-set-static-here))
+          `(,@extra-code ,(make-vm-set-static send-to)))))
+
+(defun do-compile-set-moving (sub args)
+   (assert (= (length args) 0))
+   (multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub nil)
+      (if (null send-to)
+         `(,(make-vm-set-moving-here))
+         `(,@extra-code ,(make-vm-set-moving send-to)))))
+
 (defun do-compile-head-subgoals (head sub-regs)
    (do-subgoals head (:name name :args args :operation append :subgoal sub)
 		(cond
@@ -562,6 +588,12 @@
 				(do-compile-set-priority sub args))
 			((subgoal-is-add-priority-p name)
 				(do-compile-add-priority sub args))
+         ((subgoal-is-set-default-priority-p name)
+            (do-compile-set-default-priority sub args))
+         ((subgoal-is-set-static-p name)
+            (do-compile-set-static sub args))
+         ((subgoal-is-set-moving-p name)
+            (do-compile-set-moving sub args))
 			((subgoal-is-stop-program-p name)
 				`(,(make-vm-stop-program)))
 			(t

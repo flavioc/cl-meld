@@ -9,3 +9,7 @@
 (deftuple schedule-next (:type-addr) :action :linear)                                                 
 (deftuple setColor2 (:type-addr :type-int) :action)
 (deftuple stop-program (:type-addr) :action :linear)
+(deftuple set-default-priority (:type-addr :type-int) :action :linear)
+(deftuple set-moving (:type-addr) :action :linear)
+(deftuple set-static (:type-addr) :action :linear)
+(deftuple set-affinity (:type-addr :type-int) :action :linear)

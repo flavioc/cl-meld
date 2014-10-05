@@ -558,6 +558,18 @@
 			(output-instr-and-values vec #b10100000 (vm-add-priority-priority instr) (vm-add-priority-node instr)))
 		(:add-priority-here
 			(output-instr-and-values vec #b10100001 (vm-add-priority-priority instr)))
+      (:set-default-priority-here
+         (output-instr-and-values vec #b10100011 (vm-set-default-priority-priority instr)))
+      (:set-default-priority
+         (output-instr-and-values vec #b10100100 (vm-set-default-priority-priority instr) (vm-set-default-priority-node instr)))
+      (:set-static-here
+         (output-instr-and-values vec #b10100101))
+      (:set-static
+         (output-instr-and-values vec #b10100110 (vm-set-static-node instr)))
+      (:set-moving-here
+         (output-instr-and-values vec #b10100111))
+      (:set-moving
+         (output-instr-and-values vec #b10101000 (vm-set-moving-node instr)))
 		(:stop-program
 			(output-instr-and-values vec #b10100010))
 		(:cpu-id
