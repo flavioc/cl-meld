@@ -537,6 +537,7 @@
 (defun subgoal-is-set-default-priority-p (name) (string-equal name "set-default-priority"))
 (defun subgoal-is-set-static-p (name) (string-equal name "set-static"))
 (defun subgoal-is-set-moving-p (name) (string-equal name "set-moving"))
+(defun subgoal-is-set-affinity-p (name) (string-equal name "set-affinity"))
 
 (defun do-compile-set-priority (sub args)
 	(assert (= (length args) 1))
@@ -579,6 +580,15 @@
          `(,(make-vm-set-moving-here))
          `(,@extra-code ,(make-vm-set-moving send-to)))))
 
+(defun do-compile-set-affinity (sub args)
+   (assert (= (length args) 1))
+   (with-compilation-on-reg (target target-instrs) (first args)
+      (with-old-reg (target)
+         (multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub nil)
+            (if (null send-to)
+               `(,@target-instrs ,(make-vm-set-affinity-here target))
+               `(,@target-instrs ,@extra-code ,(make-vm-set-affinity target send-to)))))))
+
 (defun do-compile-head-subgoals (head sub-regs)
    (do-subgoals head (:name name :args args :operation append :subgoal sub)
 		(cond
@@ -594,6 +604,8 @@
             (do-compile-set-static sub args))
          ((subgoal-is-set-moving-p name)
             (do-compile-set-moving sub args))
+         ((subgoal-is-set-affinity-p name)
+            (do-compile-set-affinity sub args))
 			((subgoal-is-stop-program-p name)
 				`(,(make-vm-stop-program)))
 			(t
@@ -686,20 +698,20 @@
 					(with-compile-context (compile-agg-construct c)))))
 			code-agg))
 		
-(defun do-compile-one-exists (vars sub-regs exists-body)
+(defun do-compile-one-exists (vars sub-regs exists-body def subgoal)
 	(cond
-		((null vars) (do-compile-head-subgoals exists-body sub-regs))
+		((null vars) (do-compile-head-code exists-body sub-regs def subgoal))
 		(t
 			(let ((var (first vars))
 					(other-vars (rest vars)))
 				(with-reg (reg-var)
 					(add-used-var (var-name var) reg-var)
-						`(,(make-vm-new-node reg-var) ,@(do-compile-one-exists other-vars sub-regs exists-body)))))))
+						`(,(make-vm-new-node reg-var) ,@(do-compile-one-exists other-vars sub-regs exists-body def subgoal)))))))
 		
 (defun do-compile-head-exists (head sub-regs def subgoal)
 	(let ((code (do-exists head (:var-list vars :body body :operation append)
 						(with-compile-context
-							(do-compile-one-exists vars sub-regs body)))))
+							(do-compile-one-exists vars sub-regs body def subgoal)))))
 		code))
 		
 (defun do-compile-head-conditionals (head sub-regs def subgoal)
@@ -716,7 +728,7 @@
          (comprehensions-code (do-compile-head-comprehensions head def subgoal))
 			(agg-code (do-compile-head-aggs head def subgoal))
 			(exists-code (do-compile-head-exists head sub-regs def subgoal)))
-		`(,@subgoals-code ,@comprehensions-code ,@agg-code ,@exists-code ,@conditional-code)))
+		`(,@conditional-code ,@subgoals-code ,@comprehensions-code ,@agg-code ,@exists-code)))
 		
 (defun subgoal-to-be-deleted-p (subgoal def)
    (and (is-linear-p def)

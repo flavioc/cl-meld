@@ -570,6 +570,10 @@
          (output-instr-and-values vec #b10100111))
       (:set-moving
          (output-instr-and-values vec #b10101000 (vm-set-moving-node instr)))
+      (:set-affinity-here
+         (output-instr-and-values vec #b10101001 (vm-set-affinity-target instr)))
+      (:set-affinity
+         (output-instr-and-values vec #b10101010 (vm-set-affinity-target instr) (vm-set-affinity-node instr)))
 		(:stop-program
 			(output-instr-and-values vec #b10100010))
 		(:cpu-id

@@ -12,4 +12,4 @@
 (deftuple set-default-priority (:type-addr :type-int) :action :linear)
 (deftuple set-moving (:type-addr) :action :linear)
 (deftuple set-static (:type-addr) :action :linear)
-(deftuple set-affinity (:type-addr :type-int) :action :linear)
+(deftuple set-affinity (:type-addr :type-addr) :action :linear)

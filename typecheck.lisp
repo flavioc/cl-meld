@@ -679,13 +679,12 @@
             (unless (subsetp target-variables new-ones)
                (error 'type-invalid-error :text (tostring "Comprehension ~a is not using enough variables ~a ~a" comp target-variables new-ones)))))))
 
-(defun do-type-check-exists (vars body)
+(defun do-type-check-exists (vars body clause)
 	(extend-typecheck-context
 		(dolist (var vars)
 			(force-constraint (var-name var) '(:type-addr))
       	(variable-is-defined var))
-		(do-subgoals body (:name name :args args :options options)
-			(do-type-check-subgoal name args options :body-p nil))))
+      (do-type-check-head body clause :axiom-p nil)))
       
 (defun type-check-body (clause host axiom-p)
 	(do-subgoals (clause-body clause) (:name name :args args :options options)
@@ -741,7 +740,7 @@
 	(do-agg-constructs head (:agg-construct c)
 		(do-type-check-agg-construct c nil clause))
 	(do-exists head (:var-list vars :body body)
-		(do-type-check-exists vars body)
+		(do-type-check-exists vars body clause)
 		(optimize-subgoals body (clause-body clause)))
 	(do-conditionals head (:conditional cond)
 		(do-type-check-conditional cond clause :axiom-p axiom-p)))

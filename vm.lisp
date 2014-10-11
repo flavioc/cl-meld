@@ -543,6 +543,11 @@
 (defun make-vm-set-moving-here () `(:set-moving-here))
 (defun vm-set-moving-node (x) (second x))
 
+(defun make-vm-set-affinity (target node) `(:set-affinity ,target ,node))
+(defun make-vm-set-affinity-here (target) `(:set-affinity-here ,target))
+(defun vm-set-affinity-target (x) (second x))
+(defun vm-set-affinity-node (x) (third x))
+
 (defun make-vm-cpu-id (node dest) `(:cpu-id ,node ,dest))
 (defun vm-cpu-id-node (x) (second x))
 (defun vm-cpu-id-dest (x) (third x))
