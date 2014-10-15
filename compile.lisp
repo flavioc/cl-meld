@@ -954,6 +954,34 @@
 		(let ((clause-code (compile-subgoal-clause name clause)))
 			(assert (not (null (clause-get-id clause))))
 			`(,(make-vm-rule (clause-get-id clause)) ,@clause-code))))
+
+(defun compile-node-axioms (axioms)
+   (let* ((regular nil)
+          (spec (loop for axiom in axioms
+                 append (with-subgoal axiom (:name name :args args)
+                   (cond
+                    ((subgoal-is-set-priority-p name)
+                     (with-compilation-on-reg (priority priority-instrs) (first args)
+                      `(,@priority-instrs ,(make-vm-set-priority-here priority))))
+                    ((subgoal-is-add-priority-p name)
+                     (with-compilation-on-reg (priority priority-instrs) (first args)
+                      `(,@priority-instrs ,(make-vm-add-priority-here priority))))
+                    ((subgoal-is-stop-program-p name)
+                     `(,(make-vm-stop-program)))
+                    ((subgoal-is-set-default-priority-p name)
+                     (with-compilation-on-reg (priority priority-instrs) (first args)
+                      `(,@priority-instrs ,(make-vm-set-default-priority-here priority))))
+                    ((subgoal-is-set-static-p name)
+                     `(,(make-vm-set-static-here)))
+                    ((subgoal-is-set-moving-p name)
+                     `(,(make-vm-set-moving-here)))
+                    ((subgoal-is-set-affinity-p name)
+                     (with-compilation-on-reg (target target-instrs) (first args)
+                      `(,@target-instrs ,(make-vm-set-affinity-here target))))
+                    (t
+                     (push axiom regular)
+                     nil))))))
+       `(,@spec ,(make-vm-new-axioms regular))))
       
 (defun compile-const-axioms ()
 	"Take all constant axioms in the program and map them to an hash table (per node).
@@ -968,8 +996,7 @@
 		(let ((vm (make-vm-select-node)))
 			(loop for key being the hash-keys of hash
 					using (hash-value value)
-					do (let ((ax (make-vm-new-axioms value)))
-							(vm-select-node-push vm key (list ax))))
+               do (vm-select-node-push vm key (compile-node-axioms value)))
 			(list vm))))
 	
 (defun compile-init-process ()
