@@ -207,6 +207,10 @@
 						(with-dest-or-new-reg (dest)
 							(with-compiled-expr (arg-place arg-code :force-dest dest) (first args)
 								(return-expr dest `(,@arg-code ,(make-vm-node-priority arg-place dest))))))
+               ((string-equal name "cpu-static")
+                  (with-dest-or-new-reg (dest)
+                     (with-compiled-expr (arg-place arg-code :force-dest dest) (first args)
+                        (return-expr dest `(,@arg-code ,(make-vm-cpu-static arg-place dest))))))
 					(t 
          			(compile-call name args dest)))))
 		((struct-val-p expr)

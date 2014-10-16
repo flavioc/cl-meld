@@ -574,6 +574,8 @@
          (output-instr-and-values vec #b10101001 (vm-set-affinity-target instr)))
       (:set-affinity
          (output-instr-and-values vec #b10101010 (vm-set-affinity-target instr) (vm-set-affinity-node instr)))
+		(:cpu-static
+			(output-instr-and-values vec #b10101011 (vm-cpu-static-node instr) (vm-cpu-static-dest instr)))
 		(:stop-program
 			(output-instr-and-values vec #b10100010))
 		(:cpu-id

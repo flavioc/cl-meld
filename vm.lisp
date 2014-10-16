@@ -552,6 +552,10 @@
 (defun vm-cpu-id-node (x) (second x))
 (defun vm-cpu-id-dest (x) (third x))
 
+(defun make-vm-cpu-static (node dest) `(:cpu-static ,node ,dest))
+(defun vm-cpu-static-node (x) (second x))
+(defun vm-cpu-static-dest (x) (third x))
+
 (defun make-vm-node-priority (node dest) `(:node-priority ,node ,dest))
 (defun vm-node-priority-node (x) (second x))
 (defun vm-node-priority-dest (x) (third x))
