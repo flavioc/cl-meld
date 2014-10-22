@@ -119,7 +119,7 @@
 (defun set-type (expr typs)
    (let ((typ (list (try-one typs))))
       (cond
-         ((or (nil-p expr) (world-p expr) (host-id-p expr)) (setf (cdr expr) typ))
+         ((or (nil-p expr) (cpus-p expr) (world-p expr) (host-id-p expr)) (setf (cdr expr) typ))
          ((or (var-p expr) (bool-p expr) (int-p expr) (float-p expr) (string-constant-p expr) (tail-p expr) (head-p expr)
                (not-p expr) (test-nil-p expr) (addr-p expr) (convert-float-p expr)
 					(get-constant-p expr) (struct-p expr))
@@ -261,6 +261,7 @@
                   (merge-types forced-types '(:type-float)))
                ((nil-p expr) (merge-types forced-types *list-types*))
                ((world-p expr) (merge-types '(:type-int) forced-types))
+               ((cpus-p expr) (merge-types '(:type-int) forced-types))
 					((struct-val-p expr)
 						(let* ((idx (struct-val-idx expr))
 							    (var (struct-val-var expr)) ;; var is already typed
@@ -1006,7 +1007,8 @@
       (type-check-clause clause nil))
 	(do-const-axioms (:subgoal sub)
 		(with-subgoal sub (:name name :args args :options opts)
-			(do-type-check-subgoal name args opts :axiom-p t)))
+			(do-type-check-subgoal name args opts :axiom-p t)
+         (optimize-subgoals (list sub) nil)))
    (do-all-axioms (:clause clause)
       (type-check-clause clause t))
 	;; remove unneeded constants

@@ -21,6 +21,7 @@
 	("@\\+[0-9]+s"							(return (values :delay-seconds $@)))
 	("@\\+[0-9]+ms"						(return (values :delay-ms $@)))
 	("@world"                        (return (values :world $@)))
+   ("@cpus"                         (return (values :cpus $@)))
 	("@arg[0-9]"							(return (values :arg $@)))
 	("@"                             (return (values :local $@)))
 	("-o"                            (return (values :lolli $@)))
@@ -244,7 +245,7 @@
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl :arg
 								:lsparen :rsparen :nil :bar :type-list :local
-								:route :include :file :world :action
+								:route :include :file :world :cpus :action
 								:output :input :immediate :linear
 								:dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :fun :end :colon
@@ -562,6 +563,7 @@
 		(:lpaco expr-list :rparen #'(lambda (l ls r) (declare (ignore l r)) (make-struct ls)))
 	   (:type-float :lparen expr :rparen #'(lambda (f l expr r) (declare (ignore f l r)) (make-convert-float expr)))
 	   (:world (return-const (make-world)))
+      (:cpus (return-const (make-cpus)))
 	   (expr :minus expr #'make-minus)
 	   (expr :mul expr #'make-mul)
 	   (expr :mod expr #'make-mod)

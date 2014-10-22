@@ -26,7 +26,7 @@
 (define-is-p :bool :int :float :var :plus :minus :mul :div :mod
             :equal :not-equal
             :lesser :lesser-equal :greater :greater-equal
-            :convert-float :world :colocated
+            :convert-float :world :cpus :colocated
             :constraint :extern :aggregate
             :true :false :not :head
             :tail :cons :call :callf :test-nil :addr
@@ -369,6 +369,7 @@
 (defsetf struct-val-var set-struct-val-var)
 
 (defun make-world () (list :world))
+(defun make-cpus () (list :cpus))
 
 (defun make-var (var &optional typ) `(:var ,(if (stringp var) (str->sym var) var) ,@(if typ `(,typ) nil)))      
 (defun var-name (val) (second val))

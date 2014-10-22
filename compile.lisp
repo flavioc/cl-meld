@@ -281,15 +281,17 @@
 				(with-dest-or-new-reg (dest)
 					(return-expr dest `(,@c ,(make-vm-head p dest (expr-type (vm-head-cons expr))))))))
       ((cons-p expr)
-			(let (phead chead ptail ctail)
-				(with-compilation-on-rf (place-head code-head) (cons-head expr)
-					(with-compilation-on-rf (place-tail code-tail) (cons-tail expr)
-						(setf phead place-head
-								chead code-head
-								ptail place-tail
-								ctail code-tail)))
-				(with-dest-or-new-reg (dest)
-					(return-expr dest `(,@chead ,@ctail ,(make-vm-cons phead ptail dest (expr-type expr)))))))
+			(let (ptail ctail phead chead d)
+				(with-compilation-on-reg (place-tail code-tail) (cons-tail expr)
+						(setf ptail place-tail
+								ctail code-tail)
+                  (with-reg (dest)
+                     (setf d dest)
+                     (with-compiled-expr (place-head code-head :force-dest dest) (cons-head expr)
+                        (setf phead place-head
+                              chead code-head))))
+            (return-expr d `(,@ctail ,@chead
+                             ,(make-vm-cons phead ptail d (expr-type expr))))))
       ((not-p expr)
 			(let (p c)
 				(with-compilation-on-reg (place-expr code-expr) (not-expr expr)
@@ -306,6 +308,7 @@
 					(return-expr dest `(,@c ,(make-vm-test-nil p dest))))))
       ((nil-p expr) (return-expr (make-vm-nil)))
       ((world-p expr) (return-expr (make-vm-world)))
+      ((cpus-p expr) (return-expr (make-vm-cpus)))
       ((op-p expr)
 			(let (p1 c1 p2 c2)
 				(with-compilation-on-reg (place1 code1) (op-op1 expr)
@@ -542,6 +545,7 @@
 (defun subgoal-is-set-static-p (name) (string-equal name "set-static"))
 (defun subgoal-is-set-moving-p (name) (string-equal name "set-moving"))
 (defun subgoal-is-set-affinity-p (name) (string-equal name "set-affinity"))
+(defun subgoal-is-set-cpu-p (name) (string-equal name "set-cpu"))
 
 (defun do-compile-set-priority (sub args)
 	(assert (= (length args) 1))
@@ -593,8 +597,8 @@
                `(,@target-instrs ,(make-vm-set-affinity-here target))
                `(,@target-instrs ,@extra-code ,(make-vm-set-affinity target send-to)))))))
 
-(defun do-compile-head-subgoals (head sub-regs)
-   (do-subgoals head (:name name :args args :operation append :subgoal sub)
+(defun do-compile-head-subgoal (sub sub-regs)
+   (with-subgoal sub (:name name :args args)
 		(cond
 			((subgoal-will-reuse-other-p sub)
 				(do-compile-reused-subgoal sub name args sub-regs))
@@ -614,6 +618,10 @@
 				`(,(make-vm-stop-program)))
 			(t
       		(do-compile-normal-subgoal sub name args)))))
+
+(defun do-compile-head-subgoals (head sub-regs)
+   (do-subgoals head (:operation append :subgoal sub)
+      (do-compile-head-subgoal sub sub-regs)))
 
 (defconstant +plus-infinity+ 2147483647)
 
@@ -982,9 +990,16 @@
                     ((subgoal-is-set-affinity-p name)
                      (with-compilation-on-reg (target target-instrs) (first args)
                       `(,@target-instrs ,(make-vm-set-affinity-here target))))
+                    ((subgoal-is-set-cpu-p name)
+                     (with-compilation-on-reg (cpu cpu-instrs) (first args)
+                      `(,@cpu-instrs ,(make-vm-set-cpu-here cpu))))
                     (t
-                     (push axiom regular)
-                     nil))))))
+                        (cond
+                         ((subgoal-is-const-p axiom)
+                           (push axiom regular)
+                           nil)
+                         (t
+                           (do-compile-head-subgoal axiom nil)))))))))
        `(,@spec ,(make-vm-new-axioms regular))))
       
 (defun compile-const-axioms ()

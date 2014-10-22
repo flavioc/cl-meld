@@ -149,8 +149,12 @@
          (null (find-if #'agg-construct-p (clause-body clause)))))
 
 (defun is-constant-axiom-p (clause)
-	(and (null (clause-body clause))
-		(every #'subgoal-is-const-p (get-subgoals (clause-head clause)))))
+	(and (null (get-subgoals (clause-body clause)))
+		(every #'subgoal-has-arbitrary-node-p (get-subgoals (clause-head clause)))))
+
+(defun subgoal-has-arbitrary-node-p (sub)
+   (with-subgoal sub (:args args)
+      (const-p (first args))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; CONSTS

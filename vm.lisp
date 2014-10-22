@@ -57,6 +57,10 @@
 						`(:move-int-to-constant ,(make-vm-int (number-of-nodes *nodes*)) ,to))
 					((reg-dot-p to)
 						`(:move-world-to-field ,from ,to))))
+         ((vm-cpus-p from)
+            (cond
+               ((reg-p to)
+                  `(:move-cpus-to-reg ,from ,to))))
 			((vm-float-p from)
 				(cond
 					((vm-stack-p to) `(:move-float-to-stack ,from ,to))
@@ -179,6 +183,9 @@
 
 (defun make-vm-world () :world)
 (defun vm-world-p (w) (eq w :world))
+
+(defun make-vm-cpus () :cpus)
+(defun vm-cpus-p (c) (eq c :cpus))
 
 (defun make-vm-not (place dest)
 	(assert (and (reg-p place) (reg-p dest)))
@@ -555,6 +562,11 @@
 (defun make-vm-cpu-static (node dest) `(:cpu-static ,node ,dest))
 (defun vm-cpu-static-node (x) (second x))
 (defun vm-cpu-static-dest (x) (third x))
+
+(defun make-vm-set-cpu-here (cpu) `(:set-cpu-here ,cpu))
+(defun vm-set-cpu-cpu (x) (second x))
+(defun make-vm-set-cpu (cpu node) `(:set-cpu ,cpu ,node))
+(defun vm-set-cpu-node (x) (third x))
 
 (defun make-vm-node-priority (node dest) `(:node-priority ,node ,dest))
 (defun vm-node-priority-node (x) (second x))
