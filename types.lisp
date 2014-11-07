@@ -108,4 +108,4 @@
 	(or (type-struct-p typ) (type-list-p typ)))
 
 (defun reference-type-p (typ)
-	(or (eq typ :all) (type-string-p typ) (recursive-type-p typ)))
+	(or (eq typ :all) (type-string-p typ) (type-addr-p typ) (recursive-type-p typ)))

@@ -13,6 +13,7 @@
 	(assert (not (null op)))
    (case typ-args
 		(:type-bool (case op
+                     (:equal :int-equal)
 							(:or :bool-or)))
       (:type-addr (case op
                      (:equal :addr-equal)
@@ -91,9 +92,12 @@
 					((reg-p to) `(:move-ptr-to-reg ,from ,to))))
 			((int-p from)
 				(cond
-					((reg-p to) `(:move-int-to-reg ,from ,to))
+               ((reg-p to) `(:move-int-to-reg ,from ,to))
 					((reg-dot-p to) `(:move-int-to-field ,from ,to))
 					((vm-stack-p to) `(:move-int-to-stack ,from ,to))))
+         ((bool-p from)
+            (cond
+					((reg-p to) `(:move-int-to-reg ,(if (vm-bool-val from) (make-vm-int 1) (make-vm-int 0)) ,to))))
 			((reg-p from)
 				(cond
 					((reg-p to)
@@ -186,6 +190,14 @@
 
 (defun make-vm-cpus () :cpus)
 (defun vm-cpus-p (c) (eq c :cpus))
+
+(defun make-vm-is-static (node dest) `(:is-static ,node ,dest))
+(defun vm-is-static-node (x) (second x))
+(defun vm-is-static-dest (x) (third x))
+
+(defun make-vm-is-moving (node dest) `(:is-moving ,node ,dest))
+(defun vm-is-moving-node (x) (second x))
+(defun vm-is-static-dest (x) (third x))
 
 (defun make-vm-not (place dest)
 	(assert (and (reg-p place) (reg-p dest)))

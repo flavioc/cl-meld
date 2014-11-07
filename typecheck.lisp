@@ -689,7 +689,10 @@
       
 (defun type-check-body (clause host axiom-p)
 	(do-subgoals (clause-body clause) (:name name :args args :options options)
-      (do-type-check-subgoal name args options :body-p t))
+      (handler-case
+         (do-type-check-subgoal name args options :body-p t)
+         (type-invalid-error (c) (error 'type-invalid-error :text
+                                  (tostring "In clause ~a: ~a" clause (text c))))))
    (do-agg-constructs (clause-body clause) (:agg-construct c)
       (do-type-check-agg-construct c t clause))
    (transform-clause-constants clause)
@@ -1004,7 +1007,10 @@
 				(error 'type-invalid-error :text (tostring "exported predicate ~a was not found" name)))))
    (add-variable-head)
    (do-all-rules (:clause clause)
-      (type-check-clause clause nil))
+      (handler-case
+         (type-check-clause clause nil)
+         (type-invalid-error (c) (error 'type-invalid-error :text
+                                  (tostring "In clause ~a: ~a" clause (text c))))))
 	(do-const-axioms (:subgoal sub)
 		(with-subgoal sub (:name name :args args :options opts)
 			(do-type-check-subgoal name args opts :axiom-p t)

@@ -82,4 +82,6 @@
 (define-external-function "residualstruct" :type-float '(:all :all))
 (define-external-function "dividestruct" :all '(:all :all))
 (define-external-function "convolvestruct" :all '(:all :all))
-(define-external-function "cpu-static" :type-int '(:type-addr))                                                             
+(define-external-function "cpu-static" :type-int '(:type-addr))
+(define-external-function "is-moving" :type-bool '(:type-addr))
+(define-external-function "is-static" :type-bool '(:type-addr))

@@ -580,6 +580,10 @@
          (output-instr-and-values vec #b10101100 (move-to instr)))
       (:set-cpu-here
          (output-instr-and-values vec #b10101101 (vm-set-cpu-cpu instr)))
+      (:is-static
+         (output-instr-and-values vec #b10101110 (vm-is-static-node instr) (vm-is-static-dest instr)))
+      (:is-moving
+         (output-instr-and-values vec #b10101111 (vm-is-moving-node instr) (vm-is-moving-dest instr)))
 		(:stop-program
 			(output-instr-and-values vec #b10100010))
 		(:cpu-id
