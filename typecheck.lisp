@@ -758,8 +758,8 @@
 	(let ((ass (get-assignments ass-constrs))
 			(constrs (get-constraints ass-constrs)))
 		(do-subgoals subgoals (:args args :subgoal sub)
-			(let ((new-args (mapcar #L(optimize-expr !1 ass constrs) (rest args))))
-				(setf (subgoal-args sub) (cons (first args) new-args))))))
+			(let ((new-args (mapcar #L(optimize-expr !1 ass constrs) args)))
+				(setf (subgoal-args sub) new-args)))))
 		
 (defun type-check-body-and-head (clause host &key axiom-p)
 	(type-check-body clause host axiom-p)

@@ -1192,8 +1192,7 @@
 					(setf (clause-head original-clause) `(,(make-clause rest-original original-head) ,@others))))
 			(t
 				(setf (clause-body original-clause) nil)
-				(setf (clause-head original-clause) `(,(make-clause body-original (clause-head original-clause)) ,@others))
-				))))
+				(setf (clause-head original-clause) `(,(make-clause body-original (clause-head original-clause)) ,@others))))))
 				
 (defun merge-clauses ()
 	"Find subsequent identical clauses, where the body facts are shared."
