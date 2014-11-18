@@ -584,6 +584,8 @@
          (output-instr-and-values vec #b10101110 (vm-is-static-node instr) (vm-is-static-dest instr)))
       (:is-moving
          (output-instr-and-values vec #b10101111 (vm-is-moving-node instr) (vm-is-moving-dest instr)))
+      (:bool-and
+         (output-instr-and-values vec #b10110000 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
 		(:stop-program
 			(output-instr-and-values vec #b10100010))
 		(:cpu-id

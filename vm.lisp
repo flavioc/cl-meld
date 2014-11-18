@@ -13,6 +13,7 @@
 	(assert (not (null op)))
    (case typ-args
 		(:type-bool (case op
+                     (:and :bool-and)
                      (:equal :int-equal)
 							(:or :bool-or)))
       (:type-addr (case op
@@ -197,7 +198,7 @@
 
 (defun make-vm-is-moving (node dest) `(:is-moving ,node ,dest))
 (defun vm-is-moving-node (x) (second x))
-(defun vm-is-static-dest (x) (third x))
+(defun vm-is-moving-dest (x) (third x))
 
 (defun make-vm-not (place dest)
 	(assert (and (reg-p place) (reg-p dest)))
@@ -349,6 +350,7 @@
 		(:float-greater-equal `(:float-greater-equal ,dst ,v1 ,v2 ,dst))
 		(:bool-equal `(:bool-equal ,dst ,v1 ,v2 ,dst))
 		(:bool-not-equal `(:bool-not-equal ,dst ,v1 ,v2 ,dst))
+      (:bool-and `(:bool-and ,dst ,v1 ,v2 ,dst))
 		(:bool-or `(:bool-or ,dst ,v1 ,v2 ,dst))))
 
 (defun make-vm-op (dst v1 op v2)

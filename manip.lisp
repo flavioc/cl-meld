@@ -14,7 +14,7 @@
 ;; available operations
 (define-makes :plus :minus :mul :mod :div
       :lesser :lesser-equal :greater :greater-equal
-      :equal :assign :not-equal :or)
+      :equal :assign :not-equal :or :and)
 
 (defmacro define-is-p (&rest symbs)
    `(on-top-level
@@ -30,10 +30,10 @@
             :constraint :extern :aggregate
             :true :false :not :head
             :tail :cons :call :callf :test-nil :addr
-            :nil :host-id :or)
+            :nil :host-id :or :and)
       
 (defun op-p (val)
-   (any (plus-p minus-p mul-p div-p mod-p not-equal-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p or-p) val))
+   (any (plus-p minus-p mul-p div-p mod-p not-equal-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p or-p and-p) val))
 
 (defun make-call (name args) `(:call ,name ,args))
 (defun call-name (call) (second call))
@@ -563,6 +563,7 @@
 (defun op-to-string (op)
    (case op
 		(:or "||")
+      (:and "&&")
       (:plus "+")
       (:minus "-")
       (:mul "*")
@@ -580,7 +581,7 @@
    
 (defun eq-arith-p (sym) (eq-or sym :plus :minus :mul :div :mod))
 (defun eq-num-cmp-p (sym) (eq-or sym :lesser :lesser-equal :greater :greater-equal))
-(defun eq-cmp-p (sym) (eq-or sym :equal :not-equal :lesser :lesser-equal :greater :greater-equal :or))
+(defun eq-cmp-p (sym) (eq-or sym :equal :not-equal :lesser :lesser-equal :greater :greater-equal :or :and))
 
 ;; imports
 (defun make-import (imp as file) `(:import ,imp ,as ,file))

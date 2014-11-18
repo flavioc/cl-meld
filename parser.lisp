@@ -35,6 +35,7 @@
 	("\\("			                  (return (values :lparen $@)))
 	("\\)"			                  (return (values :rparen $@)))
 	("\\|\\|"								(return (values :or $@)))
+   ("\\&\\&"                        (return (values :and $@)))
 	("\\|"                           (return (values :bar $@)))
 	("\\/\\*.*\\*\\/"                (return (values :comment)))
 	("\\<-"                          (return (values :input $@)))
@@ -237,7 +238,7 @@
 (define-parser meld-parser
  	(:start-symbol program)
  	
- 	(:precedence ((:left :mul :div :mod) (:left :or :plus :minus)))
+ 	(:precedence ((:left :mul :div :mod) (:left :or :plus :and :minus)))
  	
 	(:terminals (:const :type :true :false :variable :number :string :lparen :rparen
 								:bar :arrow :dot :comma :type-bool :type-int :type-addr
@@ -250,7 +251,7 @@
 								:dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :fun :end :colon
 								:not-equal :if :then :else :otherwise :prio :random
-								:min :asc :desc :or :export :import :as :from
+								:min :asc :desc :or :and :export :import :as :from
 								:exists :initial-priority :priority-type :priority-order
 								:delay-seconds :delay-ms :question-mark
 								:static-priority :cluster-priority
@@ -597,6 +598,7 @@
 		
    (cmp
 		(cmp :or cmp #'make-or)
+      (cmp :and cmp #'make-and)
 		(:lparen cmp :rparen #'(lambda (l cmp r) (declare (ignore l r)) cmp))
       (expr :equal expr #'make-equal)
       (expr :not-equal expr #'make-not-equal)
