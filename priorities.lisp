@@ -37,6 +37,26 @@
 							(if x t nil)))
 			priorities))
 
+(defun get-priority-order ()
+	"Returns priority ordering for the program."
+	(let ((order (find-if #'priority-order-p *priorities*)))
+		(if order
+			(priority-order order)
+			:desc)))
+
+(defun get-default-priority ()
+	"Returns default priority for nodes of the program."
+	(case (get-priority-order)
+		(:asc most-positive-double-float)
+		(:desc most-negative-double-float)))
+
+(defun get-initial-priority ()
+	"Returns initial priority for nodes of the program."
+	(let ((found (find-if #'initial-priority-p *priorities*)))
+		(if found
+			(initial-priority-value found)
+			(get-default-priority))))
+
 (defun assign-priorities (base priorities)
 	"Using the start priority 'base', it assigns increasing priorities taking into
 account the dependencies between predicates."

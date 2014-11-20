@@ -42,8 +42,8 @@
 (defun output-int64 (int)
 	(loop for i upto 7
 		collect (ldb (byte 8 (* i 8)) int)))
-(defun output-float32 (flt) (output-int (encode-float32 (coerce flt 'float))))
-(defun output-float64 (flt) (output-int64 (encode-float64 (coerce flt 'float))))
+(defun output-float32 (flt) (output-int (encode-float32 (coerce flt 'double-float))))
+(defun output-float64 (flt) (output-int64 (encode-float64 (coerce flt 'double-float))))
 (defun output-float (flt) (output-float64 flt))
 (defun output-string (str)
 	(map 'list #'char-code str))
@@ -881,22 +881,15 @@
 	"Writes priority information."
 	(write-hexa stream 2)
 	(write-hexa stream 1) ; float
-	(let* ((order (find-if #'priority-order-p *priorities*))
-			 (static (find-if #'priority-static-p *priorities*))
-			 (byt (priority-order-bit (if order (priority-order order) :desc))))
+	(let*  ((static (find-if #'priority-static-p *priorities*))
+			(byt (priority-order-bit (get-priority-order))))
 		(when static
 			(setf byt (logior byt #b00000010)))
 		(write-hexa stream byt))
-	(let ((prio (get-initial-priority)))
-		(write-float-stream stream (if prio prio 0.0))))
+	(write-float-stream stream (get-initial-priority)))
 		
 (defun output-data-file-info (stream)
 	(write-hexa stream 3))
-
-(defun get-initial-priority ()
-	(let ((found (find-if #'initial-priority-p *priorities*)))
-		(when found
-			(initial-priority-value found))))
 			
 (defun write-rules (stream)
    (write-int-stream stream (1+ (length *clauses*)))
