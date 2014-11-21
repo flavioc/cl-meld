@@ -85,3 +85,4 @@
 (define-external-function "cpu-static" :type-int '(:type-addr))
 (define-external-function "is-moving" :type-bool '(:type-addr))
 (define-external-function "is-static" :type-bool '(:type-addr))
+(define-external-function "partition-vertical" :type-int '(:type-int :type-int :type-int :type-int))
