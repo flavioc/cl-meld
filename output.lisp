@@ -586,11 +586,15 @@
          (output-instr-and-values vec #b10101111 (vm-is-moving-node instr) (vm-is-moving-dest instr)))
       (:bool-and
          (output-instr-and-values vec #b10110000 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
-		(:stop-program
+      	(:remove-priority
+      		(output-instr-and-values vec #b10110001 (vm-remove-priority-node instr)))
+      	(:remove-priority-here
+      		(output-instr-and-values vec #b10110010))
+	  (:stop-program
 			(output-instr-and-values vec #b10100010))
-		(:cpu-id
+	  (:cpu-id
 			(output-instr-and-values vec #b01111110 (vm-cpu-id-node instr) (vm-cpu-id-dest instr)))
-		(:node-priority
+	  (:node-priority
 			(output-instr-and-values vec #b01111111 (vm-node-priority-node instr) (vm-node-priority-dest instr)))
       (:select-node
 							(when (vm-select-node-empty-p instr)
