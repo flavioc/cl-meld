@@ -1,6 +1,8 @@
 (in-package :cl-meld)
 
 (defun localize-code (file)
+   (setf *name-counter* 0) ;; reset counter for auto-generated fact names
+   (setf *var-counter* 0)
    (printdbg "Parsing file ~a" file)
    (let ((ast (parse-meld-file file)))
       (set-abstract-syntax-tree ast)
@@ -51,9 +53,7 @@
       (output-invalid-error (c) (format t "Output error: ~a~%" (text c)))))
 
 (defun meld-compile-exit (file out &optional (is-data-p nil))
-   (if (meld-compile file out is-data-p)
-    (sb-ext:exit :code 0)
-    (sb-ext:exit :code 1)))
+   (sb-ext:quit :unix-status (if (meld-compile file out is-data-p) 0 1)))
 
 (defun meld-clear-variables ()
 	(setf *ast* nil)
