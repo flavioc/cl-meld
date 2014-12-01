@@ -35,11 +35,9 @@
 	("\\("			                  (return (values :lparen $@)))
 	("\\)"			                  (return (values :rparen $@)))
 	("\\|\\|"								(return (values :or $@)))
-   ("\\&\\&"                        (return (values :and $@)))
 	("\\|"                           (return (values :bar $@)))
+   ("\\&\\&"                        (return (values :and $@)))
 	("\\/\\*.*\\*\\/"                (return (values :comment)))
-	("\\<-"                          (return (values :input $@)))
-	("\\->"                          (return (values :output $@)))
 	("\\+"                           (return (values :plus $@)))
 	("\\-"                    		   (return (values :minus $@)))
 	("\\*"                           (return (values :mul $@)))
@@ -76,7 +74,6 @@
 				(if (eq typ :const)
 					(lex-const rest ("type" :type)
 								 		("exists" :exists)
-										("immediate" :immediate)
 										("extern" :extern)
 										("const" :const-decl)
 										("bool" :type-bool)
@@ -247,8 +244,7 @@
 								:extern :const-decl :arg
 								:lsparen :rsparen :nil :bar :type-list :local
 								:route :include :file :world :cpus :action
-								:output :input :immediate :linear
-								:dollar :lcparen :rcparen :lolli
+								:linear :dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :fun :end :colon
 								:not-equal :if :then :else :otherwise :prio :random
 								:min :asc :desc :or :and :export :import :as :from
@@ -376,17 +372,11 @@
 
    (type-decl
     (atype #'identity)
-    (aggregate-decl atype aggregate-mods #'make-aggregate))
+    (aggregate-decl atype #'make-aggregate))
     
    (aggregate-decl
 		(:min (return-const :min))
       (const #L(parse-agg-decl !1)))
-
-   (aggregate-mods
-     ()
-     (:lsparen :immediate :rsparen (return-const :immediate))
-     (:lsparen :input const :rsparen #'(lambda (l i name r) (declare (ignore l i r)) (list :input name)))
-     (:lsparen :output const :rsparen #'(lambda (l i name r) (declare (ignore l i r)) (list :output name))))
 
 	(atype
 	 base-type

@@ -464,7 +464,6 @@
 			((= size 2) `(:call2 ,name ,dest ,args))
 			((= size 3) `(:call3 ,name ,dest ,args))
 			(t
-				(warn "maybe we should optimize this ~a-args call" size)
 				`(:call ,name ,dest ,args)))))
 (defun vm-call-name (call) (second call))
 (defun vm-call-dest (call) (third call))
