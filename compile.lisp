@@ -322,6 +322,13 @@
       		(with-compilation-on-reg (dest code1) (op-op1 expr)
       			(with-compilation-on-reg (dest code2) (op-op2 expr)
       				(return-expr dest `(,@code1 ,(make-vm-if dest code2)))))))
+      ((or-p expr)
+      	(with-dest-or-new-reg (dest)
+      		(with-compilation-on-reg (dest code1) (op-op1 expr)
+      			(with-compilation-on-reg (dest code2) (op-op2 expr)
+      				(let ((new-reg (alloc-new-reg)))
+      					(return-expr dest
+      						`(,@code1 ,(make-vm-not dest new-reg) ,(make-vm-if new-reg code2))))))))
       ((op-p expr)
 			(let (p1 c1 p2 c2)
 				(with-compilation-on-reg (place1 code1) (op-op1 expr)
