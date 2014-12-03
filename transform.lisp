@@ -305,11 +305,17 @@
 					(setf (test-nil-expr expr) (optimize-expr (test-nil-expr expr) assigns constraints))
 					expr)
 				((op-p expr)
-					(let ((e1 (op-op1 expr))
-							(e2 (op-op2 expr)))
-						(setf (op-op1 expr) (optimize-expr e1 assigns constraints))
-						(setf (op-op2 expr) (optimize-expr e2 assigns constraints))
-						expr))
+               (cond
+                  ((and (eq :equal (op-op expr)) (bool-p (op-op2 expr)) (bool-val (op-op2 expr)))
+                     (optimize-expr (op-op1 expr) assigns constraints))
+                  ((and (eq :equal (op-op expr)) (bool-p (op-op1 expr)) (bool-val (op-op1 expr)))
+                     (optimize-expr (op-op2 expr) assigns constraints))
+                  (t
+					       (let ((e1 (op-op1 expr))
+							        (e2 (op-op2 expr)))
+						      (setf (op-op1 expr) (optimize-expr e1 assigns constraints))
+						      (setf (op-op2 expr) (optimize-expr e2 assigns constraints))
+						      expr))))
 				(t (error 'expr-invalid-error
 		               :text (tostring "optimize-expr: don't know how to optimize expression ~a" expr)))))))
 		

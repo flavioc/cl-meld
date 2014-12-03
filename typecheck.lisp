@@ -747,6 +747,7 @@
 		(do-type-check-exists vars body clause)
 		(optimize-subgoals body (clause-body clause)))
 	(do-conditionals head (:conditional cond)
+      (optimize-conditional cond (clause-body clause))
 		(do-type-check-conditional cond clause :axiom-p axiom-p)))
 
 (defun type-check-all-except-body (clause host &key axiom-p)
@@ -760,6 +761,11 @@
 		(do-subgoals subgoals (:args args :subgoal sub)
 			(let ((new-args (mapcar #L(optimize-expr !1 ass constrs) args)))
 				(setf (subgoal-args sub) new-args)))))
+
+(defun optimize-conditional (cond body)
+   (let ((ass (get-assignments body))
+         (constrs (get-constraints body)))
+    (setf (conditional-cmp cond) (optimize-expr (conditional-cmp cond) ass constrs))))
 		
 (defun type-check-body-and-head (clause host &key axiom-p)
 	(type-check-body clause host axiom-p)
