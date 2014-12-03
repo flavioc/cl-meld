@@ -312,7 +312,9 @@
 (defun vm-make-struct-to (x) (third x))
 (defun vm-make-struct-type (x) (second x))
 
-(defun make-vm-if (r instrs) (list :if r instrs))
+(defun make-vm-if (r instrs)
+	(assert (reg-p r))
+	(list :if r instrs))
 (defun vm-if-reg (i) (second i))
 (defun vm-if-instrs (i) (third i))
 (defun vm-if-p (i) (tagged-p i :if))

@@ -331,7 +331,8 @@
 			(output-call vec instr #b00100000 (list (length (vm-call-args instr)))))
 		(:calle
 			(output-calle vec instr #b00011011 (list (length (vm-calle-args instr)))))
-      (:if (let ((reg-b (reg-to-byte (vm-if-reg instr))))
+      (:if (assert (reg-p (vm-if-reg instr)))
+      		(let ((reg-b (reg-to-byte (vm-if-reg instr))))
              (write-jump vec 2
                (add-byte #b01100000 vec)
                (add-byte (logand *reg-mask* reg-b) vec)
