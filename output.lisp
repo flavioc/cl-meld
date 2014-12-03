@@ -493,11 +493,14 @@
 		(:move-constant-to-reg
 			(output-instr-and-values vec #b01011110 (move-from instr) (move-to instr)))
 		(:cons-rrr
-			(output-instr-type-and-values vec #b01011111 (vm-cons-type instr) (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+			(output-instr-type-and-values vec #b01011111 (vm-cons-type instr) (vm-cons-head instr)
+             (vm-cons-tail instr) (vm-cons-dest instr)))
 		(:cons-rff
-			(output-instr-and-values vec #b01100001 (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+			(output-instr-and-values vec #b01100001 (vm-cons-head instr) (vm-cons-tail instr)
+            (vm-cons-dest instr)))
 		(:cons-frf
-			(output-instr-and-values vec #b01100010 (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+			(output-instr-and-values vec #b01100010 (vm-cons-head instr) (vm-cons-tail instr)
+            (vm-cons-dest instr)))
 		(:cons-ffr
 			(output-instr-and-values vec #b01100011 (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
 		(:cons-rrf
@@ -585,12 +588,14 @@
          (output-instr-and-values vec #b10101110 (vm-is-static-node instr) (vm-is-static-dest instr)))
       (:is-moving
          (output-instr-and-values vec #b10101111 (vm-is-moving-node instr) (vm-is-moving-dest instr)))
-      (:bool-and
-         (output-instr-and-values vec #b10110000 (vm-op-v1 instr) (vm-op-v2 instr) (vm-op-dest instr)))
-      	(:remove-priority
-      		(output-instr-and-values vec #b10110001 (vm-remove-priority-node instr)))
-      	(:remove-priority-here
-      		(output-instr-and-values vec #b10110010))
+      (:facts-proved
+         (output-instr-and-values vec #b10110000 (vm-facts-proved-node instr) (vm-facts-proved-dest instr)))
+      (:remove-priority
+         (output-instr-and-values vec #b10110001 (vm-remove-priority-node instr)))
+      (:remove-priority-here
+         (output-instr-and-values vec #b10110010))
+      (:facts-consumed
+         (output-instr-and-values vec #b10110011 (vm-facts-consumed-node instr) (vm-facts-consumed-dest instr)))
 	  (:stop-program
 			(output-instr-and-values vec #b10100010))
 	  (:cpu-id

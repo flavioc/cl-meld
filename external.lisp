@@ -88,4 +88,5 @@
 (define-external-function "partition-vertical" :type-int '(:type-int :type-int :type-int :type-int))
 (define-external-function "partition-horizontal" :type-int '(:type-int :type-int :type-int :type-int))
 (define-external-function "partition-grid" :type-int '(:type-int :type-int :type-int :type-int))
-(define-external-function "queue-size" :type-int '(:type-addr))                                                                               
+(define-external-function "queue-size" :type-int '(:type-addr))                                                 (define-external-function "facts-proved" :type-int '(:type-addr))
+(define-external-function "facts-consumed" :type-int '(:type-addr))

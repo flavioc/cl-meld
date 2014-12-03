@@ -597,6 +597,14 @@
 (defun vm-node-priority-node (x) (second x))
 (defun vm-node-priority-dest (x) (third x))
 
+(defun make-vm-facts-proved (node dest) `(:facts-proved ,node ,dest))
+(defun vm-facts-proved-node (x) (second x))
+(defun vm-facts-proved-dest (x) (third x))
+
+(defun make-vm-facts-consumed (node dest) `(:facts-consumed ,node ,dest))
+(defun vm-facts-consumed-node (x) (second x))
+(defun vm-facts-consumed-dest (x) (third x))
+
 (defun print-place (place)
    (cond
       ((vm-int-p place) (tostring "~a" (vm-int-val place)))

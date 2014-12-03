@@ -235,7 +235,7 @@
 (define-parser meld-parser
  	(:start-symbol program)
  	
- 	(:precedence ((:left :mul :div :mod) (:left :or :plus :and :minus)))
+ 	(:precedence ((:left :mul :div :mod) (:left :plus :minus) (:right :and) (:right :or)))
  	
 	(:terminals (:const :type :true :false :variable :number :string :lparen :rparen
 								:bar :arrow :dot :comma :type-bool :type-int :type-addr
