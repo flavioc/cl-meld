@@ -347,6 +347,11 @@
 					(:minus (compute-arith-expr expr c1 c2 -))
 					(:mul (compute-arith-expr expr c1 c2 *))
 					(:div (compute-arith-expr expr c1 c2 /))
+					(:or (let* ((e1 (op-op1 expr))
+								(e2 (op-op2 expr))
+								(c1 (compute-constant-expr e1))
+								(c2 (compute-constant-expr c2)))
+							(make-bool (or (bool-val c1) (bool-val c2)))))
 					(:lesser (make-bool (< (int-float-val c1) (int-float-val c2))))
 					(:lesser-equal (make-bool (<= (int-float-val c1) (int-float-val c2))))
 					(:equal (cond
