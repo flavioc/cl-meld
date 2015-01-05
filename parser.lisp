@@ -80,6 +80,7 @@
 										("int" :type-int)
 										("float" :type-float)
 										("node" :type-addr)
+										("thread" :type-thread)
 										("string" :type-string)
 										("list" :type-list)
 										("include" :include)
@@ -238,7 +239,7 @@
  	(:precedence ((:left :mul :div :mod) (:left :plus :minus) (:right :and) (:right :or)))
  	
 	(:terminals (:const :type :true :false :variable :number :string :lparen :rparen
-								:bar :arrow :dot :comma :type-bool :type-int :type-addr
+								:bar :arrow :dot :comma :type-bool :type-int :type-addr :type-thread
 								:type-float :type-string :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl :arg
@@ -395,6 +396,7 @@
 	 (:type-bool (return-const :type-bool))
  	 (:type-int (return-const :type-int))
  	 (:type-float (return-const :type-float))
+    (:type-thread (return-const :type-thread))
  	 (:type-addr (return-const :type-addr))
 	 (:type-string (return-const :type-string)))
 	   

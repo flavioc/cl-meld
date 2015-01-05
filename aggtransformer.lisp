@@ -20,14 +20,14 @@
    ;; argument or else put the home node (for local rules)
    (let ((head-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals head))))
       (when head-subs
-         (let* ((host (first-host-node head))
-                (routes (filter #L(equal (subgoal-name !1) edge-name) (get-subgoals body))))
-            (if routes
-               (setf host (funcall get-fun (subgoal-args (first routes))))
-               (unless (aggregate-mod-includes-home-p modifier)
-                  (aggregate-mod-include-home modifier)))
-            (loop for sub in head-subs
-                  do (push-end host (subgoal-args sub)))))))
+         (multiple-value-bind (node thread) (find-host-nodes head)
+            (let* ((routes (filter #L(equal (subgoal-name !1) edge-name) (get-subgoals body))))
+               (if routes
+                  (setf host (funcall get-fun (subgoal-args (first routes))))
+                  (unless (aggregate-mod-includes-home-p modifier)
+                     (aggregate-mod-include-home modifier)))
+               (loop for sub in head-subs
+                     do (push-end host (subgoal-args sub))))))))
          
 
 (defun update-aggregate-input (modifier edge-name agg-name get-fun)

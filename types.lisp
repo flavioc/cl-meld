@@ -23,7 +23,7 @@
                                        (eq ,(alexandria:format-symbol "KEYWORD" "TYPE-~A" (symbol-name x)) ty)))
                   types)))
 
-(deftype-p int addr bool string float)
+(deftype-p int addr bool string float thread)
 
 (defun valid-type-p (typ)
 	(cond

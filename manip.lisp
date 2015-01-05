@@ -114,31 +114,32 @@
 (defun option-has-tag-p (opts opt) (some #L(tagged-p !1 opt) opts))
 
 ;; to take the home node from the first subgoal or agg-construct
-(defun first-host-node (list)
-   "Returns the home body of a body list.
-   Note that other things other than subgoals may be present"
-   (do-subgoals list (:args args)
-      (return-from first-host-node (first args))))
-      
+(defun find-host-nodes (list)
+   "Returns first node and thread (if any) from a subgoal list."
+   (let (first-thread first-node)
+      (do-subgoals list (:name name :args args)
+         (let ((def (lookup-definition name)))
+            (with-definition def (:types types)
+               (if (type-addr-p (first types))
+                  (unless first-node
+                   (setf first-node (first args)))
+                  (unless first-thread
+                   (setf first-thread (first args)))))))
+      (values first-node first-thread)))
+
 (defun clause-head-host-node (clause)
    "Returns the host node of a clause.
    Looks first on the head and then on the body."
-   (let ((head-node (first-host-node (clause-head clause))))
+   (multiple-value-bind (head-node thread) (find-host-nodes (clause-head clause))
       (if head-node
          head-node
-         (first-host-node (clause-body clause)))))
+         (multiple-value-bind (body-node thread) (find-host-nodes (clause-body clause))
+            body-node))))
 
 (defun clause-body-host-node (clause)
-   (first-host-node (clause-body clause)))
+   (multiple-value-bind (node thread) (find-host-nodes (clause-body clause))
+      (values node thread)))
    
-(defun clause-host-node (clause)
-   "Returns the host node of a clause.
-   Looks first on the body and then on the head."
-   (let ((host (clause-body-host-node clause)))
-      (if host
-         host
-         (clause-head-host-node clause))))
-
 (defun make-definition (name typs options) `(:definition ,name ,typs ,options))
 (defun definition-p (def) (tagged-p def :definition))
 (defun definition-name (def) (second def))
@@ -200,7 +201,7 @@
 (defun subgoal-match-p (sub1 sub2)
    (equal (subgoal-name sub1) (subgoal-name sub2)))
 
-(defun make-aggregate (agg typ mod) `(:aggregate ,agg ,typ ,mod))
+(defun make-aggregate (agg typ &optional mod) `(:aggregate ,agg ,typ ,mod))
 (defun aggregate-agg (agg) (second agg))
 (defun aggregate-type (agg) (third agg))
 
@@ -345,6 +346,7 @@
 	(setf (first expr) :float))
 
 (defun make-host-id () '(:host-id :type-addr))
+(defun make-thread-id () '(:thread-id :type-thread))
 
 (defun make-convert-float (expr) `(:convert-float ,expr :type-float))
 (defun convert-float-expr (flt) (second flt))
@@ -476,7 +478,9 @@
 	(subgoal-add-option subgoal `(,opt ,arg)))
 (defun subgoal-add-route (sub route)
 	(assert (var-p route))
-	(subgoal-add-option sub `(:route ,route)))
+   (subgoal-add-tagged-option sub :route route))
+(defun subgoal-set-thread (sub)
+   (subgoal-add-option sub :thread))
 	
 (defun subgoal-get-tagged-option (subgoal opt)
    (let ((res (find-if #L(tagged-p !1 opt) (subgoal-options subgoal))))

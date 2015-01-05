@@ -6,7 +6,8 @@
 (defun check-home-argument (name typs)
    (when (null typs)
       (error 'type-invalid-error :text (concatenate 'string name " has no arguments")))
-   (unless (type-addr-p (first typs))
+   (unless (or (type-addr-p (first typs))
+                (type-thread-p (first typs)))
       (error 'type-invalid-error
          :text (concatenate 'string "first argument of tuple " name " must be of type 'node'"))))
          
@@ -687,7 +688,7 @@
       	(variable-is-defined var))
       (do-type-check-head body clause :axiom-p nil)))
       
-(defun type-check-body (clause host axiom-p)
+(defun type-check-body (clause host thread axiom-p)
 	(do-subgoals (clause-body clause) (:name name :args args :options options)
       (handler-case
          (do-type-check-subgoal name args options :body-p t)
@@ -750,9 +751,11 @@
       (optimize-conditional cond (clause-body clause))
 		(do-type-check-conditional cond clause :axiom-p axiom-p)))
 
-(defun type-check-all-except-body (clause host &key axiom-p)
-	(when (and axiom-p (not (variable-defined-p host)))
+(defun type-check-all-except-body (clause host thread &key axiom-p)
+	(when (and host axiom-p (not (variable-defined-p host)))
 		(variable-is-defined host))
+   (when (and thread axiom-p (not (variable-defined-p thread)))
+       (variable-is-defined thread))
 	(do-type-check-head (clause-head clause) clause :axiom-p axiom-p))
 		
 (defun optimize-subgoals (subgoals ass-constrs)
@@ -767,9 +770,9 @@
          (constrs (get-constraints body)))
     (setf (conditional-cmp cond) (optimize-expr (conditional-cmp cond) ass constrs))))
 		
-(defun type-check-body-and-head (clause host &key axiom-p)
-	(type-check-body clause host axiom-p)
-	(type-check-all-except-body clause host :axiom-p axiom-p)
+(defun type-check-body-and-head (clause host thread &key axiom-p)
+	(type-check-body clause host thread axiom-p)
+	(type-check-all-except-body clause host thread :axiom-p axiom-p)
 	(optimize-subgoals (clause-head clause) (clause-body clause))
 	;; we may need to re-check subgoals again because of optimizations
 	(type-check-clause-head-subgoals (clause-head clause) :axiom-p axiom-p)
@@ -808,10 +811,8 @@
 						
 (defun type-check-clause (clause axiom-p)
 	(with-typecheck-context
-		(let ((host (first-host-node (clause-body clause))))
-			(unless host
-				(setf host (first-host-node (clause-head clause))))
-			(type-check-body-and-head clause host :axiom-p axiom-p))
+      (multiple-value-bind (host thread) (find-host-nodes (append (clause-body clause) (clause-head clause)))
+			(type-check-body-and-head clause host thread :axiom-p axiom-p))
 		;; add :random to every subgoal with such variable
 		(when (clause-has-random-p clause)
 			(let ((var (clause-get-random-variable clause)))

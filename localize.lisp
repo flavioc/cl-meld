@@ -97,9 +97,15 @@
 					when (type-addr-p typ)
 					collect (list (first args) arg)))))
 
-(defun get-reachable-nodes (paths-sub start-node constraints)
+(defun get-reachable-nodes (paths-sub host thread constraints)
+   (when (and (not host) thread)
+      ;; when using facts only from the thread, use only the thread
+      (return-from get-reachable-nodes (list thread)))
+   (when (and host thread)
+      ;; when using facts from the thread, the thread can only reach the current node
+      (return-from get-reachable-nodes (list host thread)))
    (let ((paths (mappend #L(find-all-addrs-in-subgoal !1) paths-sub))
-          (rm `(,start-node)))
+          (rm `(,host)))
       (loop while paths
             for expand = (expand-sources rm paths)
             do (unless expand
@@ -155,41 +161,62 @@
             (let ((def (lookup-definition name)))
                (is-linear-p def)))
          (get-subgoals body)))
+
+(defun transform-thread-subgoals (clause thread)
+ (with-clause clause (:body body :head head)
+   (do-subgoals body (:subgoal sub :args args)
+      (let ((first-arg (first args)))
+       (when (var-eq-p first-arg thread)
+         (subgoal-set-thread sub))))
+   (do-comprehensions head (:left left)
+      (do-subgoals left (:subgoal sub :args args)
+         (let ((first-arg (first args)))
+            (when (var-eq-p first-arg thread)
+               (subgoal-set-thread sub)))))))
          
-(defun transform-remote-subgoals (head host)
+(defun transform-remote-subgoals (head host thread)
 	(let ((all-transformed t))
       (do-subgoals head (:args args :subgoal sub)
          (let ((first-arg (first args)))
-            (if (var-eq-p first-arg host)
+            (cond
+             ((var-eq-p first-arg host)
+               (setf all-transformed nil))
+             ((and thread (var-eq-p thread first-arg))
                (setf all-transformed nil)
-					(subgoal-add-route sub first-arg))))
+               (subgoal-set-thread sub))
+             (t
+					(subgoal-add-route sub first-arg)))))
       (do-comprehensions head (:right right :comprehension comp)
 			(do-subgoals right (:args args :subgoal sub)
             (let ((first-arg (first args)))
-               (if (var-eq-p first-arg host)
-                  (setf all-transformed nil)
-						(subgoal-add-route sub first-arg))))
+               (cond
+                  ((var-eq-p first-arg host)
+                   (setf all-transformed nil))
+                  ((and thread (var-eq-p thread first-arg))
+                   (subgoal-set-thread sub))
+                  (t
+                     (subgoal-add-route sub first-arg)))))
 			(do-conditionals right (:term1 term1 :term2 term2)
-				(unless (transform-remote-subgoals term1 host)
+				(unless (transform-remote-subgoals term1 host thread)
 					(setf all-transformed nil))
-				(unless (transform-remote-subgoals term2 host)
+				(unless (transform-remote-subgoals term2 host thread)
 					(setf all-transformed nil))))
 		(do-exists head (:var-list vars :body body)
-			(unless (transform-remote-subgoals body host)
+			(unless (transform-remote-subgoals body host thread)
 				(setf all-transformed nil)))
 		(do-conditionals head (:term1 term1 :term2 term2)
-			(unless (transform-remote-subgoals term1 host)
+			(unless (transform-remote-subgoals term1 host thread)
 				(setf all-transformed nil))
-			(unless (transform-remote-subgoals term2 host)
+			(unless (transform-remote-subgoals term2 host thread)
 				(setf all-transformed nil)))
       all-transformed))
 
 (defun do-localize-one (clause from to route-subgoal remaining &optional (order 'forward))
-   (let* ((reachable (get-reachable-nodes remaining to (get-constraints (clause-body clause))))
+   (let* ((reachable (get-reachable-nodes remaining to nil (get-constraints (clause-body clause))))
           (subgoals (select-subgoals-by-home (clause-body clause) reachable)))
       (unless subgoals
 			;; all subgoals in host node
-         (when (transform-remote-subgoals (clause-head clause) from)
+         (when (transform-remote-subgoals (clause-head clause) from nil)
 				; every subgoal in head goes to 'from'
 				(clause-add-option clause `(:route ,to)))
          (return-from do-localize-one nil))
@@ -203,14 +230,14 @@
             ((and (eq order 'backward)
                   (null stripped-body))
                (add-route-fact-to-invert (subgoal-name route-subgoal))
-               (if (transform-remote-subgoals (clause-head clause) from)
+               (if (transform-remote-subgoals (clause-head clause) from nil)
                   (clause-add-option clause `(:route ,from)))
                (values clause nil))
             ((and (eq order 'forward)
                   (null stripped-body))
                (add-route-fact-to-invert (subgoal-name route-subgoal))
                (setf stripped-body `(,new-routing ,@assignments ,@constraints ,@subgoals))
-               (when (transform-remote-subgoals (clause-head clause) to)
+               (when (transform-remote-subgoals (clause-head clause) to nil)
                   (clause-add-option clause `(:route ,from)))
                (setf (clause-body clause) stripped-body)
                (values clause nil))
@@ -218,7 +245,7 @@
 					(let ((new-clause-body `(,@subgoals ,@assignments ,@constraints)))
 						(when (is-route-subgoal-alone-p new-clause-body route-subgoal from)
 							(reverse-route-subgoal-alone route-subgoal)
-							(transform-remote-subgoals (clause-head clause) from)
+							(transform-remote-subgoals (clause-head clause) from nil)
 							(return-from do-localize-one nil))
                	(when new-routing
                   	(add-route-fact-to-invert (subgoal-name route-subgoal))
@@ -269,10 +296,10 @@
          (error 'localize-invalid-error
                :text (tostring "Subgoal ~a has a bad home argument: ~a" name (first args))))))
 
-(defun body-shares-same-home (body home-argument)
+(defun body-shares-same-home-p (body home-argument thread)
 	(do-subgoals body (:args args :name name)
-		(unless (var-eq-p home-argument (first args))
-			(return-from body-shares-same-home nil)))
+		(unless (or (var-eq-p thread (first args)) (var-eq-p home-argument (first args)))
+			(return-from body-shares-same-home-p nil)))
 	t)
    
 (defun edges-equal-to (host)
@@ -284,27 +311,29 @@
                                     ((and (var-p x) (type-addr-p (var-type x))) x))) clause)))
 		(remove-duplicates (append vars1 homes) :test #'var-eq-p)))
 
-(defun localize-start (clause routes host)
+(defun localize-start (clause routes host thread)
    (let ((paths (get-paths (clause-body clause) routes)))
-      (let ((home-arguments (get-reachable-nodes paths host (get-constraints (clause-body clause))))
-				(same-home nil))
-			(when (and (one-elem-p home-arguments)
-						(body-shares-same-home (clause-body clause) (first home-arguments)))
+      (let ((home-arguments (get-reachable-nodes paths host thread (get-constraints (clause-body clause))))
+				same-home)
+			(when (body-shares-same-home-p (clause-body clause) host thread)
 				;; When using the same home argument in the body of the rule
 				;; we may use all the node variables in the body
 				(setf same-home t)
 				(setf home-arguments (find-linear-body-homes clause home-arguments)))
-			(localize-check-head (clause-head clause) clause home-arguments host)
+			(localize-check-head (clause-head clause) clause home-arguments host thread)
          (check-subgoal-arguments home-arguments clause)
-			(when same-home
-				(transform-remote-subgoals (clause-head clause) host))
-			(unless same-home
-         	(let* ((fun (edges-equal-to host))
-                	 (edges (filter fun paths))
-                	 (remaining (remove-if fun paths)))
-					(if edges
-               	(do-localize host clause edges remaining)
-               	(transform-remote-subgoals (clause-head clause) host)))))))
+         (cond
+            (same-home
+               (when thread
+                  (transform-thread-subgoals clause thread))
+               (transform-remote-subgoals (clause-head clause) host thread))
+            (t
+               (let* ((fun (edges-equal-to host))
+                      (edges (filter fun paths))
+                      (remaining (remove-if fun paths)))
+                  (if edges
+                     (do-localize host clause edges remaining)
+                     (transform-remote-subgoals (clause-head clause) host nil))))))))
       
 (defun one-of-the-vars-p (ls var)
    (find-if #L(var-eq-p var !1) ls))
@@ -342,7 +371,7 @@
             (error 'localize-invalid-error
                      :text (tostring "Variable was not found: ~a (available: ~{~a~^, ~})" (var-name first-arg) (mapcar #'var-name homes)))))))
 
-(defun localize-check-head (head clause homes host)
+(defun localize-check-head (head clause homes host thread)
 	(localize-check-head-by-homes head homes)
 	(do-agg-constructs head (:body body :agg-construct c)
 		(check-remote-args-in-constructs body host))
@@ -355,13 +384,19 @@
 		(localize-check-head terms2 clause homes host)))
 
 (defun remove-home-argument-clause (clause)
-   (let ((host (clause-host-node clause)))
-      (transform-drop-subgoal-first-arg clause host)
-      (transform-variable-to-host-id clause host)))
+   (multiple-value-bind (host thread) (find-host-nodes (append (clause-body clause)
+                                                               (clause-head clause)))
+      (when host
+         (transform-drop-subgoal-first-arg clause host)
+         (transform-variable-to-host-id clause host))
+      (when thread
+         (transform-drop-subgoal-first-arg clause thread)
+         (transform-variable-to-thread-id clause thread))))
          
 (defun remove-home-argument ()
    (do-rules (:clause clause)
-      (remove-home-argument-clause clause))
+      (remove-home-argument-clause clause)
+      (warn "without home ~a" clause))
    (do-axioms (:clause clause)
       (remove-home-argument-clause clause))
    (do-node-definitions (:definition def :types typs)
@@ -374,7 +409,9 @@
 
 (defun localize ()
    (with-localize-context (routes)
-      (do-rules (:clause clause :head head)
-         (localize-start clause routes (clause-body-host-node clause)))
+      (do-rules (:clause clause :head head :body body)
+         (multiple-value-bind (host thread) (find-host-nodes (append body head))
+            (localize-start clause routes host thread))
+         (warn "~a" clause))
       (create-inverse-routes))
    (remove-home-argument))

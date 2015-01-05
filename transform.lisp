@@ -201,33 +201,38 @@
       (t (error 'expr-invalid-error
                :text (tostring "map-expr: Invalid expression: ~a" expr)))))
 
-(defun transform-drop-subgoal-first-arg (clause host)
-   (declare (ignore host))
+(defun transform-drop-subgoal-first-arg (clause host-var)
 	(assert (clause-p clause))
 	(transform-expr #'subgoal-p
                         #'(lambda (x)
 									; For some reason, cl-yacc may share subgoal structures
-									(setf (subgoal-args x) (rest (subgoal-args x)))
+                           (when (var-eq-p host-var (first (subgoal-args x)))
+                              (setf (subgoal-args x) (rest (subgoal-args x))))
                            (values nil :stop))
                   clause))
 
-(defun transform-variable-to-host-id (clause old-var)
+(defun transform-variable-to-expression (clause old-var expr)
    (assert (clause-p clause))
-	(let ((host-id (make-host-id))
-			 new-constraint)
+	(let (new-constraint)
       (with-clause clause (:head head :body body)
 			(transform-expr #'(lambda (x) (var-eq-p x old-var))
                       	#'(lambda (var)
                            	(declare (ignore var))
-                           	(values host-id :stop))
+                           	(values expr :stop))
                      head)
 			(transform-expr #'(lambda (x) (var-eq-p x old-var))
 									#'(lambda (var)
 											(declare (ignore var))
-											(values host-id :stop))
+											(values expr :stop))
 								 (remove-if #'subgoal-p body))
 			(when (subgoals-in-list-have-var-p body old-var)
-				(push-end (make-constraint (make-equal old-var '= host-id) :type-bool) (clause-body clause))))))
+				(push-end (make-constraint (make-equal old-var '= expr) :type-bool) (clause-body clause))))))
+
+(defun transform-variable-to-host-id (clause old-var)
+   (transform-variable-to-expression clause old-var (make-host-id)))
+
+(defun transform-variable-to-thread-id (clause old-var)
+   (transform-variable-to-expression clause old-var (make-thread-id)))
 
 (defun map-one-variable-to-another (expr old-var new-var)
    (map-expr #'(lambda (x) (var-eq-p x old-var))
