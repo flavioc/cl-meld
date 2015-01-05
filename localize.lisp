@@ -384,19 +384,18 @@
 		(localize-check-head terms2 clause homes host)))
 
 (defun remove-home-argument-clause (clause)
-   (multiple-value-bind (host thread) (find-host-nodes (append (clause-body clause)
-                                                               (clause-head clause)))
-      (when host
-         (transform-drop-subgoal-first-arg clause host)
-         (transform-variable-to-host-id clause host))
-      (when thread
-         (transform-drop-subgoal-first-arg clause thread)
-         (transform-variable-to-thread-id clause thread))))
+   (with-clause clause (:body body :head head)
+      (multiple-value-bind (host thread) (find-host-nodes (append body head))
+         (assert (or host thread))
+         (when host
+            (transform-variable-to-host-id clause host))
+         (when thread
+            (transform-variable-to-thread-id clause thread))))
+   (transform-drop-subgoal-first-arg clause))
          
 (defun remove-home-argument ()
    (do-rules (:clause clause)
-      (remove-home-argument-clause clause)
-      (warn "without home ~a" clause))
+      (remove-home-argument-clause clause))
    (do-axioms (:clause clause)
       (remove-home-argument-clause clause))
    (do-node-definitions (:definition def :types typs)
@@ -411,7 +410,6 @@
    (with-localize-context (routes)
       (do-rules (:clause clause :head head :body body)
          (multiple-value-bind (host thread) (find-host-nodes (append body head))
-            (localize-start clause routes host thread))
-         (warn "~a" clause))
+            (localize-start clause routes host thread)))
       (create-inverse-routes))
    (remove-home-argument))

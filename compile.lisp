@@ -373,7 +373,7 @@
                `(,@code ,(make-vm-test-nil place dest))))
          (t
 				(let ((vm-op (set-type-to-op operand-type ret-type base-op)))
-					(assert (not (null vm-op)))
+					(assert (not (null vm-op)) (expr) "Cannot find operator for expression ~a" expr)
 					`(,@code1 ,@code2 ,(make-vm-op dest place1 vm-op place2)))))))
 
 (defun get-remote-dest (subgoal)
