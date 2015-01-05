@@ -35,6 +35,8 @@
 		((world-p expr))
       ((cpus-p expr))
       ((addr-p expr))
+      ((host-id-p expr))
+      ((thread-id-p expr))
 		((string-constant-p expr))
 		((argument-p expr))
 		((get-constant-p expr))

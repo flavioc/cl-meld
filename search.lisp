@@ -64,6 +64,7 @@
                      ((int-p expr) nil)
                      ((float-p expr) nil)
                      ((host-id-p expr) nil)
+                     ((thread-id-p expr) nil)
                      ((nil-p expr) nil)
                      ((world-p expr) nil)
                      ((cpus-p expr) nil)

@@ -596,6 +596,7 @@
          (output-instr-and-values vec #b10110010))
       (:facts-consumed
          (output-instr-and-values vec #b10110011 (vm-facts-consumed-node instr) (vm-facts-consumed-dest instr)))
+		(:thread-linear-iterate (output-iterate vec #b10110100 instr nil))
 	  (:stop-program
 			(output-instr-and-values vec #b10100010))
 	  (:cpu-id

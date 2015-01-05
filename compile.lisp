@@ -874,6 +874,10 @@
 (defun create-iterate-instruction (sub def match-constraints tuple-reg iterate-code)
 	(with-subgoal sub (:name name)
 		(cond
+         ((and (subgoal-is-thread-p sub) (is-linear-p def))
+          (make-thread-linear-iterate name tuple-reg match-constraints iterate-code))
+         ((and (subgoal-is-thread-p sub))
+          (assert nil (sub) "Subgoal ~a cannot be iterated over." sub))
 			((and (not (is-linear-p def)) (not (subgoal-must-be-ordered-p sub)))
 				(make-persistent-iterate name tuple-reg match-constraints iterate-code))
 			((and (not (is-linear-p def)) (subgoal-must-be-ordered-p sub))

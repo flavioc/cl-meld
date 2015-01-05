@@ -16,6 +16,7 @@
       ((int-p val) (tostring "~A" (int-val val)))
       ((float-p val) (tostring "~A" (float-val val)))
       ((host-id-p val) (tostring "host-id"))
+      ((thread-id-p val) (tostring "thread-id"))
       ((world-p val) (tostring "world"))
       ((addr-p val) (tostring "@~a" (addr-num val)))
       ((string-constant-p val) (tostring "\"~a\"" (string-constant-val val)))
@@ -99,6 +100,8 @@
          (print-args stream args)
 			(when (subgoal-is-remote-p sub)
 				(format stream "@~a" (var-name (subgoal-get-remote-dest sub))))
+         (when (subgoal-is-thread-p sub)
+            (format stream "@T"))
 			)))
       
 (defun print-constraints (stream subgoals)

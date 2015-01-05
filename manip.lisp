@@ -30,7 +30,7 @@
             :constraint :extern :aggregate
             :true :false :not :head
             :tail :cons :call :callf :test-nil :addr
-            :nil :host-id :or :and)
+            :nil :host-id :thread-id :or :and)
       
 (defun op-p (val)
    (any (plus-p minus-p mul-p div-p mod-p not-equal-p equal-p lesser-p lesser-equal-p greater-p greater-equal-p or-p and-p) val))
@@ -481,6 +481,8 @@
    (subgoal-add-tagged-option sub :route route))
 (defun subgoal-set-thread (sub)
    (subgoal-add-option sub :thread))
+(defun subgoal-is-thread-p (sub)
+   (subgoal-has-option-p sub :thread))
 	
 (defun subgoal-get-tagged-option (subgoal opt)
    (let ((res (find-if #L(tagged-p !1 opt) (subgoal-options subgoal))))
