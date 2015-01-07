@@ -127,6 +127,12 @@
                    (setf first-thread (first args)))))))
       (values first-node first-thread)))
 
+(defun clause-host-thread (clause)
+   (with-clause clause (:body body :head head)
+      (multiple-value-bind (host thread) (find-host-nodes (append body head))
+         (declare (ignore host))
+         thread)))
+
 (defun clause-head-host-node (clause)
    "Returns the host node of a clause.
    Looks first on the head and then on the body."
@@ -163,6 +169,8 @@
    (definition-add-option def `(,name ,@rest)))
 (defun definition-set-cyclical (def) (definition-add-option def :cycle))
 (defun definition-is-cyclical-p (def) (definition-has-option-p def :cycle))
+(defun definition-set-thread (def) (definition-add-option def :thread))
+(defun definition-is-thread-p (def) (definition-has-option-p def :thread))
 
 (defun definition-set-local-agg (def)
    (definition-add-option def :local-agg))
@@ -547,6 +555,9 @@
 
 (defun lookup-definition (pred &optional (defs *definitions*))
    (find-if #L(string-equal pred (definition-name !1)) defs))
+
+(defun lookup-subgoal-definition (subgoal &optional (defs *definitions*)) 
+   (lookup-definition (subgoal-name subgoal) defs))
 
 (defun lookup-def-id (def-name)
    (do-definitions (:id id :name name)

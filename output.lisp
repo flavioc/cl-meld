@@ -597,13 +597,15 @@
       (:facts-consumed
          (output-instr-and-values vec #b10110011 (vm-facts-consumed-node instr) (vm-facts-consumed-dest instr)))
 		(:thread-linear-iterate (output-iterate vec #b10110100 instr nil))
-	  (:stop-program
+      (:schedule-next
+         (output-instr-and-values vec #b10110110 (vm-schedule-next-node instr)))
+      (:stop-program
 			(output-instr-and-values vec #b10100010))
-	  (:cpu-id
+	   (:cpu-id
 			(output-instr-and-values vec #b01111110 (vm-cpu-id-node instr) (vm-cpu-id-dest instr)))
-	  (:node-priority
+	   (:node-priority
 			(output-instr-and-values vec #b01111111 (vm-node-priority-node instr) (vm-node-priority-dest instr)))
-      (:select-node
+     (:select-node
 							(when (vm-select-node-empty-p instr)
 								(return-from output-instr nil))
 							(let* ((total-nodes (number-of-nodes *nodes*))
@@ -745,6 +747,8 @@
 			(setf prop (logior prop #b00100000)))
 		(when (definition-is-cyclical-p def)
 			(setf prop (logior prop #b01000000)))
+      (when (definition-is-thread-p def)
+         (setf prop (logior prop #b10000000)))
       prop))
 
 (defparameter *max-tuple-name* 32)
@@ -903,10 +907,13 @@
 	(write-hexa stream 3))
 			
 (defun write-rules (stream)
-   (write-int-stream stream (1+ (length *clauses*)))
-	(let ((init-rule-str "init -o axioms"))
+   (write-int-stream stream (+ 2 (length *clauses*)))
+	(let ((init-rule-str "_init -o axioms"))
 		(write-int-stream stream (length init-rule-str))
 		(write-string-stream stream init-rule-str))
+   (let ((init-thread-rule-str "_init_thread -o axioms."))
+      (write-int-stream stream (length init-thread-rule-str))
+      (write-string-stream stream init-thread-rule-str))
    (do-rules (:clause clause)
       (let ((str (clause-to-string clause)))
          (write-int-stream stream (length str))
@@ -1013,15 +1020,10 @@
 			 (pers-p (persistent-p code-rule)))
 		(write-int-stream stream (byte-code-size bc))
 		(write-byte-code stream bc)
-		
-		(if pers-p
-			(write-hexa stream 1)
-			(write-hexa stream 0))
-		
+      (write-hexa stream (if pers-p 1 0))
 		(write-int-stream stream (length ids))
 		(dolist (id ids)
-			(write-hexa stream id))
-		)))
+			(write-hexa stream id)))))
 		
 (defun do-output-functions (stream functions)
 	(printdbg "Processing functions...")
@@ -1074,8 +1076,7 @@
 		;; write init-code
 		(when (> (length rules) 1)
 			(warn "Too many rules in data file"))
-		(do-output-rules stream rules)
-	))
+		(do-output-rules stream rules)))
 	
 (defun do-output-code (stream)
    (do-output-header stream)

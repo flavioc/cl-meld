@@ -667,7 +667,7 @@
 (defun add-variable-head ()
    (do-rules (:clause clause)
       (add-variable-head-clause clause))
-   (do-axioms (:clause clause)
+   (do-all-var-axioms (:clause clause)
       (add-variable-head-clause clause)))
       
 (defun do-type-check-comprehension (comp clause)
@@ -988,7 +988,9 @@
                            (dfs new-rule))))))))))))
 					
 (defun type-check ()
-	(do-definitions (:name name :types typs)
+	(do-definitions (:name name :types typs :definition def)
+      (when (type-thread-p (first typs))
+         (definition-set-thread def))
       (check-home-argument name typs))
 	(check-repeated-definitions)
 	(dolist (const *consts*)
@@ -1018,11 +1020,11 @@
          (type-check-clause clause nil)
          (type-invalid-error (c) (error 'type-invalid-error :text
                                   (tostring "In clause ~a: ~a" clause (text c))))))
-	(do-const-axioms (:subgoal sub)
+	(do-all-const-axioms (:subgoal sub)
 		(with-subgoal sub (:name name :args args :options opts)
 			(do-type-check-subgoal name args opts :axiom-p t)
          (optimize-subgoals (list sub) nil)))
-   (do-all-axioms (:clause clause)
+   (do-all-var-axioms (:clause clause)
       (type-check-clause clause t))
 	;; remove unneeded constants
 	(let (to-remove)

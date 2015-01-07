@@ -699,4 +699,7 @@
 
 (defun parse-meld-file (file)
    (with-parse-context
-      (parse-meld-file-rec file)))
+      (let ((ast (parse-meld-file-rec file)))
+         (ast-add-base-tuples ast)
+         (ast-prepare-axioms ast)
+         ast)))

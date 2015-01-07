@@ -53,7 +53,7 @@
 
 (defun find-edge-set (routes)
    (letret (hash (make-edge-set))
-		(do-const-axioms (:subgoal subgoal)
+		(do-node-const-axioms (:subgoal subgoal)
 			(when (link-subgoal-p subgoal routes)
 				(add-edge-to-set hash (get-link-info subgoal))))))
       
@@ -172,9 +172,9 @@
 		;(loop for key being the hash-keys of mapping
 	   ;     using (hash-value value)
 	   ;     do (format t "The value associated with the key ~S is ~S~%" key value))
-      (do-axioms (:clause clause)
+      (do-all-var-axioms (:clause clause)
          (flip-nodes mapping clause))
-		(do-const-axioms (:subgoal subgoal)
+		(do-all-const-axioms (:subgoal subgoal)
 			(flip-nodes mapping subgoal))
 		(do-constant-list *consts* (:constant c)
 			(flip-nodes mapping c))

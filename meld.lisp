@@ -6,7 +6,6 @@
    (printdbg "Parsing file ~a" file)
    (let ((ast (parse-meld-file file)))
       (set-abstract-syntax-tree ast)
-      (add-base-tuples)
       (printdbg "Parsing done. Optimizing topology...")
       (optimize-topology)
       (printdbg "Topology optimized. Type-checking...")

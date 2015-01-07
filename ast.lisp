@@ -13,10 +13,6 @@
       :initarg :clauses
       :initform (error "missing clauses.")
       :accessor clauses)
-    (axioms
-      :initarg :axioms
-      :initform (error "missing axioms.")
-      :accessor axioms)
     (functions
       :initarg :functions
       :initform (error "missing functions.")
@@ -33,10 +29,26 @@
 		:initarg :consts
 		:initform (error "missing consts.")
 		:accessor consts)
-	(const-axioms
-		:initarg :const-axioms
-		:initform (error "missing const axioms.")
-		:accessor const-axioms)
+   (all-axioms
+      :initarg :all-axioms
+      :initform (error "missing all axioms.")
+      :accessor all-axioms)
+	(node-const-axioms
+		:initarg :node-const-axioms
+		:initform nil
+		:accessor node-const-axioms)
+   (node-var-axioms
+      :initarg :node-var-axioms
+      :initform nil
+      :accessor node-var-axioms)
+   (thread-var-axioms
+      :initarg :thread-var-axioms
+      :initform nil
+      :accessor thread-var-axioms)
+   (thread-const-axioms
+      :initarg :thread-const-axioms
+      :initform nil
+      :accessor thread-const-axioms)
 	(exported-predicates
 		:initarg :exported-predicates
 		:initform (error "missing exported predicates.")
@@ -51,20 +63,18 @@
 		:accessor args-needed)))
 
 (defun make-ast (defs externs clauses axioms funs nodes priorities consts exported-predicates imported-predicates args-needed)
-	(multiple-value-bind (const-axioms normal-axioms) (split-mult-return #'is-constant-axiom-p axioms)
-		(make-instance 'ast
-         :definitions defs
-         :externs externs
-         :clauses clauses
-         :axioms normal-axioms
-			:const-axioms const-axioms ;; these axioms will not be localized
-         :functions funs
-         :nodes nodes
-			:priorities priorities
-			:consts consts
-			:exported-predicates exported-predicates
-			:imported-predicates imported-predicates
-			:args-needed args-needed)))
+   (make-instance 'ast
+      :definitions defs
+      :externs externs
+      :clauses clauses
+      :all-axioms axioms
+      :functions funs
+      :nodes nodes
+      :priorities priorities
+      :consts consts
+      :exported-predicates exported-predicates
+      :imported-predicates imported-predicates
+      :args-needed args-needed))
 
 (defun merge-asts (ast1 ast2)
    "Merges two ASTs together. Note that ast1 is modified."
@@ -72,8 +82,7 @@
          :definitions (nconc (definitions ast1) (definitions ast2))
          :externs (nconc (externs ast1) (externs ast2))
          :clauses (nconc (clauses ast1) (clauses ast2))
-         :axioms (nconc (axioms ast1) (axioms ast2))
-         :const-axioms (nconc (const-axioms ast1) (const-axioms ast2))
+         :all-axioms (nconc (all-axioms ast1) (all-axioms ast2))
          :functions (nconc (functions ast1) (functions ast2))
          :nodes (union (nodes ast1) (nodes ast2))
 			:priorities (union (priorities ast1) (priorities ast2))
@@ -81,6 +90,17 @@
 			:exported-predicates (append (exported-predicates ast1) (exported-predicates ast2))
 			:imported-predicates (append (imported-predicates ast1) (imported-predicates ast2))
 			:args-needed (max (args-needed ast1) (args-needed ast2))))
+
+(defun ast-prepare-axioms (ast)
+	(multiple-value-bind (const-axioms var-axioms) (split-mult-return #'is-constant-axiom-p (all-axioms ast))
+      (multiple-value-bind (node-const-axioms thread-const-axioms)
+                  (split-mult-return #L(is-node-axiom-p !1 (definitions ast)) const-axioms)
+          (multiple-value-bind (node-var-axioms thread-var-axioms)
+                  (split-mult-return #L(is-node-axiom-p !1 (definitions ast)) var-axioms)
+            (setf (node-var-axioms ast) node-var-axioms
+                  (node-const-axioms ast) node-const-axioms
+                  (thread-var-axioms ast) thread-var-axioms
+                  (thread-const-axioms ast) thread-const-axioms)))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Clauses
@@ -151,6 +171,13 @@
 (defun is-constant-axiom-p (clause)
 	(and (null (get-subgoals (clause-body clause)))
 		(every #'subgoal-has-arbitrary-node-p (get-subgoals (clause-head clause)))))
+
+(defun is-node-axiom-p (clause defs)
+   (every #L(let ((def (lookup-subgoal-definition !1 defs)))
+               (assert def (!1) "Could not retrieve definition of ~a." !1)
+               (with-definition def (:types types)
+                  (type-addr-p (first types))))
+      (get-subgoals (clause-head clause))))
 
 (defun subgoal-has-arbitrary-node-p (sub)
    (with-subgoal sub (:args args)

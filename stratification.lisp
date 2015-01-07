@@ -57,8 +57,6 @@
    
 (defun get-head-subgoal (clause) (first (clause-head clause)))
 (defun get-head-subgoal-name (clause) (subgoal-name (get-head-subgoal clause)))  
-(defun lookup-subgoal-definition (subgoal) 
-   (lookup-definition (subgoal-name subgoal)))
                   
 (defun group-clauses-by-head (clauses)
    (let ((hash (make-hash-table :test #'equal)))

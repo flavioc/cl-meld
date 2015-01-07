@@ -561,6 +561,9 @@
 (defun make-vm-remove-priority (node) `(:remove-priority ,node))
 (defun vm-remove-priority-node (x) (second x))
 
+(defun make-vm-schedule-next (node) `(:schedule-next ,node))
+(defun vm-schedule-next-node (x) (second x))
+
 (defun make-vm-stop-program () `(:stop-program))
 
 (defun make-vm-set-default-priority-here (prio) `(:set-default-priority-here ,prio))

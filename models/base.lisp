@@ -13,6 +13,6 @@
       `(unless (base-tuple-defined-p ,real-name)
          (push-end (make-definition ,real-name ',types ',options) *base-tuples*))))
 
-(defun add-base-tuples ()
+(defun ast-add-base-tuples (ast)
    (let ((copy (mapcar #'copy-tree *base-tuples*)))
-      (setf *definitions* (append copy *definitions*))))
+      (setf (definitions ast) (append copy (definitions ast)))))
