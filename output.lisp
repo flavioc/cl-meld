@@ -597,8 +597,11 @@
       (:facts-consumed
          (output-instr-and-values vec #b10110011 (vm-facts-consumed-node instr) (vm-facts-consumed-dest instr)))
 		(:thread-linear-iterate (output-iterate vec #b10110100 instr nil))
+		(:add-thread-persistent
+			(output-instr-and-values vec #b10110101 (vm-add-persistent-reg instr)))
       (:schedule-next
          (output-instr-and-values vec #b10110110 (vm-schedule-next-node instr)))
+		(:thread-persistent-iterate (output-iterate vec #b10110111 instr nil))
       (:stop-program
 			(output-instr-and-values vec #b10100010))
 	   (:cpu-id

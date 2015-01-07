@@ -390,6 +390,7 @@
 (defun make-order-persistent-iterate (name reg matches instrs sub) `(:order-persistent-iterate ,name ,reg ,matches ,instrs ,sub))
 (defun make-order-linear-iterate (name reg matches instrs sub) `(:order-linear-iterate ,name ,reg ,matches ,instrs ,sub))
 (defun make-order-rlinear-iterate (name reg matches instrs sub) `(:order-rlinear-iterate ,name ,reg ,matches ,instrs ,sub))
+(defun make-thread-persistent-iterate (name reg matches instrs) `(:thread-persistent-iterate ,name ,reg ,matches ,instrs))
 
 (defun make-linear-iterate (name reg matches instrs) `(:linear-iterate ,name ,reg ,matches ,instrs))
 (defun make-rlinear-iterate (name reg matches instrs) `(:rlinear-iterate ,name ,reg ,matches ,instrs))
@@ -448,6 +449,7 @@
 (defun vm-add-linear-reg (x) (second x))
 
 (defun make-vm-add-persistent (reg) `(:add-persistent ,reg))
+(defun make-vm-add-thread-persistent (reg) `(:add-thread-persistent ,reg))
 (defun vm-add-persistent-reg (x) (second x))
 
 (defun make-vm-run-action (reg) `(:run-action ,reg))

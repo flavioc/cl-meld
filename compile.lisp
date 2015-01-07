@@ -525,6 +525,8 @@
 		(cond
          ((and (is-linear-p def) (subgoal-is-thread-p sub))
             (make-vm-enqueue-linear tuple-reg))
+         ((and (not (is-linear-p def)) (subgoal-is-thread-p sub))
+            (make-vm-add-thread-persistent tuple-reg))
          ((and (subgoal-is-thread-p sub))
             (assert nil (sub) "Cannot send subgoal ~a to thread." sub))
 			((and (not (is-reused-p def)) (is-linear-p def) (reg-eq-p tuple-reg send-to) (not appears-body-p) (not (is-action-p def)))
@@ -892,6 +894,8 @@
 		(cond
          ((and (subgoal-is-thread-p sub) (is-linear-p def))
           (make-thread-linear-iterate name tuple-reg match-constraints iterate-code))
+         ((and (subgoal-is-thread-p sub) (not (is-linear-p def)))
+          (make-thread-persistent-iterate name tuple-reg match-constraints iterate-code))
          ((and (subgoal-is-thread-p sub))
           (assert nil (sub) "Subgoal ~a cannot be iterated over." sub))
 			((and (not (is-linear-p def)) (not (subgoal-must-be-ordered-p sub)))
