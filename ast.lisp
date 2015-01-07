@@ -57,12 +57,19 @@
 		:initarg :imported-predicates
 		:initform (error "missing imported predicates.")
 		:accessor imported-predicates)
+   (ast-has-thread-facts-p
+      :initarg :ast-has-thread-facts-p
+      :initform nil
+      :accessor ast-has-thread-facts-p)
 	(args-needed
 		:initarg :args-needed
 		:initform (error "missing args-needed.")
 		:accessor args-needed)))
 
 (defun make-ast (defs externs clauses axioms funs nodes priorities consts exported-predicates imported-predicates args-needed)
+   (do-definitions-list defs (:definition def :types typs)
+      (when (type-thread-p (first typs))
+         (definition-set-thread def)))
    (make-instance 'ast
       :definitions defs
       :externs externs
@@ -91,16 +98,19 @@
 			:imported-predicates (append (imported-predicates ast1) (imported-predicates ast2))
 			:args-needed (max (args-needed ast1) (args-needed ast2))))
 
-(defun ast-prepare-axioms (ast)
-	(multiple-value-bind (const-axioms var-axioms) (split-mult-return #'is-constant-axiom-p (all-axioms ast))
-      (multiple-value-bind (node-const-axioms thread-const-axioms)
-                  (split-mult-return #L(is-node-axiom-p !1 (definitions ast)) const-axioms)
-          (multiple-value-bind (node-var-axioms thread-var-axioms)
-                  (split-mult-return #L(is-node-axiom-p !1 (definitions ast)) var-axioms)
-            (setf (node-var-axioms ast) node-var-axioms
-                  (node-const-axioms ast) node-const-axioms
-                  (thread-var-axioms ast) thread-var-axioms
-                  (thread-const-axioms ast) thread-const-axioms)))))
+(defun ast-prepare (ast)
+   (let ((threads (some #'definition-is-thread-p (definitions ast))))
+      (ast-add-base-tuples ast threads)
+      (multiple-value-bind (const-axioms var-axioms) (split-mult-return #'is-constant-axiom-p (all-axioms ast))
+         (multiple-value-bind (node-const-axioms thread-const-axioms)
+                     (split-mult-return #L(is-node-axiom-p !1 (definitions ast)) const-axioms)
+             (multiple-value-bind (node-var-axioms thread-var-axioms)
+                     (split-mult-return #L(is-node-axiom-p !1 (definitions ast)) var-axioms)
+                  (setf (node-var-axioms ast) node-var-axioms
+                        (node-const-axioms ast) node-const-axioms
+                        (thread-var-axioms ast) thread-var-axioms
+                        (thread-const-axioms ast) thread-const-axioms
+                        (ast-has-thread-facts-p ast) threads))))))
 
 ;;;;;;;;;;;;;;;;;;;
 ;; Clauses

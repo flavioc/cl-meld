@@ -3,6 +3,8 @@
 (defparameter *major-version* 0)
 (defparameter *minor-version* 11)
 
+(defparameter *init-tuple* (make-definition "_init" '(:type-addr) '(:init-tuple :linear)))
+
 (defparameter *base-tuples* nil)
 
 (defun base-tuple-defined-p (name)
@@ -13,6 +15,9 @@
       `(unless (base-tuple-defined-p ,real-name)
          (push-end (make-definition ,real-name ',types ',options) *base-tuples*))))
 
-(defun ast-add-base-tuples (ast)
+(defun ast-add-base-tuples (ast use-threads-p)
    (let ((copy (mapcar #'copy-tree *base-tuples*)))
+      (when use-threads-p
+         (push (make-definition "_init_thread" '(:type-thread) '(:init-tuple :linear :thread)) copy))
+      (push (copy-tree *init-tuple*) copy)
       (setf (definitions ast) (append copy (definitions ast)))))

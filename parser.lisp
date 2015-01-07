@@ -700,6 +700,5 @@
 (defun parse-meld-file (file)
    (with-parse-context
       (let ((ast (parse-meld-file-rec file)))
-         (ast-add-base-tuples ast)
-         (ast-prepare-axioms ast)
+         (ast-prepare ast)
          ast)))

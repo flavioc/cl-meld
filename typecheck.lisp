@@ -989,8 +989,6 @@
 					
 (defun type-check ()
 	(do-definitions (:name name :types typs :definition def)
-      (when (type-thread-p (first typs))
-         (definition-set-thread def))
       (check-home-argument name typs))
 	(check-repeated-definitions)
 	(dolist (const *consts*)

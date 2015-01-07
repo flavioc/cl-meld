@@ -1138,7 +1138,21 @@
 			ids)))
 
 (defun compile-ast-rules ()
-	(let ((init-rule (make-rule-code (with-empty-compile-context
+   (let (init-rules)
+      (when (ast-has-thread-facts-p *ast*)
+         (push (make-rule-code (with-empty-compile-context
+                                  (with-reg (reg)
+                                    `(,(make-vm-rule 1)
+                                       ,(make-thread-linear-iterate "_init_thread"
+                                          reg
+                                          nil
+                                          `(,(make-vm-rule-done)
+                                             ,(make-vm-remove reg)
+                                             ,@(compile-init-thread-process)
+                                             ,(make-return-derived)))
+                                       ,(make-return)))) (list (lookup-def-id "_init_thread")) nil)
+               init-rules))
+      (push (make-rule-code (with-empty-compile-context
 										(with-reg (reg)
 											`(,(make-vm-rule 0)
 											  	,(make-linear-iterate "_init"
@@ -1149,29 +1163,20 @@
 														,@(compile-init-process)
 														,(make-move (make-vm-ptr 0) (make-reg 0))
 														,(make-return-derived)))
-												,(make-return)))) (list (lookup-def-id "_init")) nil))
-         (init-thread-rule (make-rule-code (with-empty-compile-context
-                               (with-reg (reg)
-                                    `(,(make-vm-rule 1)
-                                       ,(make-thread-linear-iterate "_init_thread"
-                                          reg
-                                          nil
-                                          `(,(make-vm-rule-done)
-                                             ,(make-vm-remove reg)
-                                             ,@(compile-init-thread-process)
-                                             ,(make-return-derived)))
-                                       ,(make-return)))) (list (lookup-def-id "_init_thread")) nil))
-			(other-rules (do-rules (:clause clause :id id :operation collect)
+												,(make-return)))) (list (lookup-def-id "_init")) nil)
+               init-rules)
+      `(,@init-rules
+		  ,@(do-rules (:clause clause :id id :operation collect)
 								(with-clause clause (:body body :head head)
 									(if (clause-is-persistent-p clause)
 										(make-rule-code `(,(make-return)) (rule-subgoal-ids clause) t)
 										(let ((*compilation-clause* clause)
 												(*compiling-rule* t))
 											(make-rule-code (with-empty-compile-context
-														`(,(make-vm-rule (+ id 2)) ,@(compile-iterate body body head nil) ,(make-return)))
+														`(,(make-vm-rule (+ id (length init-rules)))
+                                             ,@(compile-iterate body body head nil) ,(make-return)))
 													(rule-subgoal-ids clause)
-													(clause-is-persistent-p clause))))))))
-		`(,init-rule ,init-thread-rule ,@other-rules)))
+													(clause-is-persistent-p clause)))))))))
 		
 (defun identical-clause-p (other-clause-subgoals subgoals)
 	(unless (= (length subgoals) (length other-clause-subgoals))
