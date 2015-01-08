@@ -64,6 +64,7 @@
                      ((int-p expr) nil)
                      ((float-p expr) nil)
                      ((host-id-p expr) nil)
+                     ((host-p expr) nil)
                      ((thread-id-p expr) nil)
                      ((nil-p expr) nil)
                      ((world-p expr) nil)
@@ -209,8 +210,9 @@
 	nil)
 	
 (defun subgoals-in-list-have-var-p (ls var)
+   "Check if subgoals 'var' as an argument (except the first)."
 	(do-subgoals ls (:args args)
-		(dolist (arg args)
+		(dolist (arg (rest args))
 			(when (var-eq-p arg var)
 				(return-from subgoals-in-list-have-var-p t))))
 	nil)		
@@ -256,6 +258,7 @@
 		((cons-p expr) nil)
 		((world-p expr) nil)
       ((cpus-p expr) nil)
+      ((host-p expr) nil)
 		((struct-p expr) nil)
 		((struct-val-p expr) nil)
 		((if-p expr) 
@@ -310,7 +313,7 @@
 				(when ret
 					(make-tail ret))))
 		(t
-			(warn "-----NOT CONSIDERING ~a as constant-----" expr)
+			(warn "-----Not considering ~a as constant-----" expr)
 			nil)))
 			
 (defmacro compute-arith-expr (expr c1 c2 op)

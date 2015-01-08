@@ -126,9 +126,9 @@
 	(let ((ret (specialize-move from to typ)))
 		(cond
 			(ret ret)
-			(t (warn "could not specialize move ~a ~a" from to)
-				(assert ret)
-				`(:move ,from ,to)))))
+			(t
+            (error 'compile-invalid-error :text
+                (tostring "Do not know how to move from ~a to ~a" from to))))))
 				
 (defun move-to (mv) (third mv))
 (defun move-from (mv) (second mv))

@@ -16,6 +16,7 @@
       ((int-p val) (tostring "~A" (int-val val)))
       ((float-p val) (tostring "~A" (float-val val)))
       ((host-id-p val) (tostring "host-id"))
+      ((host-p val) (tostring "host"))
       ((thread-id-p val) (tostring "thread-id"))
       ((world-p val) (tostring "world"))
       ((addr-p val) (tostring "@~a" (addr-num val)))
@@ -113,7 +114,7 @@
    (do-assignments subgoals (:var var :expr expr :id id)
       (check-print-level stream)
       (format stream "~a" (print-val var t))
-      (format stream " = ")
+      (format stream " := ")
       (format stream "~a" (print-val expr t))))
       
 (defun print-type (typ)

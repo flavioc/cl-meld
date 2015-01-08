@@ -20,6 +20,7 @@
 	("@order"								(return (values :priority-order $@)))
 	("@\\+[0-9]+s"							(return (values :delay-seconds $@)))
 	("@\\+[0-9]+ms"						(return (values :delay-ms $@)))
+   ("@host"                         (return (values :host $@)))
 	("@world"                        (return (values :world $@)))
    ("@cpus"                         (return (values :cpus $@)))
 	("@arg[0-9]"							(return (values :arg $@)))
@@ -252,7 +253,7 @@
 								:exists :initial-priority :priority-type :priority-order
 								:delay-seconds :delay-ms :question-mark
 								:static-priority :cluster-priority
-								:random-priority :lpaco))
+								:random-priority :lpaco :host))
 
 	(program
 	  (includes definitions priorities externs consts funs statements #L(make-ast  !2 ; definitions
@@ -557,6 +558,7 @@
 	   (:type-float :lparen expr :rparen #'(lambda (f l expr r) (declare (ignore f l r)) (make-convert-float expr)))
 	   (:world (return-const (make-world)))
       (:cpus (return-const (make-cpus)))
+      (:host (return-const (make-host)))
 	   (expr :minus expr #'make-minus)
 	   (expr :mul expr #'make-mul)
 	   (expr :mod expr #'make-mod)

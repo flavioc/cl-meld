@@ -354,16 +354,17 @@
 			(setf (subgoal-args sub) (swap-first-two-args args)))
 		(add-route-fact-to-invert name)))
 
-(defun check-remote-args-in-constructs (body host)
+(defun check-remote-args-in-constructs (clause body host thread)
 	(do-subgoals body (:args args :subgoal sub :name name)
       (let ((first-arg (first args)))
          (unless (and (var-p first-arg)
-                        (var-eq-p host first-arg))
+                        (or (var-eq-p thread first-arg)
+                           (var-eq-p host first-arg)))
 				(cond
 					((is-route-subgoal-alone-p body sub host)
 						(reverse-route-subgoal-alone sub))
                (t (error 'localize-invalid-error
-                        	:text (tostring "Variable is not host: ~a" first-arg))))))))
+                        	:text (tostring "Variable is not host: ~a (~a)" first-arg (clause-to-string clause)))))))))
 
 (defun localize-check-head-by-homes (head homes)
 	(do-subgoals head (:args args)
@@ -376,9 +377,9 @@
 (defun localize-check-head (head clause homes host thread)
 	(localize-check-head-by-homes head homes)
 	(do-agg-constructs head (:body body :agg-construct c)
-		(check-remote-args-in-constructs body host))
+		(check-remote-args-in-constructs clause body host thread))
    (do-comprehensions head (:left left)
-		(check-remote-args-in-constructs left host))
+		(check-remote-args-in-constructs clause left host thread))
 	(do-exists head (:var-list vars :body body)
 		(localize-check-head-by-homes body (append vars homes)))
 	(do-conditionals head (:term1 terms1 :term2 terms2)
@@ -386,13 +387,12 @@
 		(localize-check-head terms2 clause homes host)))
 
 (defun remove-home-argument-clause (clause)
-   (with-clause clause (:body body :head head)
-      (multiple-value-bind (host thread) (find-host-nodes (append body head))
-         (assert (or host thread))
-         (when host
-            (transform-variable-to-host-id clause host))
-         (when thread
-            (transform-variable-to-thread-id clause thread))))
+   (multiple-value-bind (host thread) (find-host-nodes clause)
+      (assert (or host thread))
+      (when host
+         (transform-variable-to-host-id clause host))
+      (when thread
+         (transform-variable-to-thread-id clause thread)))
    (transform-drop-subgoal-first-arg clause))
          
 (defun remove-home-argument ()
@@ -412,8 +412,8 @@
 
 (defun localize ()
    (with-localize-context (routes)
-      (do-rules (:clause clause :head head :body body)
-         (multiple-value-bind (host thread) (find-host-nodes (append body head))
+      (do-rules (:clause clause)
+         (multiple-value-bind (host thread) (find-host-nodes clause)
             (localize-start clause routes host thread)))
       (create-inverse-routes))
    (remove-home-argument))

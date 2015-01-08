@@ -120,7 +120,7 @@
 (defun set-type (expr typs)
    (let ((typ (list (try-one typs))))
       (cond
-         ((or (nil-p expr) (cpus-p expr) (world-p expr) (host-id-p expr)) (setf (cdr expr) typ))
+         ((or (nil-p expr) (host-p expr) (cpus-p expr) (world-p expr) (host-id-p expr)) (setf (cdr expr) typ))
          ((or (var-p expr) (bool-p expr) (int-p expr) (float-p expr) (string-constant-p expr) (tail-p expr) (head-p expr)
                (not-p expr) (test-nil-p expr) (addr-p expr) (convert-float-p expr)
 					(get-constant-p expr) (struct-p expr))
@@ -179,7 +179,7 @@
 	(labels ((do-get-type (expr forced-types)
             (cond
 					((string-constant-p expr) (merge-types forced-types '(:type-string)))
-					((host-id-p expr)
+					((or (host-p expr) (host-id-p expr))
 						(merge-types forced-types '(:type-addr)))
                ((var-p expr)
 						(cond
@@ -811,7 +811,7 @@
 						
 (defun type-check-clause (clause axiom-p)
 	(with-typecheck-context
-      (multiple-value-bind (host thread) (find-host-nodes (append (clause-body clause) (clause-head clause)))
+      (multiple-value-bind (host thread) (find-host-nodes clause)
 			(type-check-body-and-head clause host thread :axiom-p axiom-p))
 		;; add :random to every subgoal with such variable
 		(when (clause-has-random-p clause)

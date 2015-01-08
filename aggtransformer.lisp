@@ -20,7 +20,7 @@
    ;; argument or else put the home node (for local rules)
    (let ((head-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals head))))
       (when head-subs
-         (multiple-value-bind (node thread) (find-host-nodes head)
+         (multiple-value-bind (node thread) (find-host-nodes-head-only head)
             (let* ((routes (filter #L(equal (subgoal-name !1) edge-name) (get-subgoals body))))
                (if routes
                   (setf host (funcall get-fun (subgoal-args (first routes))))

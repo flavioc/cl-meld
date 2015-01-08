@@ -26,7 +26,7 @@
 (define-is-p :bool :int :float :var :plus :minus :mul :div :mod
             :equal :not-equal
             :lesser :lesser-equal :greater :greater-equal
-            :convert-float :world :cpus :colocated
+            :convert-float :world :cpus :colocated :host
             :constraint :extern :aggregate
             :true :false :not :head
             :tail :cons :call :callf :test-nil :addr
@@ -114,38 +114,43 @@
 (defun option-has-tag-p (opts opt) (some #L(tagged-p !1 opt) opts))
 
 ;; to take the home node from the first subgoal or agg-construct
-(defun find-host-nodes (list)
-   "Returns first node and thread (if any) from a subgoal list."
+(defun find-host-nodes (clause)
+   "Returns first node and thread (if any) from a clause."
    (let (first-thread first-node)
-      (do-subgoals list (:name name :args args)
+      (with-clause clause (:body body :head head)
+         (do-subgoals (if (get-subgoals body) body head) (:name name :args args)
+            (let ((def (lookup-definition name)))
+               (with-definition def (:types types)
+                  (if (type-addr-p (first types))
+                     (unless first-node
+                      (setf first-node (first args)))
+                     (unless first-thread
+                      (setf first-thread (first args)))))))
+         (unless first-node
+            (dolist (a (get-assignments (clause-body clause)))
+             (with-assignment a (:expr e :var var)
+               (when (and (host-p e) (not first-node))
+                  (setf first-node var))))))
+      (values first-node first-thread)))
+
+(defun find-host-nodes-head-only (head)
+   "Returns first node and thread (if any) from a clause."
+   (let (first-node first-thread)
+      (do-subgoals head (:name name :args args)
          (let ((def (lookup-definition name)))
             (with-definition def (:types types)
                (if (type-addr-p (first types))
                   (unless first-node
-                   (setf first-node (first args)))
+                   (setf first-node (first args))))
                   (unless first-thread
-                   (setf first-thread (first args)))))))
+                   (setf first-thread (first args))))))
       (values first-node first-thread)))
 
 (defun clause-host-thread (clause)
-   (with-clause clause (:body body :head head)
-      (multiple-value-bind (host thread) (find-host-nodes (append body head))
-         (declare (ignore host))
-         thread)))
+   (multiple-value-bind (host thread) (find-host-nodes clause)
+      (declare (ignore host))
+      thread))
 
-(defun clause-head-host-node (clause)
-   "Returns the host node of a clause.
-   Looks first on the head and then on the body."
-   (multiple-value-bind (head-node thread) (find-host-nodes (clause-head clause))
-      (if head-node
-         head-node
-         (multiple-value-bind (body-node thread) (find-host-nodes (clause-body clause))
-            body-node))))
-
-(defun clause-body-host-node (clause)
-   (multiple-value-bind (node thread) (find-host-nodes (clause-body clause))
-      (values node thread)))
-   
 (defun make-definition (name typs options) `(:definition ,name ,typs ,options))
 (defun definition-p (def) (tagged-p def :definition))
 (defun definition-name (def) (second def))
@@ -380,6 +385,7 @@
 
 (defun make-world () (list :world))
 (defun make-cpus () (list :cpus))
+(defun make-host () (list :host))
 
 (defun make-var (var &optional typ) `(:var ,(if (stringp var) (str->sym var) var) ,@(if typ `(,typ) nil)))      
 (defun var-name (val) (second val))

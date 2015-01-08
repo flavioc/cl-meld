@@ -175,7 +175,6 @@
 			(compile-callf-args (rest args) `(,@args-code ,@arg-code) (1+ n)))))
 
 (defun compile-expr (expr &optional dest)
-	;(warn "compile-expr ~a ~a" expr dest)
    (cond
 		((bool-p expr)
 		 (return-expr (make-vm-bool (bool-val expr))))
@@ -186,7 +185,7 @@
       ((float-p expr) (return-expr (make-vm-float (float-val expr))))
 		((string-constant-p expr) (return-expr (make-vm-string-constant (string-constant-val expr))))
       ((addr-p expr) (return-expr (make-vm-addr (addr-num expr))))
-      ((host-id-p expr) (return-expr (make-vm-host-id)))
+      ((or (host-p expr) (host-id-p expr)) (return-expr (make-vm-host-id)))
       ((argument-p expr)
 			(return-expr (make-vm-argument (argument-id expr))))
 		((get-constant-p expr)
@@ -298,16 +297,14 @@
 					(return-expr dest `(,@c ,(make-vm-head p dest (expr-type (vm-head-cons expr))))))))
       ((cons-p expr)
 			(let (ptail ctail phead chead d)
-				(with-compilation-on-reg (place-tail code-tail) (cons-tail expr)
+				(with-compilation-on-rf (place-tail code-tail) (cons-tail expr)
 						(setf ptail place-tail
 								ctail code-tail)
-                  (with-reg (dest)
-                     (setf d dest)
-                     (with-compiled-expr (place-head code-head :force-dest dest) (cons-head expr)
-                        (setf phead place-head
-                              chead code-head))))
-            (return-expr d `(,@ctail ,@chead
-                             ,(make-vm-cons phead ptail d (expr-type expr))))))
+                  (with-compilation-on-rf (place-head code-head) (cons-head expr)
+                     (setf phead place-head
+                           chead code-head)))
+            (with-dest-or-new-reg (dest)
+               (return-expr dest `(,@ctail ,@chead ,(make-vm-cons phead ptail dest (expr-type expr)))))))
       ((not-p expr)
 			(let (p c)
 				(with-compilation-on-reg (place-expr code-expr) (not-expr expr)
@@ -354,7 +351,8 @@
 	(cond
 		((and dest (or (reg-dot-p dest) (vm-stack-p dest)))
 			(with-reg (new-dest)
-				(return-expr dest `(,@(generate-op-instr expr new-dest new-place1 new-place2 new-code1 new-code2) ,(make-move new-dest dest)))))
+				(return-expr dest `(,@(generate-op-instr expr new-dest new-place1 new-place2 new-code1 new-code2)
+                                ,(make-move new-dest dest)))))
 		((and dest (reg-p dest))
 			(return-expr dest (generate-op-instr expr dest new-place1 new-place2 new-code1 new-code2)))
 		((null dest)
@@ -615,7 +613,7 @@
    (multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub nil)
       (if (null send-to)
          (with-reg (dest)
-            `(,(make-move (make-host-id) dest) ,(make-vm-schedule-next dest)))
+            `(,(make-move (make-vm-host-id) dest) ,(make-vm-schedule-next dest)))
          `(,@extra-code ,(make-vm-schedule-next send-to)))))
 
 (defun do-compile-set-default-priority (sub args)
@@ -952,10 +950,10 @@
          (if (null new-constraint)
             (let ((ass (find-if (valid-assignment-p all-vars) assignments)))
                (with-compiled-expr (place instrs) (assignment-expr ass)
-               	(add-used-var (var-name (assignment-var ass)) place)
-               	(let ((other-code (do-compile-constraints-and-assignments
-                                    	constraints (remove-tree ass assignments) inner-code)))
-                  	`(,@instrs ,@other-code))))
+                     (add-used-var (var-name (assignment-var ass)) place)
+                     (let ((other-code (do-compile-constraints-and-assignments
+                                          constraints (remove-tree ass assignments) inner-code)))
+                        `(,@instrs ,@other-code))))
             (let ((inner-code (do-compile-constraints-and-assignments
                                        (remove-tree new-constraint constraints) assignments inner-code)))
                (compile-constraint inner-code new-constraint))))))
