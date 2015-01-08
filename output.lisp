@@ -654,15 +654,20 @@
    (dolist (instr ls)
       (output-instr instr vec)))
 
-(defmacro make-byte-code (vec &body body)
+(defmacro make-byte-code (name vec &body body)
 	`(progn
 		(let ((*node-values-positions* nil))
 			,@body
-			(list :byte-code ,vec *node-values-positions*))))
+			(list :byte-code ,name ,vec *node-values-positions*))))
 			
-(defun byte-code-vec (b) (second b))
-(defun byte-code-nodes (b) (third b))
+(defun byte-code-name (b) (second b))
+(defun byte-code-vec (b) (third b))
+(defun byte-code-nodes (b) (fourth b))
 (defun byte-code-size (b) (length (byte-code-vec b)))
+(defun byte-code-find (name ls)
+   (dolist (bc ls)
+      (when (string-equal name (byte-code-name bc))
+         (return-from byte-code-find bc))))
 
 (defun write-byte-code (stream bc)
 	(write-vec stream (byte-code-vec bc))
@@ -671,9 +676,9 @@
 		(write-int-stream stream node)))
 
 (defun output-processes ()
-   (do-processes (:instrs instrs :operation collect)
+   (do-processes (:name name :instrs instrs :operation collect)
       (let ((vec (create-bin-array)))
-			(make-byte-code vec
+			(make-byte-code name vec
          	(output-instrs instrs vec)))))
 
 (defun lookup-type-id (typ)
@@ -837,14 +842,14 @@
 
 (defun output-consts ()
 	(let ((vec (create-bin-array)))
-		(make-byte-code vec
+		(make-byte-code "consts" vec
 			(output-instrs *consts-code* vec))))
 
 (defun output-functions ()
 	(printdbg "Processing functions")
 	(loop for code in *function-code*
 		collect (let ((vec (create-bin-array)))
-						(make-byte-code vec
+						(make-byte-code "function" vec
 							(output-instrs code vec)))))
    
 (defparameter *total-written* 0)
@@ -930,7 +935,7 @@
 			collect
    			(let ((vec (create-bin-array))
 			 			(code (rule-code code-rule)))
-					(make-byte-code vec
+					(make-byte-code "rule" vec
 						(if (and (= count 0) is-data-p)
 								;; for data files just print the select by node instruction
 								(let* ((iterate (second (rule-code code-rule)))
@@ -997,8 +1002,11 @@
 (defun do-output-descriptors (stream descriptors processes)
 	(printdbg "Processing predicates...")
 	(loop for vec-desc in descriptors
-         for bc in processes
-         do (write-int-stream stream (byte-code-size bc)) ; write code size first
+         for def in *definitions*
+         do (let ((code (byte-code-find (definition-name def) processes)))
+               (if code
+                  (write-int-stream stream (byte-code-size code)) ; write code size first
+                  (write-int-stream stream 0)))
          do (write-vec stream vec-desc)))
 
 (defun do-output-string-constants (stream)

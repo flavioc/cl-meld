@@ -1097,11 +1097,13 @@
       (compile-with-starting-subgoal body head)))
 
 (defun compile-processes ()
-	(do-definitions (:definition def :name name :operation collect)
+	(do-definitions (:definition def :name name :operation append)
 		(if (is-init-p def)
-         (make-process name `(,(make-return-linear)))
-         (make-process name `(,@(compile-normal-process name (filter #'clause-is-persistent-p (find-clauses-with-subgoal-in-body name)))
-                                 ,(make-return))))))
+         nil
+         (let ((clauses (filter #'clause-is-persistent-p (find-clauses-with-subgoal-in-body name))))
+            (if clauses
+             (list (make-process name `(,@(compile-normal-process name clauses) ,(make-return))))
+             nil)))))
 
 (defun compile-consts ()
 	(do-constant-list *consts* (:name name :expr expr :operation append)

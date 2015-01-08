@@ -77,12 +77,14 @@
    (let ((def (find-init-predicate *definitions*)))
       (assert (not (null def)))
       (with-definition def (:name init-name)
-         (with-process (vm-find init-name) (:instrs instrs :process proc)
+         (let ((init-proc (vm-find init-name)))
+          (when init-proc
+            (with-process init-proc (:instrs instrs :process proc)
             (multiple-value-bind (hash to-keep) (select-node-init instrs)
 					(if (= (hash-table-count hash) 0)
 						(setf (process-instrs proc) to-keep)
                	(let ((new-instr (make-vm-select-with-rules hash)))
-                  	(setf (process-instrs proc) (cons new-instr to-keep))))))))
+                  	(setf (process-instrs proc) (cons new-instr to-keep))))))))))
 	; do the same for rule code
 	(let* ((init (first *code-rules*))
 			 (iterate (second (rule-code init)))
