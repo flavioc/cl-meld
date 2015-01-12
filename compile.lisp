@@ -210,7 +210,7 @@
                   (with-dest-or-new-reg (dest)
                      (with-compiled-expr (arg-place arg-code :force-dest dest) (first args)
                         (return-expr dest `(,@arg-code ,(make-vm-is-static arg-place dest))))))
-					((string-equal name "nodepriority")
+					((string-equal name "priority")
 						(with-dest-or-new-reg (dest)
 							(with-compiled-expr (arg-place arg-code :force-dest dest) (first args)
 								(return-expr dest `(,@arg-code ,(make-vm-node-priority arg-place dest))))))

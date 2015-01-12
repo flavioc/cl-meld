@@ -174,7 +174,10 @@
    (transform-thread-subgoals-list head thread)
    (do-comprehensions head (:left left :right right)
       (transform-thread-subgoals-list left thread)
-      (transform-thread-subgoals-list right thread))))
+      (transform-thread-subgoals-list right thread))
+   (do-agg-constructs head (:body body :head head)
+      (transform-thread-subgoals-list body thread)
+      (transform-thread-subgoals-list head thread))))
          
 (defun transform-remote-subgoals (head host thread)
 	(let ((all-transformed t))

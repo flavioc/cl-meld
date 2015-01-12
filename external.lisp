@@ -65,7 +65,7 @@
 (define-external-function "nodelistlength" :type-int '((:type-list :type-addr)))
 (define-external-function "nodelistcount" :type-int '((:type-list :type-addr) :type-addr))
 (define-external-function "nodelistappend" '(:type-list :type-addr) '((:type-list :type-addr) (:type-list :type-addr)))
-(define-external-function "nodepriority" :type-float '(:type-addr))
+(define-external-function "priority" :type-float '(:type-addr))
 (define-external-function "nodelistreverse" '(:type-list :type-addr) '((:type-list :type-addr)))
 (define-external-function "nodelistlast" :type-addr '((:type-list :type-addr)))
 (define-external-function "cpu-id" :type-int '(:type-addr))

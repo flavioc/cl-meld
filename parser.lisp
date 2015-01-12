@@ -57,6 +57,7 @@
 	("[A-Z]([a-z]|[0-9]|[A-Z]|\_)*"	(return (values :variable $@))))
 	
 (defparameter *line-number* 0)
+(defparameter *parsed-header* nil)
 
 (define-condition parse-failure-error (error)
    ((text :initarg :text :reader text) (line :initarg :line :reader line)))
@@ -102,7 +103,7 @@
 										("else" :else)
 										("otherwise" :otherwise)
 										("min" :min)
-										("priority" :prio)
+										("priority" (if *parsed-header* :const :prio))
 										("true" :true)
 										("false" :false)
 										("nil" :nil))
@@ -256,17 +257,21 @@
 								:random-priority :lpaco :host))
 
 	(program
-	  (includes definitions priorities externs consts funs statements #L(make-ast  !2 ; definitions
-	                                                               !4 ; externs
-	                                                               (remove-if #'is-axiom-p !7) ; clauses
-	                                                               (filter #'is-axiom-p !7) ; axioms
-	                                                               !6 ; functions
-	                                                               (defined-nodes-list) ; nodes
-																						!3 ; priorities
-																						!5 ; consts
-																						*parser-exported-predicates*
-																						*parser-imported-predicates*
-																						*max-arg-needed*))) ;; args-needed
+	  (includes definitions priorities externs consts
+      funs before-statement statements #L(make-ast  !2 ; definitions
+                           !4 ; externs
+                           (remove-if #'is-axiom-p !8) ; clauses
+                           (filter #'is-axiom-p !8) ; axioms
+                           !6 ; functions
+                           (defined-nodes-list) ; nodes
+                           !3 ; priorities
+                           !5 ; consts
+                           *parser-exported-predicates*
+                           *parser-imported-predicates*
+                           *max-arg-needed*))) ;; args-needed
+
+   (before-statement
+      (#'(lambda () (setf *parsed-header* t))))
 
 	(includes
 	   ()
@@ -619,6 +624,7 @@
 (defmacro with-inner-parse-context (&body body)
    `(let ((*found-nodes* (make-hash-table))
 			 (*line-number* 0)
+          (*parsed-header* nil)
 			 (*parser-imported-predicates* nil)
 			 (*parser-exported-predicates* nil))
       ,@body))
