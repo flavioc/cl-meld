@@ -915,7 +915,6 @@
 	(write-hexa stream 3))
 			
 (defun write-rules (stream)
-   (warn "~a ~a" (length *code-rules*) *code-rules*)
    (write-int-stream stream (length *code-rules*))
    (loop for code-rule in *code-rules*
          do (let ((str (rule-string code-rule)))
