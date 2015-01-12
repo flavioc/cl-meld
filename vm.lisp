@@ -728,10 +728,17 @@
 		:initarg :subgoal-ids
 		:initform (error "missing subgoal ids.")
 		:accessor subgoal-ids)
-	 (persistent-p
-		:initarg :persistent-p
-		:initform (error "missing persistent-p.")
-		:accessor persistent-p)))
+    (rule-string
+      :initarg :rule-string
+      :initform ""
+      :accessor rule-string)
+	 (clause
+		:initarg :clause
+		:initform (error "missing clause.")
+		:accessor clause)))
 		
-(defun make-rule-code (code subgoals is-persistent)
-	(make-instance 'rule-code :rule-code code :subgoal-ids subgoals :persistent-p is-persistent))
+(defun make-rule-code (code subgoals clause &optional (str nil))
+	(make-instance 'rule-code :rule-code code :subgoal-ids
+                  subgoals :clause clause
+                  :rule-string (if str str (clause-to-string clause))))
+
