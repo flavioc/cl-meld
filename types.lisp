@@ -109,3 +109,18 @@
 
 (defun reference-type-p (typ)
 	(or (eq typ :all) (type-string-p typ) (type-addr-p typ) (recursive-type-p typ)))
+
+(defparameter *program-types* nil)
+
+(defun add-type-to-typelist (types new)
+	(if (member new types :test #'equal)
+		types
+		(cond
+			((type-list-p new)
+				(cons new (add-type-to-typelist types (type-list-element new))))
+			((type-struct-p new)
+				(dolist (x (type-struct-list new))
+					(setf types (add-type-to-typelist types x)))
+				(cons new types))
+			(t (cons new types)))))
+		

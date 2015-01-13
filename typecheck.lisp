@@ -84,10 +84,20 @@
 						(intersection ls types)))))
 		((= (length types) 1)
 			(let ((t2 (first types)))
-				(if (eq t2 :all)
-					ls
-					(intersection ls types))))
-		(t (intersection ls types))))
+            (cond
+             ((eq t2 :all) ls)
+             ((type-list-p t2)
+              (let* ((t21 (type-list-element t2))
+                     (list-types (filter #'type-list-p ls))
+                     (elements (mapcar #'type-list-element list-types))
+                     (merged (loop for element in elements
+                                   append (let ((m (merge-types (list element) (list t21))))
+                                                (when m
+                                                   (list (make-list-type (first m))))))))
+               merged))
+             (t
+					(intersection ls types)))))
+		(t (intersection ls types :test #'equal))))
    
 (defparameter *constraints* nil)
 (defparameter *defined* nil)
@@ -119,6 +129,8 @@
 
 (defun set-type (expr typs)
    (let ((typ (list (try-one typs))))
+      (loop for ty in typ
+            do (setf *program-types* (add-type-to-typelist *program-types* ty)))
       (cond
          ((or (nil-p expr) (host-p expr) (cpus-p expr) (world-p expr) (host-id-p expr)) (setf (cdr expr) typ))
          ((or (var-p expr) (bool-p expr) (int-p expr) (float-p expr) (string-constant-p expr) (tail-p expr) (head-p expr)
@@ -172,6 +184,19 @@
 	(if (is-all-type-p forced-types)
 		forced-types
 		(mapcar #'type-struct-list (filter #'type-struct-p forced-types))))
+
+(defun unify-arg-types (orig-arg-types cand-ret-types orig-ret-type)
+   "Unify :all types by taking the concrete cand-ret-types into the orig-arg-types."
+   (cond
+    ((one-elem-p cand-ret-types)
+     (let ((typ (first cand-ret-types)))
+      (cond
+       ((eq orig-ret-type :all)
+        (subst typ :all orig-arg-types :test #'equal))
+       ((type-list-p orig-ret-type)
+        (unify-arg-types orig-arg-types (type-list-element typ) (type-list-element orig-ret-type)))
+       (t orig-arg-types))))
+    (t orig-arg-types)))
          
 (defun get-type (expr forced-types body-p)
 	(assert (not (null forced-types)))
@@ -233,10 +258,13 @@
 								(error 'type-invalid-error :text
 									(tostring "external call ~a has invalid number of arguments (should have ~a arguments)"
 										extern (length (extern-types extern)))))
-							(loop for typ in (extern-types extern)
-                           for arg in (call-args expr)
-                           do (get-type arg `(,typ) body-p))
-                     (merge-types forced-types `(,(extern-ret-type extern)))))
+                     (let* ((ret-types (merge-types forced-types `(,(extern-ret-type extern))))
+                            (arg-types (extern-types extern))
+                            (unified-arg-types (unify-arg-types arg-types ret-types (extern-ret-type extern))))
+                        (loop for typ in unified-arg-types
+                              for arg in (call-args expr)
+                              do (get-type arg `(,typ) body-p))
+                        ret-types)))
                ((let-p expr)
                   (if (variable-defined-p (let-var expr))
                      (error 'type-invalid-error :text (tostring "Variable ~a in LET is already defined" (let-var expr))))
@@ -986,6 +1014,22 @@
                      (multiple-value-bind (ls found-p) (gethash rule rgraph)
                         (dolist (new-rule ls)
                            (dfs new-rule))))))))))))
+
+(defun collect-basic-types ()
+	(setf *program-types* nil)
+	(do-definitions (:types types)
+		(dolist (ty types)
+			(setf *program-types* (add-type-to-typelist *program-types* (arg-type ty)))))
+	(do-constant-list *consts* (:type typ)
+		(setf *program-types* (add-type-to-typelist *program-types* typ)))
+	(do-externs *externs* (:types types :ret-type ret)
+		(setf *program-types* (add-type-to-typelist *program-types* ret))
+		(dolist (typ types)
+			(setf *program-types* (add-type-to-typelist *program-types* typ))))
+	(do-functions *functions* (:ret-type typ :args args)
+		(setf *program-types* (add-type-to-typelist *program-types* typ))
+		(dolist (arg args)
+			(setf *program-types* (add-type-to-typelist *program-types* (var-type arg))))))
 					
 (defun type-check ()
 	(do-definitions (:name name :types typs :definition def)
@@ -1013,6 +1057,7 @@
 			(unless def
 				(error 'type-invalid-error :text (tostring "exported predicate ~a was not found" name)))))
    (add-variable-head)
+   (collect-basic-types) ;; collect all basic types from predicates, funs and constants.
    (do-all-rules (:clause clause)
       (handler-case
          (type-check-clause clause nil)

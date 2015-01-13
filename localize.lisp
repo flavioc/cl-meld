@@ -153,8 +153,8 @@
 (defun order-variables (vars)
    "Sorts variables by putting integer variables before every other."
    (sort vars #'(lambda (var1 var2)
-                  (declare (ignore var2))
-                  (type-int-p (expr-type var1)))))
+                     (declare (ignore var2))
+                     (type-int-p (expr-type var1)))))
                   
 (defun any-linear-fact-p (body)
    (some #L(with-subgoal !1 (:name name)

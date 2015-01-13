@@ -156,7 +156,7 @@
 			(multiple-value-bind (regs codes) (compile-call-args (rest args))
 				(values (cons arg-place regs) `(,@arg-code ,@codes))))))
 				
-(defun compile-call (name args dest)
+(defun compile-call (name args dest call)
 	(multiple-value-bind (regs codes) (compile-call-args args)
 		(cond
 			((null dest)
@@ -166,7 +166,7 @@
 				(return-expr dest `(,@codes ,(decide-external-function name dest regs))))
 			(t
 				(with-reg (new-dest)
-					(return-expr dest `(,@codes ,(decide-external-function name new-dest regs) ,(make-move new-dest dest (get-external-function-ret-type name)))))))))
+					(return-expr dest `(,@codes ,(decide-external-function name new-dest regs) ,(make-move new-dest dest (expr-type call)))))))))
 			
 (defun compile-callf-args (args args-code n)
 	(if (null args)
@@ -227,7 +227,7 @@
                      (with-compiled-expr (arg-place arg-code :force-dest dest) (first args)
                         (return-expr dest `(,@arg-code ,(make-vm-facts-consumed arg-place dest))))))
 					(t 
-         			(compile-call name args dest)))))
+         			(compile-call name args dest expr)))))
 		((struct-val-p expr)
 			(with-dest-or-new-reg (dest)
 				(let ((look (lookup-used-var (var-name (struct-val-var expr)))))
@@ -1066,7 +1066,9 @@
                            nil)
                          (t
                            (do-compile-head-subgoal axiom nil)))))))))
-       `(,@spec ,(make-vm-new-axioms regular))))
+      (if regular
+         `(,@spec ,(make-vm-new-axioms regular))
+         spec)))
       
 (defun compile-const-axioms ()
 	"Take all constant axioms in the program and map them to an hash table (per node).

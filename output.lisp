@@ -20,8 +20,6 @@
 				(push-end str *output-string-constants*)
 				(1- (length *output-string-constants*))))))
 				
-(defparameter *program-types* nil)
-
 (defmacro with-memory-stream (s &body body)
    `(let ((,s (make-in-memory-output-stream)))
       ,@body
@@ -938,34 +936,6 @@
 				
 (defparameter +meld-magic+ '(#x6d #x65 #x6c #x64 #x20 #x66 #x69 #x6c))
 
-(defun add-type-to-typelist (types new)
-	(if (member new types :test #'equal)
-		types
-		(cond
-			((type-list-p new)
-				(cons new (add-type-to-typelist types (type-list-element new))))
-			((type-struct-p new)
-				(dolist (x (type-struct-list new))
-					(setf types (add-type-to-typelist types x)))
-				(cons new types))
-			(t (cons new types)))))
-		
-(defun collect-all-types ()
-	(setf *program-types* nil)
-	(do-definitions (:types types)
-		(dolist (ty types)
-			(setf *program-types* (add-type-to-typelist *program-types* (arg-type ty)))))
-	(do-constant-list *consts* (:type typ)
-		(setf *program-types* (add-type-to-typelist *program-types* typ)))
-	(do-externs *externs* (:types types :ret-type ret)
-		(setf *program-types* (add-type-to-typelist *program-types* ret))
-		(dolist (typ types)
-			(setf *program-types* (add-type-to-typelist *program-types* typ))))
-	(do-functions *functions* (:ret-type typ :args args)
-		(setf *program-types* (add-type-to-typelist *program-types* typ))
-		(dolist (arg args)
-			(setf *program-types* (add-type-to-typelist *program-types* (var-type arg))))))
-
 (defun do-output-header (stream)
 	(printdbg "Processing header...")
 	(dolist (magic +meld-magic+)
@@ -974,7 +944,6 @@
 	(write-int-stream stream *minor-version*)
 	(write-hexa stream (length *definitions*))
    (write-nodes stream *nodes*)
-	(collect-all-types)
 	(write-hexa stream (length *program-types*))
 	(loop for typ in *program-types*
 			do (let ((bytes (type-to-bytes typ)))
