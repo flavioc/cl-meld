@@ -35,6 +35,8 @@
 			(let ((l1 (type-struct-list t1))
 					(l2 (type-struct-list t2)))
 				(cond
+               ((eq l2 :all) t1)
+               ((eq l1 :all) t2)
 					((not (= (length l1) (length l2))) nil)
 					(t
 						(let ((result
