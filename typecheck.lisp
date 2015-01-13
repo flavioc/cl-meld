@@ -129,8 +129,9 @@
 
 (defun set-type (expr typs)
    (let ((typ (list (try-one typs))))
-      (loop for ty in typ
-            do (setf *program-types* (add-type-to-typelist *program-types* ty)))
+      (when (and (one-elem-p typs)
+                  (not (has-all-type-p typs)))
+         (setf *program-types* (add-type-to-typelist *program-types* (first typs))))
       (cond
          ((or (nil-p expr) (host-p expr) (cpus-p expr) (world-p expr) (host-id-p expr)) (setf (cdr expr) typ))
          ((or (var-p expr) (bool-p expr) (int-p expr) (float-p expr) (string-constant-p expr) (tail-p expr) (head-p expr)
@@ -194,7 +195,7 @@
        ((eq orig-ret-type :all)
         (subst typ :all orig-arg-types :test #'equal))
        ((type-list-p orig-ret-type)
-        (unify-arg-types orig-arg-types (type-list-element typ) (type-list-element orig-ret-type)))
+        (unify-arg-types orig-arg-types (list (type-list-element typ)) (type-list-element orig-ret-type)))
        (t orig-arg-types))))
     (t orig-arg-types)))
          
@@ -321,6 +322,8 @@
                          (head-types (get-type head base-types body-p))
 								 (list-head-types (mapcar #'make-list-type head-types))
                          (new-types (merge-types list-head-types forced-types)))
+                     ;(warn "types ~a base-types ~a head-types ~a list-head-types ~a new-types ~a" forced-types
+                     ; base-types head-types list-head-types new-types)
 							(let ((tail-type (get-type tail new-types body-p)))
 									(when tail-type
 										;; re-updated head-type

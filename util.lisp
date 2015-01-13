@@ -48,6 +48,12 @@
 
 (defun has-elem-p (list el) (ensure-bool (member el list)))
 (defun has-test-elem-p (list el test) (ensure-bool (member el list :test test)))
+(defun find-anywhere (item tree)
+   "Does item occur anywhere in tree?"
+   (if (atom tree)
+      (if (eql item tree) tree)
+      (or (find-anywhere item (first tree))
+          (find-anywhere item (rest tree)))))
 
 (defun create-hash-set (ls)
    (let ((hash (make-hash-table :test #'equal)))

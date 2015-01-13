@@ -691,7 +691,10 @@
       		(:type-int '(#b0000))
       		(:type-float '(#b0001))
       		(:type-addr '(#b0010))
+            ; #b0011 type-list
+            ; #b0100 type-struct
 				(:type-bool '(#b0101))
+            (:type-thread '(#b0110))
 				(:type-string '(#b1001))
 				(otherwise (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ)))))
 		((type-list-p typ)

@@ -17,6 +17,8 @@
 	(or (and (listp x) (one-elem-p x) (eq :all (first x)))
 		 (and x (eq (first x) :all))))
 
+(defun has-all-type-p (x) (find-anywhere :all x))
+
 (defmacro deftype-p (&rest types)
    `(on-top-level
          ,@(mapcar #'(lambda (x) `(defun ,(alexandria:format-symbol t "TYPE-~A-P" (symbol-name x)) (ty)
