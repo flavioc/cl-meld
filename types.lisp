@@ -84,6 +84,7 @@
            (head-p expr) (not-p expr) (test-nil-p expr)
            (convert-float-p expr)
 			  (get-constant-p expr)
+           (argument-p expr)
 			  (struct-p expr))
          (third expr))
       ((or (op-p expr) (struct-val-p expr) (call-p expr) (callf-p expr) (cons-p expr))

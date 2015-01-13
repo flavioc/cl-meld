@@ -186,18 +186,25 @@
 		forced-types
 		(mapcar #'type-struct-list (filter #'type-struct-p forced-types))))
 
-(defun unify-arg-types (orig-arg-types cand-ret-types orig-ret-type)
-   "Unify :all types by taking the concrete cand-ret-types into the orig-arg-types."
+(defun unify-types (typ concrete-type concrete-template)
+   "Unify 'typ' by matching the concrete-template with concrete-type."
    (cond
-    ((one-elem-p cand-ret-types)
-     (let ((typ (first cand-ret-types)))
-      (cond
-       ((eq orig-ret-type :all)
-        (subst typ :all orig-arg-types :test #'equal))
-       ((type-list-p orig-ret-type)
-        (unify-arg-types orig-arg-types (list (type-list-element typ)) (type-list-element orig-ret-type)))
-       (t orig-arg-types))))
-    (t orig-arg-types)))
+    ((eq concrete-template :all)
+     (subst concrete-type :all typ :test #'equal))
+    ((type-list-p concrete-template)
+     (unify-types typ (type-list-element concrete-type) (type-list-element concrete-template)))
+    (t typ)))
+
+(defun unify-arg-types (arg-types template-ret ret-types)
+   (unless (has-all-type-p template-ret)
+      (return-from unify-arg-types arg-types))
+   (cond
+    ((and (one-elem-p ret-types)
+         (not (has-all-type-p ret-types)))
+     (let ((f (first ret-types)))
+        (loop for arg in arg-types
+               collect (unify-types arg f template-ret))))
+    (t arg-types)))
          
 (defun get-type (expr forced-types body-p)
 	(assert (not (null forced-types)))
@@ -261,10 +268,25 @@
 										extern (length (extern-types extern)))))
                      (let* ((ret-types (merge-types forced-types `(,(extern-ret-type extern))))
                             (arg-types (extern-types extern))
-                            (unified-arg-types (unify-arg-types arg-types ret-types (extern-ret-type extern))))
+                            (unified-arg-types (unify-arg-types arg-types (extern-ret-type extern) ret-types)))
                         (loop for typ in unified-arg-types
                               for arg in (call-args expr)
                               do (get-type arg `(,typ) body-p))
+                        (let (change (concrete-arg-types (mapcar #'expr-type (call-args expr))))
+                           (loop for i from 0 upto (1- (length concrete-arg-types))
+                                 for template-arg-type in arg-types
+                                 do (let ((concrete-type (nth i concrete-arg-types)))
+                                       (when (and (not (has-all-type-p concrete-type))
+                                                   (has-all-type-p template-arg-type))
+                                          (setf change t)
+                                          (setf ret-types (loop for ret-type in ret-types
+                                                                collect (unify-types ret-type concrete-type template-arg-type)))
+                                          (setf concrete-arg-types (loop for ty in concrete-arg-types
+                                                                         collect (unify-types ty concrete-type template-arg-type))))))
+                           (when change
+                              (loop for typ in concrete-arg-types
+                                    for arg in (call-args expr)
+                                    do (get-type arg `(,typ) body-p))))
                         ret-types)))
                ((let-p expr)
                   (if (variable-defined-p (let-var expr))
