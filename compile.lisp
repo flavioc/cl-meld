@@ -512,7 +512,8 @@
       (let ((all (clause-get-all-deletes clause)))
          (loop for delete-option in all
                append (compile-delete delete-option
-                        (find-if (subgoal-by-name (delete-option-name delete-option)) (get-subgoals (clause-body clause))))))))
+                        (find-if (subgoal-by-name (delete-option-name delete-option))
+                            (get-subgoals (clause-body clause))))))))
             
 (defun compile-head-move (arg i tuple-reg)
    (let ((reg-dot (make-reg-dot tuple-reg i)))

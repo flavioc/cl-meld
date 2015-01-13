@@ -9,6 +9,7 @@
 	("\\]"                           (return (values :rsparen $@)))
 	("\\{"                           (return (values :lcparen $@)))
 	("\\}"                           (return (values :rcparen $@)))
+   ("\\~"                           (return (values :tilde $@)))
    ("\\."                           (return (values :dot $@)))
 	("@initial"								(return (values :initial-priority $@)))
 	("@static"								(return (values :static-priority $@)))
@@ -39,6 +40,7 @@
 	("\\|"                           (return (values :bar $@)))
    ("\\&\\&"                        (return (values :and $@)))
 	("\\/\\*.*\\*\\/"                (return (values :comment)))
+   ("\\+\\+"                          (return (values :append $@)))
 	("\\+"                           (return (values :plus $@)))
 	("\\-"                    		   (return (values :minus $@)))
 	("\\*"                           (return (values :mul $@)))
@@ -238,13 +240,13 @@
 (define-parser meld-parser
  	(:start-symbol program)
  	
- 	(:precedence ((:left :mul :div :mod) (:left :plus :minus) (:right :and) (:right :or)))
+ 	(:precedence ((:left :mul :div :mod :in) (:left :plus :minus :append) (:right :and) (:right :or)))
  	
 	(:terminals (:const :type :true :false :variable :number :string :lparen :rparen
 								:bar :arrow :dot :comma :type-bool :type-int :type-addr :type-thread
 								:type-float :type-string :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal :equal
-								:extern :const-decl :arg
+								:extern :const-decl :arg :tilde :append
 								:lsparen :rsparen :nil :bar :type-list :local
 								:route :include :file :world :cpus :action
 								:linear :dollar :lcparen :rcparen :lolli
@@ -564,6 +566,7 @@
 	   (:world (return-const (make-world)))
       (:cpus (return-const (make-cpus)))
       (:host (return-const (make-host)))
+      (expr :append expr #L(make-call "append" (list !1 !3)))
 	   (expr :minus expr #'make-minus)
 	   (expr :mul expr #'make-mul)
 	   (expr :mod expr #'make-mod)
@@ -596,6 +599,8 @@
 		(expr :comma expr-list #'(lambda (x c xs) (declare (ignore c)) (cons x xs))))
 		
    (cmp
+      (expr :in expr #L(make-call "lexists" (list !3 !1)))
+      (:tilde cmp #L(make-not !2))
 		(cmp :or cmp #'make-or)
       (cmp :and cmp #'make-and)
 		(:lparen cmp :rparen #'(lambda (l cmp r) (declare (ignore l r)) cmp))
@@ -604,8 +609,7 @@
       (expr :lesser expr #'make-lesser)
       (expr :lesser-equal expr #'make-lesser-equal)
       (expr :greater expr #'make-greater)
-      (expr :greater-equal expr #'make-greater-equal)
-		)
+      (expr :greater-equal expr #'make-greater-equal))
 
 	(number
 		(:number #L(parse-number !1)))
