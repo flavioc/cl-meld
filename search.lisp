@@ -116,6 +116,11 @@
    (let (found)
       (iterate-expr #'(lambda (x)
                        (cond
+                        ((subgoal-p x)
+                         (let ((dest (subgoal-get-remote-dest x)))
+                          (when (and dest (var-eq-p dest var))
+                           (setf found t)
+                           :stop)))
                         ((and (var-p x) (var-eq-p x var))
                          (setf found t)
                          :stop)))
