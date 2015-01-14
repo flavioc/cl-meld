@@ -15,11 +15,23 @@
 	(loop for i upto (1- *num-regs*)
 		do (if (not (has-reg-p regs (make-reg i)))
 				(return-from find-unused-reg (make-reg i)))))
+(defun find-unused-n-regs (regs n)
+   (let ((c 0))
+      (loop for i upto (1- *num-regs*)
+            while (< c n)
+            append (unless (has-reg-p regs (make-reg i))
+                  (incf c)
+                  `(,(make-reg i))))))
 		
 (defun alloc-reg (regs)
 	(assert (< (length regs) *num-regs*))
 	(let ((new-reg (find-unused-reg regs)))
 		(values new-reg (extend-regs regs new-reg))))
+
+(defun alloc-n-reg (regs n)
+   (assert (< (+ n (length regs)) *num-regs*))
+   (let ((new-regs (find-unused-n-regs regs n)))
+      (values new-regs (append regs new-regs))))
 
 (defparameter *compiling-axioms* nil)
 (defparameter *compilation-clause* nil)
@@ -43,6 +55,10 @@
 (defmacro with-reg ((reg) &body body)
    `(multiple-value-bind (,reg *used-regs*) (alloc-new-reg)
       ,@body))
+(defmacro with-n-regs (n (regs) &body body)
+   `(multiple-value-bind (,regs *used-regs*) (alloc-n-reg *used-regs* ,n)
+      ,@body))
+          
 (defmacro with-old-reg ((reg) &body body)
 	"Adds a new register to the context so it is not allocated inside body."
 	`(cond
@@ -675,9 +691,45 @@
 			(t
             (do-compile-normal-subgoal sub name args)))))
 
-(defun do-compile-head-subgoals (head sub-regs)
-   (do-subgoals head (:operation append :subgoal sub)
-      (do-compile-head-subgoal sub sub-regs)))
+(defun do-compile-head-subgoals-rec (subgoals sub-regs gen-other-code non-sub)
+   (cond
+    ((null subgoals)
+      (funcall gen-other-code non-sub))
+    (t
+     (let ((f (first subgoals))
+           (r (rest subgoals)))
+      (cond
+			((subgoal-will-reuse-other-p f)
+            (let ((other (subgoal-get-reused f))
+                  (saved-vars nil))
+               (with-subgoal other (:args args-other)
+                  (with-subgoal f (:args args-this)
+                     (dolist2 (argo args-other) (argt args-this)
+                        (when (and (not (equal argo argt))
+                                    (expr-uses-var-p (append r non-sub) argo))
+                           (assert (var-p argo))
+                           (push argo saved-vars)))))
+               (with-n-regs (length saved-vars) (regs)
+                  (let ((backup-code (loop for var in saved-vars 
+                                           for r in regs
+                                           append (let ((place (lookup-used-var (var-name var))))
+                                             (add-used-var (var-name var) r)
+                                             (assert place)
+                                             `(,(make-move place r))))))
+                  `(,@backup-code ,@(do-compile-head-subgoal f sub-regs)
+                    ,@(do-compile-head-subgoals-rec r sub-regs gen-other-code non-sub))))))
+         (t
+            (append (do-compile-head-subgoal f sub-regs)
+                     (do-compile-head-subgoals-rec r sub-regs gen-other-code non-sub))))))))
+
+(defun do-compile-head-subgoals (head sub-regs gen-other-code)
+   (let* ((subgoals (get-subgoals head))
+          (non-sub (get-non-subgoals head))
+          (sorted-subgoals (sort subgoals #'(lambda (s1 s2)
+                                             (if (subgoal-will-reuse-other-p s1)
+                                              nil
+                                              t)))))
+      (do-compile-head-subgoals-rec sorted-subgoals sub-regs gen-other-code non-sub)))
 
 (defconstant +plus-infinity+ 2147483647)
 
@@ -791,12 +843,13 @@
 
 (defun do-compile-head-code (head sub-regs def subgoal)
 	"Head is the head expression. Subgoal is the starting subgoal and def its definition."
-	(let ((subgoals-code (do-compile-head-subgoals head sub-regs))
-			(conditional-code (do-compile-head-conditionals head sub-regs def subgoal))
-         (comprehensions-code (do-compile-head-comprehensions head def subgoal))
-			(agg-code (do-compile-head-aggs head def subgoal))
-			(exists-code (do-compile-head-exists head sub-regs def subgoal)))
-		`(,@conditional-code ,@subgoals-code ,@comprehensions-code ,@agg-code ,@exists-code)))
+	(do-compile-head-subgoals head sub-regs
+              #'(lambda (ls)
+                 (let ((conditional-code (do-compile-head-conditionals ls sub-regs def subgoal))
+                       (comprehensions-code (do-compile-head-comprehensions head def subgoal))
+                       (agg-code (do-compile-head-aggs ls def subgoal))
+                       (exists-code (do-compile-head-exists ls sub-regs def subgoal)))
+                  `(,@conditional-code ,@comprehensions-code ,@agg-code ,@exists-code)))))
 		
 (defun subgoal-to-be-deleted-p (subgoal def)
    (and (is-linear-p def)

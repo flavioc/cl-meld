@@ -112,6 +112,16 @@
       
 (defun all-variable-names (expr) (mapcar #'var-name (all-variables expr)))
 
+(defun expr-uses-var-p (expr var)
+   (let (found)
+      (iterate-expr #'(lambda (x)
+                       (cond
+                        ((and (var-p x) (var-eq-p x var))
+                         (setf found t)
+                         :stop)))
+                     expr)
+      found))
+
 (defun valid-assignment-p (vars) #'(lambda (a) (tree-subsetp (all-variable-names (assignment-expr a)) vars)))
 (defun select-valid-assignments (body subgoals &optional (base-vars nil))
    (loop with vars = (union base-vars (all-variable-names subgoals))
