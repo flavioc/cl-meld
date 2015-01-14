@@ -726,7 +726,7 @@
 (defun do-compile-head-subgoals (head sub-regs gen-other-code)
    (let* ((subgoals (get-subgoals head))
           (non-sub (get-non-subgoals head))
-          (sorted-subgoals (sort subgoals #'(lambda (s1 s2)
+          (sorted-subgoals (stable-sort subgoals #'(lambda (s1 s2)
                                              (if (subgoal-will-reuse-other-p s1)
                                               nil
                                               t)))))
