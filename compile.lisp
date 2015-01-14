@@ -708,6 +708,7 @@
                         (when (and (not (equal argo argt))
                                     (expr-uses-var-p (append r non-sub) argo))
                            (assert (var-p argo))
+                           (assert (not (reference-type-p (expr-type argo))))
                            (push argo saved-vars)))))
                (with-n-regs (length saved-vars) (regs)
                   (let ((backup-code (loop for var in saved-vars 
