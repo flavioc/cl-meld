@@ -573,6 +573,7 @@
 	   (expr :mod expr #'make-mod)
 	   (expr :div expr #'make-div)
 	   (expr :plus expr #'make-plus)
+      (cmp #'identity)
 	   (:if cmp :then expr :else expr :end #'(lambda (if cmp then e1 else e2 end)
 	                                                (declare (ignore if then else end))
 	                                                (make-if cmp e1 e2)))
@@ -602,7 +603,7 @@
    (cmp
       (expr :in expr #L(make-call "lexists" (list !3 !1)))
       (expr :ins expr #L(make-call "lexistss" (list !3 !1)))
-      (:tilde cmp #L(make-not !2))
+      (:tilde expr #L(make-not !2))
 		(cmp :or cmp #'make-or)
       (cmp :and cmp #'make-and)
 		(:lparen cmp :rparen #'(lambda (l cmp r) (declare (ignore l r)) cmp))

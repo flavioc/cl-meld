@@ -90,3 +90,4 @@
 (define-external-function "count" :type-int '((:type-list :all) :all))
 (define-external-function "lexists" :type-bool '((:type-list :all) :all))
 (define-external-function "lexistss" :type-bool '((:type-list :all) (:type-list :all)))
+(define-external-function "queens_violation" :type-bool '(:type-int (:type-list :type-int)))
