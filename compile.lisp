@@ -691,10 +691,9 @@
 			(t
             (do-compile-normal-subgoal sub name args)))))
 
-(defun do-compile-head-subgoals-rec (subgoals sub-regs gen-other-code non-sub)
+(defun do-compile-head-subgoals-rec (subgoals sub-regs)
    (cond
-    ((null subgoals)
-      (funcall gen-other-code non-sub))
+    ((null subgoals) nil)
     (t
      (let ((f (first subgoals))
            (r (rest subgoals)))
@@ -706,7 +705,7 @@
                   (with-subgoal f (:args args-this)
                      (dolist2 (argo args-other) (argt args-this)
                         (when (and (not (equal argo argt))
-                                    (expr-uses-var-p (append r non-sub) argo))
+                                    (expr-uses-var-p r argo))
                            (assert (var-p argo))
                            (assert (not (reference-type-p (expr-type argo))))
                            (push argo saved-vars)))))
@@ -718,19 +717,15 @@
                                              (assert place)
                                              `(,(make-move place r))))))
                   `(,@backup-code ,@(do-compile-head-subgoal f sub-regs)
-                    ,@(do-compile-head-subgoals-rec r sub-regs gen-other-code non-sub))))))
+                    ,@(do-compile-head-subgoals-rec r sub-regs))))))
          (t
             (append (do-compile-head-subgoal f sub-regs)
-                     (do-compile-head-subgoals-rec r sub-regs gen-other-code non-sub))))))))
+                     (do-compile-head-subgoals-rec r sub-regs))))))))
 
-(defun do-compile-head-subgoals (head sub-regs gen-other-code)
-   (let* ((subgoals (get-subgoals head))
-          (non-sub (get-non-subgoals head))
-          (sorted-subgoals (stable-sort subgoals #'(lambda (s1 s2)
-                                             (if (subgoal-will-reuse-other-p s1)
-                                              nil
-                                              t)))))
-      (do-compile-head-subgoals-rec sorted-subgoals sub-regs gen-other-code non-sub)))
+(defun do-compile-head-subgoals (subgoals sub-regs)
+   (multiple-value-bind (reuse non-reuse) (split-mult-return #'subgoal-will-reuse-other-p subgoals)
+      (let ((sorted-subgoals (append non-reuse reuse)))
+         (do-compile-head-subgoals-rec sorted-subgoals sub-regs))))
 
 (defconstant +plus-infinity+ 2147483647)
 
@@ -844,13 +839,11 @@
 
 (defun do-compile-head-code (head sub-regs def subgoal)
 	"Head is the head expression. Subgoal is the starting subgoal and def its definition."
-	(do-compile-head-subgoals head sub-regs
-              #'(lambda (ls)
-                 (let ((conditional-code (do-compile-head-conditionals ls sub-regs def subgoal))
-                       (comprehensions-code (do-compile-head-comprehensions head def subgoal))
-                       (agg-code (do-compile-head-aggs ls def subgoal))
-                       (exists-code (do-compile-head-exists ls sub-regs def subgoal)))
-                  `(,@conditional-code ,@comprehensions-code ,@agg-code ,@exists-code)))))
+	`(,@(do-compile-head-conditionals head sub-regs def subgoal)
+      ,@(do-compile-head-comprehensions head def subgoal)
+      ,@(do-compile-head-aggs head def subgoal)
+      ,@(do-compile-head-exists head sub-regs def subgoal)
+      ,@(do-compile-head-subgoals (get-subgoals head) sub-regs)))
 		
 (defun subgoal-to-be-deleted-p (subgoal def)
    (and (is-linear-p def)
