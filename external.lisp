@@ -87,7 +87,7 @@
 (define-external-function "partition-grid" :type-int '(:type-int :type-int :type-int :type-int))
 (define-external-function "queue-size" :type-int '(:type-addr))                                                 (define-external-function "facts-proved" :type-int '(:type-addr))
 (define-external-function "facts-consumed" :type-int '(:type-addr))
-(define-external-function "count" :type-int '((:type-list :all) :all))
+(define-external-function "lcount" :type-int '((:type-list :all) :all))
 (define-external-function "lexists" :type-bool '((:type-list :all) :all))
 (define-external-function "lexistss" :type-bool '((:type-list :all) (:type-list :all)))
 (define-external-function "queens_violation" :type-bool '(:type-int (:type-list :type-int)))

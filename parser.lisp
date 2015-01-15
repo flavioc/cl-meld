@@ -679,14 +679,16 @@
       (let* ((lexer (simple-stream-lexer #'read-source-line
                                   #'meld-lexer
                                   :stream input-stream)))
-		(in-directory (pathname (directory-namestring (pathname file)))
-         (handler-case (parse-with-lexer lexer meld-parser)
-				(yacc-parse-error (c) (error (make-condition 'parse-failure-error
-					:text (tostring "unexpected terminal ~S (value ~S)"
-												(yacc-parse-error-terminal c)
-												(yacc-parse-error-value c))
-				:line *line-number*))))
-				))))
+      (let ((new-dir (if (eq #\/ (char file 0)) (directory-namestring (pathname file))
+                          (concatenate 'string (directory-namestring *default-pathname-defaults*)
+                               (directory-namestring (pathname file))))))
+         (in-directory (pathname new-dir)
+            (handler-case (parse-with-lexer lexer meld-parser)
+               (yacc-parse-error (c) (error (make-condition 'parse-failure-error
+                  :text (tostring "unexpected terminal ~S (value ~S)"
+                                       (yacc-parse-error-terminal c)
+                                       (yacc-parse-error-value c))
+               :line *line-number*)))))))))
    
 (defun parse-string (str)
    "Parses a string of Meld code."
