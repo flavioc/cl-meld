@@ -97,6 +97,7 @@
 										("from" :from)
 										("as" :as)
 										("let" :let)
+                              ("ins" :ins)
 										("in" :in)
 										("end" :end)
 										("if" :if)
@@ -240,7 +241,7 @@
 (define-parser meld-parser
  	(:start-symbol program)
  	
- 	(:precedence ((:left :mul :div :mod :in) (:left :plus :minus :append) (:right :and) (:right :or)))
+ 	(:precedence ((:left :mul :div :mod :in :ins) (:left :plus :minus :append) (:right :and) (:right :or)))
  	
 	(:terminals (:const :type :true :false :variable :number :string :lparen :rparen
 								:bar :arrow :dot :comma :type-bool :type-int :type-addr :type-thread
@@ -250,7 +251,7 @@
 								:lsparen :rsparen :nil :bar :type-list :local
 								:route :include :file :world :cpus :action
 								:linear :dollar :lcparen :rcparen :lolli
-								:bang :to :let :in :fun :end :colon
+								:bang :to :let :in :ins :fun :end :colon
 								:not-equal :if :then :else :otherwise :prio :random
 								:min :asc :desc :or :and :export :import :as :from
 								:exists :initial-priority :priority-type :priority-order
@@ -600,6 +601,7 @@
 		
    (cmp
       (expr :in expr #L(make-call "lexists" (list !3 !1)))
+      (expr :ins expr #L(make-call "lexistss" (list !3 !1)))
       (:tilde cmp #L(make-not !2))
 		(cmp :or cmp #'make-or)
       (cmp :and cmp #'make-and)

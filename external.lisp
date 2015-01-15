@@ -89,3 +89,4 @@
 (define-external-function "facts-consumed" :type-int '(:type-addr))
 (define-external-function "count" :type-int '((:type-list :all) :all))
 (define-external-function "lexists" :type-bool '((:type-list :all) :all))
+(define-external-function "lexistss" :type-bool '((:type-list :all) (:type-list :all)))
