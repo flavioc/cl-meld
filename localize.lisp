@@ -386,8 +386,8 @@
 	(do-exists head (:var-list vars :body body)
 		(localize-check-head-by-homes body (append vars homes)))
 	(do-conditionals head (:term1 terms1 :term2 terms2)
-		(localize-check-head terms1 clause homes host)
-		(localize-check-head terms2 clause homes host)))
+		(localize-check-head terms1 clause homes host thread)
+		(localize-check-head terms2 clause homes host thread)))
 
 (defun remove-home-argument-clause (clause)
    (multiple-value-bind (host thread) (find-host-nodes clause)

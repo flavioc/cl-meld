@@ -203,6 +203,16 @@
 		                  (with-comma-context
 		                   (print-subgoals stream head))
 		                  (format stream "]")))
+                  (do-conditionals head (:cmp cmp :term1 terms1 :term2 terms2)
+                     (check-print-level stream)
+                        (format stream "if ~a then " (print-val cmp t))
+                        (with-comma-context
+                           (print-subgoals stream terms1))
+                        (check-print-level stream)
+                        (format stream " otherwise ")
+                        (with-comma-context
+                           (print-subgoals stream terms2))
+                        (format stream " end"))
 						(do-exists head (:var-list vars :body body)
 							(check-print-level stream)
 							(format stream "exists ")
