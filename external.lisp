@@ -94,3 +94,7 @@
 (define-external-function "minimax_score" :type-int '((:type-list :type-int) :type-int :type-int))
 (define-external-function "minimax_points" :type-int '((:type-list :type-int) :type-int))
 (define-external-function "array_init" '(:type-array :all) '(:type-int :all) :poly-p t)
+(define-external-function "array_get" :all '((:type-array :all) :type-int))
+(define-external-function "array_set" '(:type-array :all) '((:type-array :all) :type-int :all))
+(define-external-function "array_add" '(:type-array :all) '((:type-array :all) :all))
+(define-external-function "array_from_list" '(:type-array :all) '((:type-list :all)) :poly-p t)
