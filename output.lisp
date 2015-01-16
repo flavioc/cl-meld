@@ -153,6 +153,7 @@
          (add-byte instr vec)
          (add-byte (logand *extern-id-mask* extern-id) vec)
          (add-byte (logand *reg-mask* (reg-to-byte (vm-call-dest call))) vec)
+         (output-value-data (vm-call-gc call) vec)
 			(output-list-bytes vec extra-bytes)
          (output-values vec args)))
 
@@ -162,6 +163,7 @@
          (add-byte instr vec)
          (add-byte (logand *extern-id-mask* extern-id) vec)
          (add-byte (logand *reg-mask* (reg-to-byte (vm-call-dest call))) vec)
+         (output-value-data (vm-call-gc call) vec)
 			(output-list-bytes vec extra-bytes)
          (output-values vec args)))
       
@@ -492,7 +494,7 @@
 			(output-instr-and-values vec #b01011110 (move-from instr) (move-to instr)))
 		(:cons-rrr
 			(output-instr-type-and-values vec #b01011111 (vm-cons-type instr) (vm-cons-head instr)
-             (vm-cons-tail instr) (vm-cons-dest instr)))
+             (vm-cons-tail instr) (vm-cons-dest instr) (vm-cons-gc instr)))
 		(:cons-rff
 			(output-instr-and-values vec #b01100001 (vm-cons-head instr) (vm-cons-tail instr)
             (vm-cons-dest instr)))
@@ -500,13 +502,16 @@
 			(output-instr-and-values vec #b01100010 (vm-cons-head instr) (vm-cons-tail instr)
             (vm-cons-dest instr)))
 		(:cons-ffr
-			(output-instr-and-values vec #b01100011 (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+			(output-instr-and-values vec #b01100011 (vm-cons-head instr) (vm-cons-tail instr)
+          (vm-cons-dest instr) (vm-cons-gc instr)))
 		(:cons-rrf
 			(output-instr-and-values vec #b01100100 (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
 		(:cons-rfr
-			(output-instr-and-values vec #b01100101 (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+			(output-instr-and-values vec #b01100101 (vm-cons-head instr) (vm-cons-tail instr)
+          (vm-cons-dest instr) (vm-cons-gc instr)))
 		(:cons-frr
-			(output-instr-type-and-values vec #b01100110 (vm-cons-type instr) (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
+			(output-instr-type-and-values vec #b01100110 (vm-cons-type instr) (vm-cons-head instr)
+          (vm-cons-tail instr) (vm-cons-dest instr) (vm-cons-gc instr)))
 		(:cons-fff
 			(output-instr-and-values vec #b01100111 (vm-cons-head instr) (vm-cons-tail instr) (vm-cons-dest instr)))
 		(:call0

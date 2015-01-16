@@ -107,7 +107,7 @@
 (defmacro return-expr (place &optional code) `(values ,place ,code (if (reg-p ,place) (extend-regs *used-regs* ,place) *used-regs*)))
 
 (defmacro with-compiled-expr ((place code &key (force-dest nil)) expr &body body)
-	`(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr ,force-dest)
+	`(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr :dest ,force-dest)
 		(cond
 			((and ,force-dest (not (equalp ,place ,force-dest)))
 				(setf ,code (append ,code (list (make-move ,place ,force-dest))))
@@ -116,8 +116,8 @@
 			(t
 				,@body))))
 
-(defmacro with-compilation ((place code) expr &body body)
-	`(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr)
+(defmacro with-compilation ((place code &key (top-level nil)) expr &body body)
+	`(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr :top-level ,top-level)
 		,@body))
 		
 (defmacro with-compilation-on-reg ((place code) expr &body body)
@@ -131,10 +131,10 @@
 					,@body)
 				(progn ,@body)))))
 		
-(defmacro with-compilation-on-rf ((place code) expr &body body)
+(defmacro with-compilation-on-rf ((place code &key top-level) expr &body body)
 	"Ensures that place is either a field or register."
 	(alexandria:with-gensyms (new-reg)
-		`(with-compilation (,place ,code) ,expr
+		`(with-compilation (,place ,code :top-level ,top-level) ,expr
 			(if (not (or (reg-p ,place) (reg-dot-p ,place)))
 				(with-reg (,new-reg)
 					(setf ,code (append ,code (list (make-move ,place ,new-reg))))
@@ -147,18 +147,18 @@
       (with-reg (,dest) ,@body)
       (progn ,@body)))
 
-(defmacro compile-expr-to (expr place)
+(defmacro compile-expr-to (expr place &key top-level)
 	(alexandria:with-gensyms (new-place code)
-      `(multiple-value-bind (,new-place ,code *used-regs*) (compile-expr ,expr ,place)
+      `(multiple-value-bind (,new-place ,code *used-regs*) (compile-expr ,expr :dest ,place :top-level ,top-level)
 		   (if (not (equal ,new-place ,place))
             (append ,code (list (make-move ,new-place ,place (expr-type ,expr))))
             ,code))))
 
-(defun decide-external-function (name new-reg regs)
+(defun decide-external-function (name new-reg regs gc)
 	"Decides if external function is pre-defined or not."
 	(if (lookup-standard-external-function name)
-		(make-vm-call name new-reg regs)
-		(make-vm-calle name new-reg regs)))
+		(make-vm-call name new-reg regs (make-vm-bool gc))
+		(make-vm-calle name new-reg regs (make-vm-bool gc))))
 		
 (defun get-external-function-ret-type (name)
 	(let ((fun (lookup-standard-external-function name)))
@@ -186,17 +186,17 @@
 			(multiple-value-bind (regs codes) (compile-call-args (rest args) call)
 				(values (cons arg-place regs) `(,@arg-code ,@codes)))))))
 				
-(defun compile-call (name args dest call)
+(defun compile-call (name args dest call gc)
 	(multiple-value-bind (regs codes) (compile-call-args args call)
 		(cond
 			((null dest)
 		 		(with-reg (new-dest)
-					(return-expr new-dest `(,@codes ,(decide-external-function name new-dest regs)))))
+					(return-expr new-dest `(,@codes ,(decide-external-function name new-dest regs gc)))))
 			((and dest (reg-p dest))
-				(return-expr dest `(,@codes ,(decide-external-function name dest regs))))
+				(return-expr dest `(,@codes ,(decide-external-function name dest regs gc))))
 			(t
 				(with-reg (new-dest)
-					(return-expr dest `(,@codes ,(decide-external-function name new-dest regs)
+					(return-expr dest `(,@codes ,(decide-external-function name new-dest regs gc)
                                    ,(make-move new-dest dest (expr-type call)))))))))
 			
 (defun compile-callf-args (args args-code n)
@@ -205,7 +205,7 @@
 		(with-compiled-expr (arg-place arg-code :force-dest (make-reg n)) (first args)
 			(compile-callf-args (rest args) `(,@args-code ,@arg-code) (1+ n)))))
 
-(defun compile-expr (expr &optional dest)
+(defun compile-expr (expr &key dest top-level)
    (cond
 		((bool-p expr)
 		 (return-expr (make-vm-bool (bool-val expr))))
@@ -258,7 +258,7 @@
                      (with-compiled-expr (arg-place arg-code :force-dest dest) (first args)
                         (return-expr dest `(,@arg-code ,(make-vm-facts-consumed arg-place dest))))))
 					(t 
-         			(compile-call name args dest expr)))))
+         			(compile-call name args dest expr (not top-level))))))
 		((struct-val-p expr)
 			(with-dest-or-new-reg (dest)
 				(let ((look (lookup-used-var (var-name (struct-val-var expr)))))
@@ -328,14 +328,15 @@
 					(return-expr dest `(,@c ,(make-vm-head p dest (expr-type (vm-head-cons expr))))))))
       ((cons-p expr)
 			(let (ptail ctail phead chead d)
-				(with-compilation-on-rf (place-tail code-tail) (cons-tail expr)
+				(with-compilation-on-rf (place-tail code-tail :top-level top-level) (cons-tail expr)
 						(setf ptail place-tail
 								ctail code-tail)
-                  (with-compilation-on-rf (place-head code-head) (cons-head expr)
+                  (with-compilation-on-rf (place-head code-head :top-level top-level) (cons-head expr)
                      (setf phead place-head
                            chead code-head)))
             (with-dest-or-new-reg (dest)
-               (return-expr dest `(,@ctail ,@chead ,(make-vm-cons phead ptail dest (expr-type expr)))))))
+               (return-expr dest `(,@ctail ,@chead ,(make-vm-cons phead ptail dest (expr-type expr)
+                                                     (make-vm-bool (not top-level))))))))
       ((not-p expr)
 			(let (p c)
 				(with-compilation-on-reg (place-expr code-expr) (not-expr expr)
@@ -548,7 +549,7 @@
             
 (defun compile-head-move (arg i tuple-reg)
    (let ((reg-dot (make-reg-dot tuple-reg i)))
-      (compile-expr-to arg reg-dot)))
+      (compile-expr-to arg reg-dot :top-level t)))
 
 (defun general-make-send (sub name tuple-reg send-to appears-body-p)
 	(let ((def (lookup-definition name)))
@@ -1175,7 +1176,7 @@
 			
 (defun compile-function-arguments (body args n)
 	(if (null args)
-		(multiple-value-bind (dest body) (compile-expr body (make-vm-stack 32))
+		(multiple-value-bind (dest body) (compile-expr body :dest (make-vm-stack 32))
 			`(,@body ,(make-move (make-vm-stack (1+ *num-regs*)) (make-vm-pcounter))))
 		(progn
 			(with-reg (r)
