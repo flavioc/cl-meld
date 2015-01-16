@@ -31,6 +31,12 @@
 				  (merged (merge-type sub1 sub2)))
 			(if merged
 				(make-list-type merged))))
+      ((and (type-array-p t1) (type-array-p t2))
+       (let* ((sub1 (type-array-element t1))
+              (sub2 (type-array-element t2))
+              (merged (merge-type sub1 sub2)))
+        (if merged
+         (make-array-type merged))))
 		((and (type-struct-p t1) (type-struct-p t2))
 			(let ((l1 (type-struct-list t1))
 					(l2 (type-struct-list t2)))
@@ -195,6 +201,8 @@
      (subst concrete-type :all typ :test #'equal))
     ((type-list-p concrete-template)
      (unify-types typ (type-list-element concrete-type) (type-list-element concrete-template)))
+    ((type-array-p concrete-template)
+     (unify-types typ (type-array-element concrete-type) (type-array-element concrete-template)))
     (t typ)))
 
 (defun unify-arg-types (arg-types template-ret ret-types)
@@ -207,6 +215,15 @@
         (loop for arg in arg-types
                collect (unify-types arg f template-ret))))
     (t arg-types)))
+
+(defun find-all-type (template concrete)
+   (cond
+    ((eq template :all) concrete)
+    ((type-list-p template) (find-all-type (type-list-element template) (type-list-element concrete)))
+    ((type-array-p template) (find-all-type (type-array-element template) (type-array-element concrete)))
+    (t
+     (assert nil)
+     nil)))
          
 (defun get-type (expr forced-types body-p)
 	(assert (not (null forced-types)))
@@ -393,7 +410,7 @@
                (t (error 'type-invalid-error :text (tostring "get-type: Unknown expression ~a" expr))))))
       (let ((types (do-get-type expr forced-types)))
          (when (no-types-p types)
-            (error 'type-invalid-error :text (tostring "Type error in expression ~a: wanted types ~a ~a" expr forced-types types)))
+            (error 'type-invalid-error :text (tostring "Type error in expression ~a: wanted types ~a but got ~a" expr forced-types types)))
          (set-type expr types)
          types)))
       

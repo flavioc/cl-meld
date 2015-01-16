@@ -4,6 +4,10 @@
 (defun make-list-type (ty) `(:type-list ,ty))
 (defun type-list-element (x) (second x))
 
+(defun type-array-p (x) (tagged-p x :type-array))
+(defun make-array-type (ty) `(:type-array ,ty))
+(defun type-array-element (x) (second x))
+
 (defun type-struct-p (x) (tagged-p x :type-struct))
 (defun make-struct-type (ls) `(:type-struct ,ls))
 (defun type-struct-list (x) (second x))
@@ -108,10 +112,12 @@
 (defun type-eq-p (ty1 ty2) (equal ty1 ty2))
 
 (defun recursive-type-p (typ)
-	(or (type-struct-p typ) (type-list-p typ)))
+	(or (type-struct-p typ) (type-list-p typ)
+       (type-array-p typ)))
 
 (defun reference-type-p (typ)
-	(or (eq typ :all) (type-string-p typ) (type-addr-p typ) (recursive-type-p typ)))
+	(or (eq typ :all) (type-string-p typ)
+      (type-addr-p typ) (recursive-type-p typ)))
 
 (defparameter *program-types* nil)
 
@@ -127,3 +133,8 @@
 				(cons new types))
 			(t (cons new types)))))
 		
+(defun lookup-type-id (typ)
+	(let ((ret (position typ *program-types* :test #'equal)))
+		(assert (integerp ret))
+		ret))
+

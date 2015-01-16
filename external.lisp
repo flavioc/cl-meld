@@ -33,9 +33,9 @@
 (defun lookup-external-function-id (name)
 	(extern-id (lookup-external-definition name)))
 
-(defmacro define-external-function (name ret-type types)
+(defmacro define-external-function (name ret-type types &key (poly-p nil))
    `(progn
-      (setf (gethash ,name *external-functions*) (make-extern ,name ,ret-type ,types *external-functions-counter*))
+      (setf (gethash ,name *external-functions*) (make-extern ,name ,ret-type ,types *external-functions-counter* ,poly-p))
       (incf *external-functions-counter*)))
 
 (define-external-function "sigmoid" :type-float '(:type-float))
@@ -91,3 +91,6 @@
 (define-external-function "lexists" :type-bool '((:type-list :all) :all))
 (define-external-function "lexistss" :type-bool '((:type-list :all) (:type-list :all)))
 (define-external-function "queens_violation" :type-bool '(:type-int (:type-list :type-int)))
+(define-external-function "minimax_score" :type-int '((:type-list :type-int) :type-int :type-int))
+(define-external-function "minimax_points" :type-int '((:type-list :type-int) :type-int))
+(define-external-function "array_init" '(:type-array :all) '(:type-int :all) :poly-p t)

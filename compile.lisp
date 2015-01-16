@@ -165,15 +165,29 @@
 		(when fun
 			(extern-ret-type fun))))
 
-(defun compile-call-args (args)
-	(if (null args)
-		(values nil nil)
+(defun compile-call-args (args call)
+   (cond
+    ((null args)
+      (let* ((extern (lookup-external-definition (call-name call)))
+             (template-types `(,(extern-ret-type extern) ,@(extern-types extern)))
+             (concrete-types `(,(expr-type call) (loop for arg in (call-args
+                                                       collect (expr-type arg))))))
+         (when (and (extern-poly-p extern) (has-all-type-p template-types))
+            (loop for template in template-types
+                  for concrete in concrete-types
+                  when (has-all-type-p template)
+                  do (progn
+                        (let ((typ (find-all-type template concrete)))
+                           (with-compilation-on-reg (arg-place arg-code) (make-int (lookup-type-id typ) :type-int)
+                            (return-from compile-call-args (values `(,arg-place) arg-code))))))))
+     (values nil nil))
+    (t
 		(with-compilation-on-reg (arg-place arg-code) (first args)
-			(multiple-value-bind (regs codes) (compile-call-args (rest args))
-				(values (cons arg-place regs) `(,@arg-code ,@codes))))))
+			(multiple-value-bind (regs codes) (compile-call-args (rest args) call)
+				(values (cons arg-place regs) `(,@arg-code ,@codes)))))))
 				
 (defun compile-call (name args dest call)
-	(multiple-value-bind (regs codes) (compile-call-args args)
+	(multiple-value-bind (regs codes) (compile-call-args args call)
 		(cond
 			((null dest)
 		 		(with-reg (new-dest)
@@ -182,7 +196,8 @@
 				(return-expr dest `(,@codes ,(decide-external-function name dest regs))))
 			(t
 				(with-reg (new-dest)
-					(return-expr dest `(,@codes ,(decide-external-function name new-dest regs) ,(make-move new-dest dest (expr-type call)))))))))
+					(return-expr dest `(,@codes ,(decide-external-function name new-dest regs)
+                                   ,(make-move new-dest dest (expr-type call)))))))))
 			
 (defun compile-callf-args (args args-code n)
 	(if (null args)

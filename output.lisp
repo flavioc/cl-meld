@@ -600,6 +600,7 @@
       (:schedule-next
          (output-instr-and-values vec #b10110110 (vm-schedule-next-node instr)))
 		(:thread-persistent-iterate (output-iterate vec #b10110111 instr nil))
+      (:gc (output-instr-type-and-values vec #b10111000 (vm-gc-type instr) (vm-gc-item instr)))
       (:stop-program
 			(output-instr-and-values vec #b10100010))
 	   (:cpu-id
@@ -679,11 +680,6 @@
 			(make-byte-code name vec
          	(output-instrs instrs vec)))))
 
-(defun lookup-type-id (typ)
-	(let ((ret (position typ *program-types* :test #'equal)))
-		(assert (integerp ret))
-		ret))
-
 (defun type-to-bytes (typ)
 	(cond
 		((symbolp typ)
@@ -695,12 +691,17 @@
             ; #b0100 type-struct
 				(:type-bool '(#b0101))
             (:type-thread '(#b0110))
+            ; #b0111 type-array
 				(:type-string '(#b1001))
 				(otherwise (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ)))))
 		((type-list-p typ)
 			(let* ((sub (type-list-element typ))
 					 (bytes (type-to-bytes sub)))
 				`(,#b0011 ,@bytes)))
+      ((type-array-p typ)
+         (let* ((sub (type-array-element typ))
+                (bytes (type-to-bytes sub)))
+          `(,#b0111 ,@bytes)))
 		((type-struct-p typ)
 			(let ((ls (type-struct-list typ)))
 				(let ((x `(,#b0100 ,(length ls) ,@(loop for ty in ls append (type-to-bytes ty)))))

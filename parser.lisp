@@ -87,6 +87,7 @@
 										("thread" :type-thread)
 										("string" :type-string)
 										("list" :type-list)
+                              ("array" :type-array)
 										("include" :include)
 										("random" :random)
 										("route" :route)
@@ -249,6 +250,7 @@
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl :arg :tilde :append
 								:lsparen :rsparen :nil :bar :type-list :local
+                        :type-array
 								:route :include :file :world :cpus :action
 								:linear :dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :ins :fun :end :colon
@@ -395,7 +397,10 @@
 												(make-struct-type tl)))
 	 (:type-list atype #'(lambda (l ty)
 	                           (declare (ignore l))
-										(make-list-type ty))))
+										(make-list-type ty)))
+    (:type-array atype #'(lambda (a ty)
+                               (declare (ignore a))
+                               (make-array-type ty))))
 										
 	(type-list
 		(atype #'list)
