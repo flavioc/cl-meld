@@ -106,8 +106,8 @@
 
 (defmacro return-expr (place &optional code) `(values ,place ,code (if (reg-p ,place) (extend-regs *used-regs* ,place) *used-regs*)))
 
-(defmacro with-compiled-expr ((place code &key (force-dest nil)) expr &body body)
-	`(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr :dest ,force-dest)
+(defmacro with-compiled-expr ((place code &key (force-dest nil) (top-level nil)) expr &body body)
+	`(multiple-value-bind (,place ,code *used-regs*) (compile-expr ,expr :dest ,force-dest :top-level ,top-level)
 		(cond
 			((and ,force-dest (not (equalp ,place ,force-dest)))
 				(setf ,code (append ,code (list (make-move ,place ,force-dest))))
@@ -895,16 +895,26 @@
           (linear-code (compile-linear-deletes-and-returns *starting-subgoal* def sub-regs inside head))
           (delete-code (compile-inner-delete *compilation-clause*)))
       `(,@head-code ,@delete-code ,@linear-code)))
+
+(defun variable-used-in-head-p (var head)
+   (do-subgoals head (:args args)
+      (dolist (arg args)
+         (when (and (var-p arg) (var-eq-p var arg))
+            (return-from variable-used-in-head-p t))))
+   nil)
       
-(defun compile-assignments-and-head (assignments head-fun)
+(defun compile-assignments-and-head (assignments head head-fun)
    (if (null assignments)
        (funcall head-fun)
        (let ((ass (find-if (valid-assignment-p (all-used-var-names)) assignments)))
          (with-reg (new-reg)
-				(with-compiled-expr (place instrs :force-dest new-reg) (assignment-expr ass)
-            	(add-used-var (var-name (assignment-var ass)) place)
-            	(let ((other-code (compile-assignments-and-head (remove-tree ass assignments) head-fun)))
-               	`(,@instrs ,@other-code)))))))
+            (with-assignment ass (:var var :expr expr)
+               (with-compiled-expr (place instrs
+                                    :force-dest new-reg
+                                    :top-level (variable-used-in-head-p var head)) expr
+            	(add-used-var (var-name var) place)
+            	(let ((other-code (compile-assignments-and-head (remove-tree ass assignments) head head-fun)))
+               	`(,@instrs ,@other-code))))))))
 
 (defun remove-defined-assignments (assignments) (mapcar #L(remove-used-var (var-name (assignment-var !1))) assignments))
 
@@ -912,14 +922,14 @@
 	(cond
 		((and (not (null head)) (clause-head-is-recursive-p head))
 			(let* ((assigns (get-assignments body))
-					 (code (compile-assignments-and-head assigns #L(loop for clause in head
+					 (code (compile-assignments-and-head assigns head #L(loop for clause in head
 																						append (with-compile-context (compile-iterate (clause-body clause) (clause-body clause)
 																													(clause-head clause) sub-regs :inside inside))))))
 				(remove-defined-assignments assigns)
 				code))
 		(t
    		(let* ((assigns (get-assignments body))
-          		 (head-code (compile-assignments-and-head assigns #L(do-compile-head head sub-regs inside head-compiler))))
+          		 (head-code (compile-assignments-and-head assigns head #L(do-compile-head head sub-regs inside head-compiler))))
          	(remove-defined-assignments assigns)
          	(if *starting-subgoal*
             	`(,(make-vm-rule-done) ,@head-code)
