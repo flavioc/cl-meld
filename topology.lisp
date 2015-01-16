@@ -17,7 +17,11 @@
 (defun number-of-nodes (nodes) (hash-table-count nodes))
 
 (defmacro iterate-nodes ((fake real nodes) &body body)
-   `(iterate-hash (,nodes ,real ,fake) ,@body))
+   (alexandria:with-gensyms (ls)
+      `(let ((,ls (hash-keys ,nodes)))
+         (loop for ,fake in (sort ,ls #'<)
+               do (let ((,real (gethash ,fake ,nodes)))
+                  ,@body)))))
 
 (defun flip-nodes (hash expr)
    (transform-expr #'addr-p #'(lambda (expr)

@@ -74,6 +74,9 @@
 	     h1)
     h2))
 
+(defun hash-keys (hash-table)
+  (loop for key being the hash-keys of hash-table collect key))
+
 (defmacro any (predicates val)
    `(or ,@(mapcar (lambda (pred) `(,pred ,val)) predicates)))
    
