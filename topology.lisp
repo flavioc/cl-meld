@@ -18,10 +18,11 @@
 
 (defmacro iterate-nodes ((fake real nodes) &body body)
    (alexandria:with-gensyms (ls)
-      `(let ((,ls (hash-keys ,nodes)))
-         (loop for ,fake in (sort ,ls #'<)
-               do (let ((,real (gethash ,fake ,nodes)))
-                  ,@body)))))
+      `(let ((,ls (loop for value being the hash-values of ,nodes
+                        using (hash-key key)
+                        collect (cons value key))))
+         (loop for (,fake . ,real) in (sort ,ls #'< :key #'car)
+               do ,@body))))
 
 (defun flip-nodes (hash expr)
    (transform-expr #'addr-p #'(lambda (expr)

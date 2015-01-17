@@ -137,6 +137,12 @@
 			 (remain (subseq remain1 0 (- (length remain1) 2))))
 		(parse-integer remain)))
 
+(defun parse-call (name args)
+ (cond
+  ((has-function-call-p name)
+   (make-callf name args))
+  (t (make-call name args))))
+
 (defvar *parsed-consts* nil)
 (defun lookup-const-def (name)
 	(let ((x (find-if #L(equal (const-definition-name !1) name) *parsed-consts*)))
@@ -249,7 +255,7 @@
 								:type-float :type-string :plus :minus :mul :mod :div
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl :arg :tilde :append
-								:lsparen :rsparen :nil :bar :type-list :local
+								:lsparen :rsparen :nil :type-list :local
                         :type-array
 								:route :include :file :world :cpus :action
 								:linear :dollar :lcparen :rcparen :lolli
@@ -555,12 +561,7 @@
 		(:true (return-const (make-bool t)))
 		(:false (return-const (make-bool nil)))
 		(:string #'(lambda (x) (make-string-constant (subseq x 1 (1- (length x)))))) ;; need to trim the first and final ""
-	   (const :lparen args :rparen #'(lambda (name l args r) (declare (ignore l r))
-	            (cond
-	               ((has-function-call-p name)
-							(make-callf name args))
-	                  ;(generate-expression-by-function-call it args))
-	               (t (make-call name args)))))
+	   (const :lparen args :rparen #'(lambda (name l args r) (declare (ignore l r)) (parse-call name args)))
 	   (const #L(if (has-const-def-p !1)
 						(make-get-constant !1)
 						(error (make-condition 'parse-failure-error :text (tostring "constant not recognized: \"~a\"" !1) :line *line-number*))))
@@ -578,7 +579,6 @@
 	   (expr :mod expr #'make-mod)
 	   (expr :div expr #'make-div)
 	   (expr :plus expr #'make-plus)
-      (cmp #'identity)
 	   (:if cmp :then expr :else expr :end #'(lambda (if cmp then e1 else e2 end)
 	                                                (declare (ignore if then else end))
 	                                                (make-if cmp e1 e2)))
@@ -608,7 +608,8 @@
    (cmp
       (expr :in expr #L(make-call "lexists" (list !3 !1)))
       (expr :ins expr #L(make-call "lexistss" (list !3 !1)))
-      (:tilde expr #L(make-not !2))
+	   (const :lparen args :rparen #'(lambda (name l args r) (declare (ignore l r)) (parse-call name args)))
+      (:tilde cmp #L(make-not !2))
 		(cmp :or cmp #'make-or)
       (cmp :and cmp #'make-and)
 		(:lparen cmp :rparen #'(lambda (l cmp r) (declare (ignore l r)) cmp))
@@ -690,7 +691,8 @@
          (in-directory (pathname new-dir)
             (handler-case (parse-with-lexer lexer meld-parser)
                (yacc-parse-error (c) (error (make-condition 'parse-failure-error
-                  :text (tostring "unexpected terminal ~S (value ~S)"
+                  :text (tostring "in file ~a: unexpected terminal ~S (value ~S)"
+                                       file
                                        (yacc-parse-error-terminal c)
                                        (yacc-parse-error-value c))
                :line *line-number*)))))))))
