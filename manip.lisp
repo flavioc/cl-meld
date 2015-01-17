@@ -434,6 +434,9 @@
 (defun set-comprehension-left (comp left)
 	(setf (second comp) left))
 (defsetf comprehension-left set-comprehension-left)
+(defun set-comprehension-right (comp right)
+   (setf (third comp) right))
+(defsetf comprehension-right set-comprehension-right)
 
 ;;;; AGGREGATES
 

@@ -956,6 +956,28 @@
 				(when (test-same-arguments-p args args-other constraints)
 					(return-from find-same-subgoal sub-other)))))
 	nil)
+
+(defun find-persistent-facts-comprehension (comp)
+   "Find reusable subgoals de-derived in the comprehension head."
+   (with-comprehension comp (:left body :right head)
+      (let ((tmp-head (get-subgoals head))
+            (constraints (get-constraints body))
+            mark-subgoals to-remove)
+         (do-subgoals body (:name name :subgoal sub)
+          (let ((def (lookup-definition name)))
+           (when (is-linear-p def)
+               (cond
+                ((subgoal-is-reused-p sub))
+                (t
+                 (let ((found (find-same-subgoal tmp-head sub constraints)))
+                  (when found
+                    (push sub mark-subgoals)
+                    (push found to-remove)
+                    (setf tmp-head (remove found tmp-head)))))))))
+         (dolist (sub to-remove)
+            (setf (comprehension-right comp) (delete sub (comprehension-right comp))))
+         (dolist (sub mark-subgoals)
+          (subgoal-set-reused sub)))))
 	
 (defun find-persistent-rule (clause)
 	"Returns T if we just use persistent facts in the rule and if any linear
@@ -966,6 +988,8 @@
 				(mark-subgoals nil)
 				(to-remove nil)
 				(linear-fail nil))
+         (do-comprehensions head (:comprehension c)
+            (find-persistent-facts-comprehension c))
 			(do-subgoals body (:name name :subgoal sub)
 				(let ((def (lookup-definition name)))
 					(when (is-linear-p def)
