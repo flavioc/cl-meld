@@ -775,11 +775,11 @@
 		(:min nil)
 		(otherwise (error 'compile-invalid-error :text (tostring "agg-construct-post op ~a not recognized" op)))))
 
-(defun agg-construct-step (op acc var)
+(defun agg-construct-step (op acc var gc)
 	(case op
 		(:collect
 			(let ((dest (lookup-used-var (var-name var))))
-				`(,(make-vm-cons dest acc acc (expr-type var)))))
+				`(,(make-vm-cons dest acc acc (expr-type var) (make-vm-bool gc)))))
 		(:sum
 			(let ((src (lookup-used-var (var-name var))))
 				(assert (reg-dot-p src))
@@ -799,16 +799,17 @@
 	
 (defun compile-agg-construct (c)
 	(with-agg-construct c (:specs specs)
-		(compile-agg-construct-specs c specs nil nil nil)))
+		(compile-agg-construct-specs c specs nil nil nil nil)))
 
-(defun compile-agg-construct-specs (c specs end post vars-regs)
+(defun compile-agg-construct-specs (c specs end post vars-regs gcs)
 	(cond
 		((null specs)
 			(let ((inner-code (compile-iterate (agg-construct-body c) (agg-construct-body c) nil nil
 									:head-compiler #'(lambda (h d sr s)
 																(declare (ignore h d sr s))
 																(loop for var-reg in vars-regs
-																	append (agg-construct-step (third var-reg) (second var-reg) (first var-reg)))))))
+                                                      for gc in gcs
+                                                      append (agg-construct-step (third var-reg) (second var-reg) (first var-reg) gc))))))
 				(dolist (var-reg vars-regs)
 					(add-used-var (var-name (first var-reg)) (second var-reg)))
 				(let ((head-code (do-compile-head-code (agg-construct-head c) nil nil nil)))
@@ -825,7 +826,8 @@
 							(let ((inner-code (compile-agg-construct-specs c rest-specs
 										(append end spec-end)
                               spec-post
-										(cons (list var acc op) vars-regs))))
+										(cons (list var acc op) vars-regs)
+                              (cons (not (variable-used-in-head-p var (agg-construct-head c))) gcs))))
 								`(,@(agg-construct-start op acc) ,@inner-code)))))))))
 
 (defun do-compile-head-comprehensions (head def subgoal)
