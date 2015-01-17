@@ -390,6 +390,7 @@
 
    (type-decl
     (atype #'identity)
+    (atype variable #'(lambda (typ name) (declare (ignore name)) typ))
     (aggregate-decl atype #'make-aggregate))
     
    (aggregate-decl
