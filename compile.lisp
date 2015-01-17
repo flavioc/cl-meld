@@ -910,11 +910,45 @@
           (delete-code (compile-inner-delete *compilation-clause*)))
       `(,@head-code ,@delete-code ,@linear-code)))
 
+(defun variable-used-in-subgoal-argument-p (arg var)
+   "Check if variable is going to be used directly for creating the subgoal argument.
+   This is for GC purposes for runtime objects (list, array, structs).
+   If the variable is used immediatelly in the subgoal or inside a cons, then we do not need
+   to garbage collect it."
+   (cond
+    ((var-p arg) (var-eq-p arg var))
+    ((cons-p arg)
+     (or (variable-used-in-subgoal-argument-p (cons-head arg) var)
+         (variable-used-in-subgoal-argument-p (cons-tail arg) var)))
+    ((struct-p arg)
+     (dolist (a (struct-list arg))
+       (when (variable-used-in-subgoal-argument-p a var)
+        (return-from variable-used-in-subgoal-argument-p t)))
+     nil)))
+
 (defun variable-used-in-head-p (var head)
+   "For all subgoals in the head, check if the variable is used directly to create a subgoal argument.
+   This is for GC purposes for runtime objects (list, array, structs)."
    (do-subgoals head (:args args)
       (dolist (arg args)
-         (when (and (var-p arg) (var-eq-p var arg))
+         (when (variable-used-in-subgoal-argument-p arg var)
             (return-from variable-used-in-head-p t))))
+   (do-exists head (:var-list vars :body body)
+      (dolist (v vars)
+         (when (var-eq-p v var)
+            (return-from variable-used-in-head-p nil)))
+      (when (variable-used-in-head-p var body)
+       (return-from variable-used-in-head-p t)))
+   (do-comprehensions head (:right right :variables vars)
+      (dolist (v vars)
+         (when (var-eq-p v var)
+            (return-from variable-used-in-head-p nil)))
+      (when (variable-used-in-head-p var right)
+       (return-from variable-used-in-head-p t)))
+	(do-conditionals head (:term1 term1 :term2 term2)
+      (when (or (variable-used-in-head-p var term1)
+                (variable-used-in-head-p var term2))
+       (return-from variable-used-in-head-p t)))
    nil)
       
 (defun compile-assignments-and-head (assignments head head-fun)
