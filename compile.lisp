@@ -10,6 +10,9 @@
 	(if (has-reg-p regs reg)
 		regs
 		(cons reg regs)))
+
+(defun free-reg (regs reg)
+   (remove reg regs :count 1 :test #'reg-eq-p))
 		
 (defun find-unused-reg (regs)
 	(loop for i upto (1- *num-regs*)
@@ -92,6 +95,7 @@
 
 (defun valid-constraint-p (all-vars) #L(subsetp (all-variable-names !1) all-vars))
 (defun get-compile-constraints-and-assignments (body)
+   "Return constraints and assignments that can be used from the body."
    (let* ((assignments (select-valid-assignments body nil (all-used-var-names)))
           (vars-ass (mapcar #L(var-name (assignment-var !1)) assignments))
           (all-vars (append vars-ass (all-used-var-names)))
@@ -916,7 +920,9 @@
             	(let ((other-code (compile-assignments-and-head (remove-tree ass assignments) head head-fun)))
                	`(,@instrs ,@other-code))))))))
 
-(defun remove-defined-assignments (assignments) (mapcar #L(remove-used-var (var-name (assignment-var !1))) assignments))
+(defun remove-defined-assignments (assignments)
+   "Removes all defined variables from the context."
+   (mapcar #L(remove-used-var (var-name (assignment-var !1))) assignments))
 
 (defun compile-head (body head sub-regs inside head-compiler)
 	(cond
@@ -984,58 +990,75 @@
 				(make-order-rlinear-iterate name tuple-reg match-constraints iterate-code sub))
 			(t (assert nil)))))
 
+(defun compile-constraint (constraint rest-compiler)
+   "Compiles constraint and continues the rule compilation with rest-compiler."
+   (let ((c-expr (constraint-expr constraint))
+         r instrs)
+      (with-compiled-expr (reg expr-code) c-expr
+         (setf r reg
+               instrs expr-code))
+      `(,@instrs ,(make-vm-if r (funcall rest-compiler)))))
+               
+(defun do-compile-constraints-and-assignments (constraints assignments body head rest-compiler tmp-assignments)
+   (cond
+    ((null constraints)
+     (assert (not assignments))
+      (remove-defined-assignments (mapcar #'car tmp-assignments))
+      (let ((unneeded-regs (mapcar #'cdr tmp-assignments)))
+         (loop for reg in unneeded-regs
+               do (setf *used-regs* (free-reg *used-regs* reg))))
+     (funcall rest-compiler))
+    (t
+      (let* ((all-vars (all-used-var-names))
+            (new-constraint (select-best-constraint constraints all-vars)))
+         (if (null new-constraint)
+            (let* ((ass (find-if (valid-assignment-p all-vars) assignments)))
+               (with-assignment ass (:var var :expr expr)
+                  (with-compiled-expr (place instrs) expr
+                   (let* ((ass-used-after-p (expr-uses-var-p (append body head) var))
+                          (new-tmp-ass (if ass-used-after-p
+                                           tmp-assignments
+                                           (cons (cons ass place) tmp-assignments))))
+                        (add-used-var (var-name var) place)
+                        `(,@instrs ,@(do-compile-constraints-and-assignments
+                              constraints (remove-tree ass assignments) body head rest-compiler new-tmp-ass))))))
+            (compile-constraint new-constraint
+               #'(lambda ()
+               (do-compile-constraints-and-assignments (remove-tree new-constraint constraints)
+                        assignments body head rest-compiler tmp-assignments))))))))
+
+(defun compile-constraints-and-assignments (constraints assignments body head rest-compiler)
+   (do-compile-constraints-and-assignments constraints assignments body head rest-compiler nil))
+
 (defun compile-iterate (body orig-body head sub-regs &key (inside nil) (head-compiler #'do-compile-head-code))
    (multiple-value-bind (constraints assignments) (get-compile-constraints-and-assignments body)
-		(let* ((next-sub (select-next-subgoal-for-compilation body))
-             (body1 (remove-unneeded-assignments (remove-tree-first next-sub (remove-all body constraints)) head)))
-         (compile-constraints-and-assignments constraints assignments
-					(if (not next-sub)
-						(compile-head body1 head sub-regs inside head-compiler)
-               	(let ((next-sub-name (subgoal-name next-sub)))
-                  	(with-reg (reg)
-								(multiple-value-bind (low-constraints body2) (add-subgoal next-sub reg body1 :match)
-									; body2 may have a reduced number of constraints
-									(let* ((match-constraints (mapcar #'rest (remove-if (constraints-in-the-same-subgoal-p reg) low-constraints)))
-											;; these constraints related arguments inside the matching subgoal
-										 	(inner-constraints (mapcar (transform-reg-matches reg) (filter (constraints-in-the-same-subgoal-p reg) low-constraints)))
-	                            	(def (lookup-definition next-sub-name))
-	                            	(iterate-code (compile-low-constraints inner-constraints
-																		(compile-iterate body2 orig-body head
-																						(acons next-sub reg sub-regs)
-																						:inside t :head-compiler head-compiler))))
-	                       	`(,(create-iterate-instruction next-sub def match-constraints reg iterate-code)))))))))))
+		(let ((body0 (remove-all body (append constraints assignments))))
+         (compile-constraints-and-assignments constraints assignments body0 head
+            #'(lambda ()
+               (let* ((next-sub (select-next-subgoal-for-compilation body0))
+                      (body1 (remove-tree-first next-sub body0)))
+                  (if (not next-sub)
+                     (compile-head body1 head sub-regs inside head-compiler)
+                     (let ((next-sub-name (subgoal-name next-sub)))
+                        (with-reg (reg)
+                           (multiple-value-bind (low-constraints body2) (add-subgoal next-sub reg body1 :match)
+                              ; body2 may have a reduced number of constraints
+                              (let* ((match-constraints (mapcar #'rest (remove-if (constraints-in-the-same-subgoal-p reg) low-constraints)))
+                                    ;; these constraints related arguments inside the matching subgoal
+                                    (inner-constraints (mapcar (transform-reg-matches reg) (filter (constraints-in-the-same-subgoal-p reg) low-constraints)))
+                                    (def (lookup-definition next-sub-name))
+                                    (iterate-code (compile-low-constraints inner-constraints
+                                                         (compile-iterate body2 orig-body head
+                                                                     (acons next-sub reg sub-regs)
+                                                                     :inside t :head-compiler head-compiler))))
+                              `(,(create-iterate-instruction next-sub def match-constraints reg iterate-code)))))))))))))
      
-(defun compile-constraint (inner-code constraint)
-   (let ((c-expr (constraint-expr constraint)))
-      (with-compiled-expr (reg expr-code) c-expr
-         `(,@expr-code ,(make-vm-if reg inner-code)))))
-               
 (defun select-best-constraint (constraints all-vars)
    (let ((all (filter (valid-constraint-p all-vars) constraints)))
       (if (null all)
          nil
          (first (sort all #'> :key #'constraint-priority)))))
    
-(defun do-compile-constraints-and-assignments (constraints assignments inner-code)
-	(if (null constraints)
-		inner-code
-      (let* ((all-vars (all-used-var-names))
-            (new-constraint (select-best-constraint constraints all-vars)))
-         (if (null new-constraint)
-            (let ((ass (find-if (valid-assignment-p all-vars) assignments)))
-               (with-compiled-expr (place instrs) (assignment-expr ass)
-                     (add-used-var (var-name (assignment-var ass)) place)
-                     (let ((other-code (do-compile-constraints-and-assignments
-                                          constraints (remove-tree ass assignments) inner-code)))
-                        `(,@instrs ,@other-code))))
-            (let ((inner-code (do-compile-constraints-and-assignments
-                                       (remove-tree new-constraint constraints) assignments inner-code)))
-               (compile-constraint inner-code new-constraint))))))
-
-(defun compile-constraints-and-assignments (constraints assignments inner-code)
-   (always-ret (do-compile-constraints-and-assignments constraints assignments inner-code)
-      (remove-defined-assignments assignments)))
-
 (defun compile-low-constraints (constraints inner-code)
 	"Compiles the low constraints when starting with some initial subgoal."
    (with-reg (reg)
@@ -1086,8 +1109,9 @@
 (defun compile-with-starting-subgoal (body head &optional subgoal)
    (with-empty-compile-context
       (multiple-value-bind (first-constraints first-assignments) (get-compile-constraints-and-assignments body)
-         (let* ((remaining (remove-unneeded-assignments (remove-all body first-constraints) head)))
-				(compile-constraints-and-assignments first-constraints first-assignments (compile-initial-subgoal remaining body head subgoal))))))
+         (let* ((remaining (remove-all body (append first-constraints first-assignments))))
+				(compile-constraints-and-assignments first-constraints first-assignments remaining head
+               #'(lambda () (compile-initial-subgoal remaining body head subgoal)))))))
 				
 (defun compile-subgoal-clause (name clause)
    (with-clause clause (:body body :head head)

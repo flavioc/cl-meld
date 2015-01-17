@@ -19,6 +19,7 @@
       ((host-p val) (tostring "host"))
       ((thread-id-p val) (tostring "thread-id"))
       ((world-p val) (tostring "world"))
+      ((cpus-p val) "cpus")
       ((addr-p val) (tostring "@~a" (addr-num val)))
       ((string-constant-p val) (tostring "\"~a\"" (string-constant-val val)))
 		((struct-p val)
