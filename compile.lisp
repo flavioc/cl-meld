@@ -767,6 +767,14 @@
 		(:min nil)
 		(otherwise (error 'compile-invalid-error :text (tostring "agg-construct-end: op ~a not recognized" op)))))
 		
+(defun agg-construct-post (op acc var)
+	(case op
+		(:collect nil)
+		(:count nil)
+		(:sum nil)
+		(:min nil)
+		(otherwise (error 'compile-invalid-error :text (tostring "agg-construct-post op ~a not recognized" op)))))
+
 (defun agg-construct-step (op acc var)
 	(case op
 		(:collect
@@ -791,9 +799,9 @@
 	
 (defun compile-agg-construct (c)
 	(with-agg-construct c (:specs specs)
-		(compile-agg-construct-specs c specs nil nil)))
+		(compile-agg-construct-specs c specs nil nil nil)))
 
-(defun compile-agg-construct-specs (c specs end vars-regs)
+(defun compile-agg-construct-specs (c specs end post vars-regs)
 	(cond
 		((null specs)
 			(let ((inner-code (compile-iterate (agg-construct-body c) (agg-construct-body c) nil nil
@@ -806,15 +814,17 @@
 				(let ((head-code (do-compile-head-code (agg-construct-head c) nil nil nil)))
 					(dolist (var-reg vars-regs)
 						(remove-used-var (var-name (first var-reg))))
-					`(,(make-vm-reset-linear (append inner-code (append end (append head-code `(,(make-vm-reset-linear-end))))))))))
+					`(,(make-vm-reset-linear `(,@inner-code ,@end ,@head-code ,@post ,(make-vm-reset-linear-end)))))))
 		(t
 			(let ((first-spec (first specs))
 					 (rest-specs (rest specs)))
 				(with-reg (acc)
 					(with-agg-spec first-spec (:var var :op op)
-						(let ((spec-end (agg-construct-end op acc)))
+						(let ((spec-end (agg-construct-end op acc))
+                        (spec-post (agg-construct-post op acc var)))
 							(let ((inner-code (compile-agg-construct-specs c rest-specs
 										(append end spec-end)
+                              spec-post
 										(cons (list var acc op) vars-regs))))
 								`(,@(agg-construct-start op acc) ,@inner-code)))))))))
 
