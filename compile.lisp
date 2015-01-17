@@ -948,7 +948,7 @@
       (when (variable-used-in-head-p var right)
        (return-from variable-used-in-head-p t)))
 	(do-conditionals head (:term1 term1 :term2 term2)
-      (when (or (variable-used-in-head-p var term1)
+      (when (and (variable-used-in-head-p var term1)
                 (variable-used-in-head-p var term2))
        (return-from variable-used-in-head-p t)))
    nil)
