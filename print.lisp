@@ -188,21 +188,29 @@
 		                  (with-comma-context
 		                     (print-subgoals stream right))
 		                  (format stream "}")))
-		            (do-agg-constructs head (:body body :head head :vlist vars :specs specs)
+		            (do-agg-constructs head (:body body :head0 head0 :head head :vlist vars :specs specs :agg-construct agg)
 		               (check-print-level stream)
 		               (with-comma-context
-								(format stream "[ ")
-								(do-agg-specs specs (:var to :op op)
-		                  	(format stream "~A => ~a, " op (print-val to)))
-		                  (format stream " | ")
-								(print-var-list stream vars)
+								(format stream "[")
+								(do-agg-specs specs (:var to :op op :id id)
+                           (when (> id 0)
+                              (format stream ", "))
+		                  	(format stream "~(~a~) => ~A" op (print-val to)))
+                        (when vars
+                           (format stream " | ")
+                           (print-var-list stream vars))
 		                  (format stream " | ")
 		                  (check-print-level stream)
 		                  (with-comma-context
 		                     (print-subgoal-body stream body))
-		                  (format stream " | ")
-		                  (with-comma-context
-		                   (print-subgoals stream head))
+                        (when head0
+                           (format stream " | ")
+                           (with-comma-context
+                              (print-subgoals stream head)))
+                        (when head
+                           (format stream " | ")
+                           (with-comma-context
+                            (print-subgoals stream head)))
 		                  (format stream "]")))
                   (do-conditionals head (:cmp cmp :term1 terms1 :term2 terms2)
                      (check-print-level stream)

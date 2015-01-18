@@ -467,7 +467,7 @@
 		(conditional #'identity)
 		(subhead-term #'identity)
 		(comprehension #'identity)
-		(aggregate-thing #'identity))
+		(aggregate-construct #'identity))
 		
    (term
 		(head-term #'identity)
@@ -524,7 +524,7 @@
 		(variable #'list)
 	   (variable :comma variable-list #'(lambda (v c l) (declare (ignore c)) (cons v l))))
 	
-	(aggregate-thing
+	(aggregate-construct
 		(:lsparen multiple-aggregate-spec :bar terms :bar terms :rsparen
 			#'(lambda (l specs b1 body b2 head r)
 					(declare (ignore l b1 b2 r))
@@ -533,10 +533,17 @@
 			#'(lambda (l specs b1 vlist b2 body b3 head r)
 				(declare (ignore l r b1 b2 b3 r))
 				(make-agg-construct specs vlist body head)))
+      (:lsparen multiple-aggregate-spec :bar variable-list :bar terms :bar terms :bar terms :rsparen
+         #'(lambda (l specs b1 vlist b2 body b3 head0 b4 head r)
+            (declare (ignore l r b1 b2 b3 b4 r))
+            (make-agg-construct specs vlist body head head0)))
+      (:lsparen multiple-aggregate-spec :bar terms :bar terms :bar terms :rsparen
+         #'(lambda (l specs b1 body b2 head0 b3 head r)
+            (declare (ignore l r b1 b2 b3 r))
+            (make-agg-construct specs nil body head head0)))
 	   (:lsparen multiple-aggregate-spec :bar variable-list :bar terms :rsparen
 	         #'(lambda (l specs b1 vlist b2 terms r) (declare (ignore l r b1 b2))
-	               (make-agg-construct specs vlist terms)))
-		)
+	               (make-agg-construct specs vlist terms))))
 		
 	(multiple-aggregate-spec
 		(aggregate-spec #L(list !1))

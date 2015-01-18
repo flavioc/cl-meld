@@ -807,9 +807,10 @@
 			(let ((inner-code (compile-iterate (agg-construct-body c) (agg-construct-body c) nil nil
 									:head-compiler #'(lambda (h d sr s)
 																(declare (ignore h d sr s))
-																(loop for var-reg in vars-regs
-                                                      for gc in gcs
-                                                      append (agg-construct-step (third var-reg) (second var-reg) (first var-reg) gc))))))
+                                                (let ((step-code (loop for var-reg in vars-regs
+                                                                  for gc in gcs
+                                                                  append (agg-construct-step (third var-reg) (second var-reg) (first var-reg) gc))))
+                                                 `(,@step-code ,@(do-compile-head-code (agg-construct-head0 c) nil nil nil)))))))
 				(dolist (var-reg vars-regs)
 					(add-used-var (var-name (first var-reg)) (second var-reg)))
 				(let ((head-code (do-compile-head-code (agg-construct-head c) nil nil nil)))
@@ -1479,6 +1480,122 @@
 			(when (clause-head-is-recursive-p head)
 				(do-clauses head (:body sub-body :head sub-head)
 					(find-reusable-facts-body sub-body sub-head))))))
+
+(defun find-same-subgoal (ls sub constraints)
+	(when (subgoal-is-remote-p sub)
+		(return-from find-same-subgoal nil))
+	(with-subgoal sub (:name name :args args)
+		(do-subgoals ls (:name other :args args-other :subgoal sub-other)
+			(when (and (string-equal name other)
+							(not (subgoal-is-remote-p sub-other)))
+				(when (test-same-arguments-p args args-other constraints)
+					(return-from find-same-subgoal sub-other)))))
+	nil)
+
+(defun find-persistent-facts-comprehension (comp)
+   "Find reusable subgoals de-derived in the comprehension head."
+   (with-comprehension comp (:left body :right head)
+      (let ((tmp-head (get-subgoals head))
+            (constraints (get-constraints body))
+            mark-subgoals to-remove)
+         (do-subgoals body (:name name :subgoal sub)
+          (let ((def (lookup-definition name)))
+           (when (is-linear-p def)
+               (cond
+                ((subgoal-is-reused-p sub))
+                (t
+                 (let ((found (find-same-subgoal tmp-head sub constraints)))
+                  (when found
+                    (push sub mark-subgoals)
+                    (push found to-remove)
+                    (setf tmp-head (remove found tmp-head)))))))))
+         (dolist (sub to-remove)
+            (setf (comprehension-right comp) (delete sub (comprehension-right comp))))
+         (dolist (sub mark-subgoals)
+          (subgoal-set-reused sub)))))
+
+(defun find-persistent-facts-agg-construct (agg)
+   "Find reusable subgoals re-derived in the aggregate head0."
+   (with-agg-construct agg (:body body :head0 head0)
+      (let ((tmp-head (get-subgoals head0))
+            (constraints (get-constraints body))
+            mark-subgoals to-remove)
+       (do-subgoals body (:name name :subgoal sub)
+        (let ((def (lookup-definition name)))
+         (when (is-linear-p def)
+          (cond
+           ((subgoal-is-reused-p sub))
+           (t
+            (let ((found(find-same-subgoal tmp-head sub constraints)))
+             (when found
+              (push sub mark-subgoals)
+              (push found to-remove)
+              (setf tmp-head (remove found tmp-head)))))))))
+       (dolist (sub to-remove)
+        (setf (agg-construct-head0 agg) (delete sub (agg-construct-head0 agg))))
+       (dolist (sub mark-subgoals)
+        (subgoal-set-reused sub)))))
+	
+(defun find-persistent-rule (clause)
+	"Returns T if we just use persistent facts in the rule and if any linear
+	facts are used, then are re-derived in the head of the rule."
+	(with-clause clause (:body body :head head)
+		(let ((tmp-head (get-subgoals head))
+				(constraints (get-constraints body))
+				(mark-subgoals nil)
+				(to-remove nil)
+				(linear-fail nil))
+         (do-comprehensions head (:comprehension c)
+            (find-persistent-facts-comprehension c))
+         (do-agg-constructs head (:agg-construct agg)
+            (find-persistent-facts-agg-construct agg))
+			(do-subgoals body (:name name :subgoal sub)
+				(let ((def (lookup-definition name)))
+					(when (is-linear-p def)
+						(cond
+							((subgoal-is-reused-p sub) )
+							(t
+								(let ((found (find-same-subgoal tmp-head sub constraints)))
+									(cond
+										(found
+											(push sub mark-subgoals)
+											(push found to-remove)
+											(setf tmp-head (remove found tmp-head)))
+										(t (setf linear-fail t)))))))))
+			(dolist (sub to-remove)
+				(setf (clause-head clause) (delete sub (clause-head clause))))
+			(dolist (sub mark-subgoals)
+				(subgoal-set-reused sub))
+			(unless linear-fail
+				(do-subgoals body (:name name :subgoal sub)
+					(when (subgoal-is-reused-p sub)
+						(let ((def (lookup-definition name)))
+							(unless (is-reused-p def)
+								(definition-set-reused def)))))))))
+
+(defun rule-is-persistent-p (clause)
+	"Returns T if we just use persistent facts in the rule and if any linear
+	facts are used, then are re-derived in the head of the rule."
+	(with-clause clause (:body body :head head)
+		(when (or (get-comprehensions head)
+					 (get-agg-constructs head))
+			(return-from rule-is-persistent-p nil))
+		(let ((tmp-head (get-subgoals head)))
+			(do-subgoals body (:name name :subgoal sub)
+				(let ((def (lookup-definition name)))
+					(when (and (is-linear-p def)
+									(not (subgoal-is-reused-p sub)))
+						(return-from rule-is-persistent-p nil)))))
+		t))
+		
+(defun find-persistent-rules ()
+	(do-rules (:clause clause :head head)
+		(unless (clause-head-is-recursive-p head)
+			(find-persistent-rule clause)))
+	(do-rules (:clause clause :head head)
+		(unless (clause-head-is-recursive-p head)
+			(when (rule-is-persistent-p clause)
+				(clause-set-persistent clause)))))
 
 (defun compile-ast ()
 	(merge-clauses)

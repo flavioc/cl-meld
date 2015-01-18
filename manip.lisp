@@ -445,21 +445,25 @@
 (defun agg-spec-op (x) (second x))
 (defun agg-spec-var (x) (third x))
 
-(defun make-agg-construct (spec vlist body &optional head)
-   `(:agg-construct ,spec ,vlist ,body ,head))
+(defun make-agg-construct (spec vlist body &optional head head0)
+   `(:agg-construct ,spec ,vlist ,body ,head ,head0))
 (defun agg-construct-p (x) (tagged-p x :agg-construct))
 (defun agg-construct-specs (a) (second a))
 (defun agg-construct-vlist (a) (third a))
 (defun agg-construct-body (a) (fourth a))
 (defun agg-construct-head (a) (fifth a))
+(defun agg-construct-head0 (a) (sixth a))
 (defun agg-construct-spec-vars (a) (mapcar #'agg-spec-var (agg-construct-specs a)))
 
+(defun set-agg-construct-vlist (c new)
+	(setf (third c) new))
+(defsetf agg-construct-vlist set-agg-construct-vlist)
 (defun set-agg-construct-body (c body)
 	(setf (fourth c) body))
 (defsetf agg-construct-body set-agg-construct-body)
-(defun set-agg-construct-vlist (c new)
-	(setf (fifth c) new))
-(defsetf agg-construct-vlist set-agg-construct-vlist)
+(defun set-agg-construct-head0 (c body)
+	(setf (sixth c) body))
+(defsetf agg-construct-head0 set-agg-construct-head0)
 
 ;;;; EXISTS
 

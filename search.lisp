@@ -54,6 +54,7 @@
                         (aux (assignment-expr expr)))
 							((agg-construct-p expr)
 								(aux (agg-construct-body expr))
+								(aux (agg-construct-head0 expr))
 								(aux (agg-construct-head expr)))
                      ((if-p expr)
                         (aux (if-cmp expr))

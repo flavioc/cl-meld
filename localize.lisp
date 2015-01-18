@@ -175,8 +175,9 @@
    (do-comprehensions head (:left left :right right)
       (transform-thread-subgoals-list left thread)
       (transform-thread-subgoals-list right thread))
-   (do-agg-constructs head (:body body :head head)
+   (do-agg-constructs head (:body body :head head :head0 head0)
       (transform-thread-subgoals-list body thread)
+      (transform-thread-subgoals-list head0 thread)
       (transform-thread-subgoals-list head thread))))
          
 (defun transform-remote-subgoals (head host thread)
