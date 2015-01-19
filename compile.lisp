@@ -151,12 +151,21 @@
       (with-reg (,dest) ,@body)
       (progn ,@body)))
 
-(defmacro compile-expr-to (expr place &key top-level)
+(defmacro compile-expr-to (expr place &key (top-level nil))
 	(alexandria:with-gensyms (new-place code)
       `(multiple-value-bind (,new-place ,code *used-regs*) (compile-expr ,expr :dest ,place :top-level ,top-level)
 		   (if (not (equal ,new-place ,place))
             (append ,code (list (make-move ,new-place ,place (expr-type ,expr))))
             ,code))))
+
+(defmacro compile-expr-to-reg (expr &key try-place (top-level nil))
+   (alexandria:with-gensyms (new-place new-code)
+      `(cond
+        ((or (null ,try-place) (not (reg-p ,try-place)))
+            (with-reg (,new-place)
+               (values ,new-place (compile-expr-to ,expr ,new-place :top-level ,top-level))))
+        (t
+          (values ,try-place (compile-expr-to ,expr ,try-place :top-level ,top-level))))))
 
 (defun decide-external-function (name new-reg regs gc)
 	"Decides if external function is pre-defined or not."
@@ -311,10 +320,10 @@
                   (remove-used-var (var-name (let-var expr)))
                   (return-expr place-body `(,@code-expr ,@code-body))))))
       ((if-p expr)
-			(with-compiled-expr (place-cmp code-cmp) (if-cmp expr)
-            (with-dest-or-new-reg (dest)
-               (let ((code1 (compile-expr-to (if-e1 expr) dest))
-                     (code2 (compile-expr-to (if-e2 expr) dest)))
+         (with-dest-or-new-reg (dest)
+            (let ((code1 (compile-expr-to (if-e1 expr) dest))
+                  (code2 (compile-expr-to (if-e2 expr) dest)))
+               (multiple-value-bind (place-cmp code-cmp) (compile-expr-to-reg (if-cmp expr) :try-place dest :top-level top-level)
                   (return-expr dest `(,@code-cmp ,(make-vm-if-else place-cmp code1 code2)))))))
       ((tail-p expr)
 			(let (p c)
