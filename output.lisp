@@ -605,6 +605,8 @@
       (:schedule-next
          (output-instr-and-values vec #b10110110 (vm-schedule-next-node instr)))
 		(:thread-persistent-iterate (output-iterate vec #b10110111 instr nil))
+      (:fabs
+         (output-instr-and-values vec #b10111000 (vm-fabs-float instr) (vm-fabs-dest instr)))
       (:stop-program
 			(output-instr-and-values vec #b10100010))
 	   (:cpu-id

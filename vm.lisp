@@ -418,6 +418,11 @@
 (defun vm-float-p (flt) (tagged-p flt :float))
 (defun vm-float-val (flt) (second flt))
 
+(defun make-vm-fabs (flt dest) `(:fabs ,flt ,dest))
+(defun vm-fabs-float (x) (second x))
+(defun vm-fabs-dest (x) (third x))
+(defun vm-fabs-p (x) (tagged-p flt :float))
+
 (defun make-vm-string-constant (v) `(:string ,v))
 (defun vm-string-constant-p (x) (tagged-p x :string))
 (defun vm-string-constant-val (x) (second x))

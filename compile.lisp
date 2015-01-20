@@ -243,6 +243,14 @@
 			(let ((name (call-name expr))
 					(args (call-args expr)))
 				(cond
+               ((string-equal name "fabs")
+                (with-dest-or-new-reg (dest)
+                 (multiple-value-bind (arg-place arg-code) (compile-expr-to-reg (first args) :try-place dest :top-level top-level)
+                  (cond
+                     ((reg-p dest)
+                      (return-expr dest `(,@arg-code ,(make-vm-fabs arg-place dest))))
+                     (t
+                      (return-expr dest `(,@arg-code ,(make-vm-fabs arg-place arg-place) ,(make-move arg-place dest))))))))
 					((string-equal name "cpu-id")
 						(with-dest-or-new-reg (dest)
 							(with-compiled-expr (arg-place arg-code :force-dest dest) (first args)

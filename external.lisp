@@ -101,3 +101,4 @@
 (define-external-function "array_size" :type-int '((:type-array :all)))
 (define-external-function "minimax_score2" :type-int '((:type-array :type-int) :type-int :type-int))
 (define-external-function "minimax_points2" :type-int '((:type-array :type-int) :type-int))
+(define-external-function "fabs" :type-float '(:type-float))                                                                                 
