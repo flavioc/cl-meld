@@ -236,7 +236,8 @@
 			(return-expr (make-vm-constant (get-constant-name expr))))
 		((var-p expr)
 			(let ((look (lookup-used-var (var-name expr))))
-				(assert look)
+            (unless look
+             (error 'compile-invalid-error :text (tostring "Cannot find variable ~a" (var-name expr))))
 				(return-expr look)))
       ((call-p expr)
 			(let ((name (call-name expr))
@@ -599,6 +600,7 @@
 (defun do-compile-reused-subgoal (sub name args sub-regs)
 	(let* ((reused-sub (subgoal-get-reused sub))
 			 (reg (cdr (assoc reused-sub sub-regs))))
+      (assert reg)
 		`(,@(loop for new-arg in args
 					 for old-arg in (subgoal-args reused-sub)
 					 for i upto (length args)
@@ -806,11 +808,11 @@
 		(otherwise (error 'compile-invalid-error
 								:text (tostring "agg-construct-step: op ~a not recognized" op)))))
 	
-(defun compile-agg-construct (c)
+(defun compile-agg-construct (c sub-regs)
 	(with-agg-construct c (:specs specs)
-		(compile-agg-construct-specs c specs nil nil nil nil)))
+		(compile-agg-construct-specs c specs nil nil nil nil sub-regs)))
 
-(defun compile-agg-construct-specs (c specs end post vars-regs gcs)
+(defun compile-agg-construct-specs (c specs end post vars-regs gcs sub-regs)
 	(cond
 		((null specs)
 			(let ((inner-code (compile-iterate (agg-construct-body c) (agg-construct-body c) nil nil
@@ -822,7 +824,7 @@
                                                  `(,@step-code ,@(do-compile-head-code (agg-construct-head0 c) nil nil nil)))))))
 				(dolist (var-reg vars-regs)
 					(add-used-var (var-name (first var-reg)) (second var-reg)))
-				(let ((head-code (do-compile-head-code (agg-construct-head c) nil nil nil)))
+				(let ((head-code (do-compile-head-code (agg-construct-head c) sub-regs nil nil)))
 					(dolist (var-reg vars-regs)
 						(remove-used-var (var-name (first var-reg))))
 					`(,(make-vm-reset-linear `(,@inner-code ,@end ,@head-code ,@post ,(make-vm-reset-linear-end)))))))
@@ -837,7 +839,8 @@
 										(append end spec-end)
                               spec-post
 										(cons (list var acc op) vars-regs)
-                              (cons (not (variable-used-in-head-p var (agg-construct-head c))) gcs))))
+                              (cons (not (variable-used-in-head-p var (agg-construct-head c))) gcs)
+                              sub-regs)))
 								`(,@(agg-construct-start op acc) ,@inner-code)))))))))
 
 (defun do-compile-head-comprehensions (head def subgoal)
@@ -850,10 +853,10 @@
 									body-comp))))))
 		code))
 
-(defun do-compile-head-aggs (head def subgoal)
+(defun do-compile-head-aggs (head sub-regs def subgoal)
 	(let ((*starting-subgoal* nil)
 			(code-agg (do-agg-constructs head (:agg-construct c :operation append)
-					(with-compile-context (compile-agg-construct c)))))
+					(with-compile-context (compile-agg-construct c sub-regs)))))
 			code-agg))
 		
 (defun do-compile-one-exists (vars sub-regs exists-body def subgoal)
@@ -881,11 +884,14 @@
 
 (defun do-compile-head-code (head sub-regs def subgoal)
 	"Head is the head expression. Subgoal is the starting subgoal and def its definition."
-	`(,@(do-compile-head-conditionals head sub-regs def subgoal)
-      ,@(do-compile-head-comprehensions head def subgoal)
-      ,@(do-compile-head-aggs head def subgoal)
-      ,@(do-compile-head-exists head sub-regs def subgoal)
-      ,@(do-compile-head-subgoals (get-subgoals head) sub-regs)))
+   (let ((ass (get-assignments head)))
+      (compile-assignments-and-head ass head
+         #'(lambda ()
+            `(,@(do-compile-head-conditionals head sub-regs def subgoal)
+            ,@(do-compile-head-comprehensions head def subgoal)
+            ,@(do-compile-head-aggs head sub-regs def subgoal)
+            ,@(do-compile-head-exists head sub-regs def subgoal)
+            ,@(do-compile-head-subgoals (get-subgoals head) sub-regs))))))
 		
 (defun subgoal-to-be-deleted-p (subgoal def)
    (and (is-linear-p def)
@@ -897,6 +903,9 @@
 			(let ((reused (subgoal-get-reused head-sub)))
 				(when (eq reused sub)
 					(return-from subgoal-to-change-p t))))
+      (do-agg-constructs head (:head agg-head)
+         (when (subgoal-to-change-p sub agg-head)
+          (return-from subgoal-to-change-p t)))
 		nil))
         
 (defun compile-linear-deletes-and-returns (subgoal def sub-regs inside head)
@@ -981,21 +990,20 @@
    (mapcar #L(remove-used-var (var-name (assignment-var !1))) assignments))
 
 (defun compile-head (body head sub-regs inside head-compiler)
-	(cond
-		((and (not (null head)) (clause-head-is-recursive-p head))
-			(let* ((assigns (get-assignments body))
-					 (code (compile-assignments-and-head assigns head #L(loop for clause in head
-																						append (with-compile-context (compile-iterate (clause-body clause) (clause-body clause)
-																													(clause-head clause) sub-regs :inside inside))))))
-				(remove-defined-assignments assigns)
-				code))
-		(t
-   		(let* ((assigns (get-assignments body))
-          		 (head-code (compile-assignments-and-head assigns head #L(do-compile-head head sub-regs inside head-compiler))))
-         	(remove-defined-assignments assigns)
-         	(if *starting-subgoal*
-            	`(,(make-vm-rule-done) ,@head-code)
-            	head-code)))))
+    (let ((assigns (get-assignments body)))
+      (cond
+         ((and (not (null head)) (clause-head-is-recursive-p head))
+            (let ((code (compile-assignments-and-head assigns head #L(loop for clause in head
+                                                                     append (with-compile-context (compile-iterate (clause-body clause) (clause-body clause)
+                                                                                          (clause-head clause) sub-regs :inside inside))))))
+               (remove-defined-assignments assigns)
+               code))
+         (t
+            (let ((head-code (compile-assignments-and-head assigns head #L(do-compile-head head sub-regs inside head-compiler))))
+               (remove-defined-assignments assigns)
+               (if *starting-subgoal*
+                  `(,(make-vm-rule-done) ,@head-code)
+            	head-code))))))
 
 (defun select-next-subgoal-for-compilation (body)
 	"Selects next subgoal for compilation. We give preference to subgoals with modifiers (random/min/etc)."
@@ -1471,6 +1479,9 @@
 						(subgoal-will-modify sub sub2)
 						(subgoal-will-reuse-other sub2 sub)
 						(return-from find-reusable-fact-in-head t))))
+         (do-agg-constructs head (:head agg-head)
+            (when (find-reusable-fact-in-head agg-head sub)
+               (return-from find-reusable-fact-in-head t)))
 			nil)))
 			
 (defun find-reusable-facts-body (body head)

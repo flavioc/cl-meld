@@ -171,6 +171,8 @@
                (print-clause stream clause1 :end nil)
                (format stream ")")))
          (t
+            (when (has-assignments-p head)
+               (print-assignments stream head))
             (print-subgoals stream head)
             (do-comprehensions head (:right right :left left :variables vars)
                (check-print-level stream)

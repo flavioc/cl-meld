@@ -483,6 +483,7 @@
 			(do-constraints (agg-construct-body c) (:expr expr)
 		     (do-type-check-constraints expr))
 			(optimize-agg-construct-constraints c clause)
+         (type-check-clause-head-assignments (agg-construct-head0 c))
 			(type-check-all-subgoals-and-conditionals (agg-construct-head0 c))
          ;; replace spec variable's types.
 			(do-agg-specs (agg-construct-specs c) (:op op :var to)
@@ -502,6 +503,7 @@
 						(variable-is-defined to)
 						(set-type to '(:type-int))
 						(set-var-constraint (var-name to) '(:type-int)))))
+         (type-check-clause-head-assignments (agg-construct-head c))
 			(type-check-all-subgoals-and-conditionals (agg-construct-head c))
 			(cleanup-assignments-from-agg-construct c)
 			(optimize-subgoals (agg-construct-head c) (append (clause-body clause) (agg-construct-body c)))
@@ -815,6 +817,11 @@
 	(do-subgoals clause-head (:name name :args args :options options)
       (do-type-check-subgoal name args options :axiom-p axiom-p)))
 
+(defun type-check-clause-head-assignments (clause-head)
+   ;; transforms equal constraints to assignments
+   (create-assignments clause-head)
+	(do-type-check-assignments clause-head))
+
 (defun do-type-check-head (head clause &key axiom-p)
 	(type-check-clause-head-subgoals head :axiom-p axiom-p)
 	(do-comprehensions head (:comprehension comp)
@@ -849,6 +856,7 @@
 		
 (defun type-check-body-and-head (clause host thread &key axiom-p)
 	(type-check-body clause host thread axiom-p)
+   (type-check-clause-head-assignments (clause-head clause))
 	(type-check-all-except-body clause host thread :axiom-p axiom-p)
 	(optimize-subgoals (clause-head clause) (clause-body clause))
 	;; we may need to re-check subgoals again because of optimizations
@@ -882,6 +890,7 @@
 	      (do-type-check-constraints expr)))
 	(optimize-comprehension-constraints comp clause)
 	(with-comprehension comp (:right right)
+      (type-check-clause-head-assignments right)
 		(type-check-all-subgoals-and-conditionals right)
 		(optimize-subgoals (recursively-get-subgoals right) (append (comprehension-left comp) (clause-body clause))))
 	(cleanup-assignments-from-comprehension comp))
