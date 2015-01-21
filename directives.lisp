@@ -1,5 +1,10 @@
 (in-package :cl-meld)
 
+(defun make-index (name field) `(:index ,name ,field))
+(defun index-name (x) (second x))
+(defun index-field (x) (third x))
+(defun index-p (x) (tagged-p x :index))
+
 (defun make-descending-priority (a b) `(:prio ,a ,b))
 (defun make-ascending-priority (a b) `(:prio ,b ,a))
 
@@ -39,7 +44,7 @@
 
 (defun get-priority-order ()
 	"Returns priority ordering for the program."
-	(let ((order (find-if #'priority-order-p *priorities*)))
+	(let ((order (find-if #'priority-order-p *directives*)))
 		(if order
 			(priority-order order)
 			:desc)))
@@ -52,7 +57,7 @@
 
 (defun get-initial-priority ()
 	"Returns initial priority for nodes of the program."
-	(let ((found (find-if #'initial-priority-p *priorities*)))
+	(let ((found (find-if #'initial-priority-p *directives*)))
 		(if found
 			(initial-priority-value found)
 			(get-default-priority))))
@@ -80,9 +85,9 @@ account the dependencies between predicates."
 		(do-comprehensions head (:left left)
 			(do-subgoals left (:name name1)
 				(do-subgoals body (:name name2)
-					(push-end (make-descending-priority name1 name2) *priorities*))))
+					(push-end (make-descending-priority name1 name2) *directives*))))
 		(do-agg-constructs head (:body aggbody)
 			(do-subgoals aggbody (:name name1)
 				(do-subgoals body (:name name2)
-					(push-end (make-descending-priority name1 name2) *priorities*))))))
+					(push-end (make-descending-priority name1 name2) *directives*))))))
 					

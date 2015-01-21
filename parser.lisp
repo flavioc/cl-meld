@@ -108,6 +108,7 @@
 										("otherwise" :otherwise)
 										("min" :min)
 										("priority" (if *parsed-header* :const :prio))
+										("index" (if *parsed-header* :const :index))
 										("true" :true)
 										("false" :false)
 										("nil" :nil))
@@ -265,17 +266,17 @@
 								:exists :initial-priority :priority-type :priority-order
 								:delay-seconds :delay-ms :question-mark
 								:static-priority :cluster-priority
-								:random-priority :lpaco :host))
+								:random-priority :lpaco :host :index))
 
 	(program
-	  (includes definitions priorities externs consts
+	  (includes definitions directives externs consts
       funs before-statement statements #L(make-ast  !2 ; definitions
                            !4 ; externs
                            (remove-if #'is-axiom-p !8) ; clauses
                            (filter #'is-axiom-p !8) ; axioms
                            !6 ; functions
                            (defined-nodes-list) ; nodes
-                           !3 ; priorities
+                           !3 ; directives
                            !5 ; consts
                            *parser-exported-predicates*
                            *parser-imported-predicates*
@@ -309,9 +310,15 @@
 																					(declare (ignore ty d))
 																					(parser-make-definition name args opts))))
 
-	(priorities
+	(directives
 		()
-		(priority priorities #'cons))
+      (index directives #'cons)
+		(priority directives #'cons))
+
+   (index
+      (:index :const :div :number :dot #'(lambda (i name s field d)
+                                          (declare (ignore i s d))
+                                          (make-index name (parse-integer field)))))
 	
 	(priority
 		(:prio :static-priority :dot #'(lambda (p s d) (declare (ignore p s d)) (make-priority-static)))

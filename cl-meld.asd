@@ -20,8 +20,8 @@
 		 						             "macros"
 		 						             "manip"
 		 						             "conf"
-												 "priorities"))
-		 			(:file "priorities"
+												 "directives"))
+		 			(:file "directives"
 								:depends-on ("package"
 												 "macros"
 												 "util"
@@ -97,7 +97,7 @@
 		 			                      "localize"
 		 			                      "typecheck"
 		 			                      "conf"
-												 "priorities"
+												 "directives"
 												 "context"))
 		 			(:file "models/base"
 		 			         :depends-on ("manip"

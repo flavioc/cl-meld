@@ -275,6 +275,7 @@
 (define-term-construct agg-spec #'agg-spec-p (op var))
 (define-term-construct constant #'constant-p (name expr type))
 (define-term-construct conditional #'conditional-p (cmp term1 term2))
+(define-term-construct index #'index-p (name field))
 
 (define-with process (name instrs) :use-self-p t)
 (define-with get-constant (name))

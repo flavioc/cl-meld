@@ -1025,6 +1025,15 @@
 	(do-definitions (:name name :types typs :definition def)
       (check-home-argument name typs))
 	(check-repeated-definitions)
+   (do-index-list *directives* (:name name :field field)
+    (let ((def (lookup-definition name)))
+     (unless def
+      (error 'type-invalid-error :text
+       (tostring "Cannot find definition ~a from index directive" name)))
+     (unless (and (>= (length (definition-types def)) field)
+                  (not (= field 0)))
+      (error 'type-invalid-error :text
+       (tostring "Field ~a from index in ~a does not exist" field name)))))
 	(dolist (const *consts*)
 		(type-check-const const))
 	(dolist (fun *functions*)

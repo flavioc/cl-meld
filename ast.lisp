@@ -21,10 +21,10 @@
       :initarg :nodes
       :initform (error "missing nodes.")
       :accessor nodes)
-	(priorities
-		:initarg :priorities
-		:initform (error "missing priorities.")
-		:accessor priorities)
+	(directives
+		:initarg :directives
+		:initform (error "missing directives.")
+		:accessor directives)
 	(consts
 		:initarg :consts
 		:initform (error "missing consts.")
@@ -66,7 +66,7 @@
 		:initform (error "missing args-needed.")
 		:accessor args-needed)))
 
-(defun make-ast (defs externs clauses axioms funs nodes priorities consts exported-predicates imported-predicates args-needed)
+(defun make-ast (defs externs clauses axioms funs nodes directives consts exported-predicates imported-predicates args-needed)
    (do-definitions-list defs (:definition def :types typs)
       (when (type-thread-p (first typs))
          (definition-set-thread def)))
@@ -77,7 +77,7 @@
       :all-axioms axioms
       :functions funs
       :nodes nodes
-      :priorities priorities
+      :directives directives
       :consts consts
       :exported-predicates exported-predicates
       :imported-predicates imported-predicates
@@ -92,7 +92,7 @@
          :all-axioms (nconc (all-axioms ast1) (all-axioms ast2))
          :functions (nconc (functions ast1) (functions ast2))
          :nodes (union (nodes ast1) (nodes ast2))
-			:priorities (union (priorities ast1) (priorities ast2))
+			:directives (union (directives ast1) (directives ast2))
 			:consts (append (consts ast1) (consts ast2))
 			:exported-predicates (append (exported-predicates ast1) (exported-predicates ast2))
 			:imported-predicates (append (imported-predicates ast1) (imported-predicates ast2))

@@ -1,7 +1,7 @@
 (in-package :cl-meld)
 
 (defparameter *major-version* 0)
-(defparameter *minor-version* 11)
+(defparameter *minor-version* 12)
 
 (defparameter *init-tuple* (make-definition "_init" '(:type-addr) '(:init-tuple :linear)))
 

@@ -842,6 +842,12 @@
          (add-byte (output-properties def) vec) ; property byte
          (add-byte (output-aggregate types) vec) ; aggregate byte
          (add-byte (output-stratification-level def) vec)
+         (let ((index (find-if #L(and (index-p !1) (string-equal name (index-name !1))) *directives*)))
+          (cond
+           (index
+            (add-byte (1- (index-field index)) vec))
+           (t
+            (add-byte 0 vec))))
          (add-byte (length types) vec) ; number of args
          (output-tuple-type-args types vec) ; argument type information
          (output-tuple-name name vec) ;; predicate name
@@ -912,7 +918,7 @@
 	"Writes priority information."
 	(write-hexa stream 2)
 	(write-hexa stream 1) ; float
-	(let*  ((static (find-if #'priority-static-p *priorities*))
+	(let*  ((static (find-if #'priority-static-p *directives*))
 			(byt (priority-order-bit (get-priority-order))))
 		(when static
 			(setf byt (logior byt #b00000010)))

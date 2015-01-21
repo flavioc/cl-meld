@@ -159,7 +159,7 @@
 
 (defun do-topology-ordering ()
 	(setf *nodes* (reverse *nodes*))
-	(let* ((found (find-if #'priority-cluster-p *priorities*))
+	(let* ((found (find-if #'priority-cluster-p *directives*))
 		  	 (ordering-type (if found (priority-cluster-type found) *ordering-type*)))
    	(case ordering-type
 	     (:naive (naive-ordering *nodes*))

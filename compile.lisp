@@ -742,12 +742,15 @@
                   (saved-vars nil))
                (with-subgoal other (:args args-other)
                   (with-subgoal f (:args args-this)
+                   (let ((rest-args-this args-this))
                      (dolist2 (argo args-other) (argt args-this)
+                        (setf rest-args-this (cdr rest-args-this))
                         (when (and (not (equal argo argt))
-                                    (expr-uses-var-p r argo))
+                                    (or (expr-uses-var-p r argo)
+                                        (expr-uses-var-p rest-args-this argo)))
                            (assert (var-p argo))
                            (assert (not (reference-type-p (expr-type argo))))
-                           (push argo saved-vars)))))
+                           (push argo saved-vars))))))
                (with-n-regs (length saved-vars) (regs)
                   (let ((backup-code (loop for var in saved-vars 
                                            for r in regs
