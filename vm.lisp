@@ -423,6 +423,15 @@
 (defun vm-fabs-dest (x) (third x))
 (defun vm-fabs-p (x) (tagged-p flt :float))
 
+
+(defun make-vm-remote-update (dest edit-def target-def regs count)
+   `(:remote-update ,dest ,edit-def ,target-def ,regs ,count))
+(defun vm-remote-update-dest (x) (second x))
+(defun vm-remote-update-edit-definition (x) (third x))
+(defun vm-remote-update-target-definition (x) (fourth x))
+(defun vm-remote-update-regs (x) (fifth x))
+(defun vm-remote-update-count (x) (sixth x))
+
 (defun make-vm-string-constant (v) `(:string ,v))
 (defun vm-string-constant-p (x) (tagged-p x :string))
 (defun vm-string-constant-val (x) (second x))

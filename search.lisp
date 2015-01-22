@@ -185,7 +185,7 @@
 								#L(constraint-by-var2 var !1)
 								#L(var-p (op-op1 !1)))))
 				(when ret2
-					(values (first ret2) (op-op1 (constraint-expr (first ret)))))))))
+					(values (first ret2) (op-op1 (constraint-expr (first ret2)))))))))
 
 (defun find-not-constraints (body)
 	(find-constraints body #L(not-p !1)))

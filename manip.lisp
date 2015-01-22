@@ -176,6 +176,14 @@
 (defun definition-is-cyclical-p (def) (definition-has-option-p def :cycle))
 (defun definition-set-thread (def) (definition-add-option def :thread))
 (defun definition-is-thread-p (def) (definition-has-option-p def :thread))
+(defun definition-set-update (def updates count)
+   (definition-add-tagged-option def :update (list updates count)))
+(defun definition-is-update-p (def)
+   (definition-get-tagged-option def :update))
+(defun definition-get-update-count (def)
+   (second (definition-get-tagged-option def :update)))
+(defun definition-get-update-definition (def)
+   (first (definition-get-tagged-option def :update)))
 
 (defun definition-set-local-agg (def)
    (definition-add-option def :local-agg))
@@ -440,10 +448,11 @@
 
 ;;;; AGGREGATES
 
-(defun make-agg-spec (op var) `(:agg-spec ,op ,var))
+(defun make-agg-spec (op var &optional args) `(:agg-spec ,op ,var ,args))
 (defun agg-spec-p (x) (tagged-p x :agg-spec))
 (defun agg-spec-op (x) (second x))
 (defun agg-spec-var (x) (third x))
+(defun agg-spec-args (x) (fourth x))
 
 (defun make-agg-construct (spec vlist body &optional head head0)
    `(:agg-construct ,spec ,vlist ,body ,head ,head0))

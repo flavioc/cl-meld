@@ -272,7 +272,7 @@
 (define-term-construct constraint #'constraint-p (expr))
 (define-term-construct assignment #'assignment-p (var expr))
 (define-term-construct agg-construct #'agg-construct-p (specs vlist body head head0 spec-vars))
-(define-term-construct agg-spec #'agg-spec-p (op var))
+(define-term-construct agg-spec #'agg-spec-p (op var args))
 (define-term-construct constant #'constant-p (name expr type))
 (define-term-construct conditional #'conditional-p (cmp term1 term2))
 (define-term-construct index #'index-p (name field))

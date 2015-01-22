@@ -607,6 +607,15 @@
 		(:thread-persistent-iterate (output-iterate vec #b10110111 instr nil))
       (:fabs
          (output-instr-and-values vec #b10111000 (vm-fabs-float instr) (vm-fabs-dest instr)))
+      (:remote-update
+         (output-instr-and-values vec #b10000100)
+         (add-byte (logand *reg-mask* (reg-to-byte (vm-remote-update-dest instr))) vec)
+         (add-byte (lookup-def-id (definition-name (vm-remote-update-edit-definition instr))) vec)
+         (add-byte (lookup-def-id (definition-name (vm-remote-update-target-definition instr))) vec)
+         (add-byte (vm-remote-update-count instr) vec)
+         (add-byte (length (vm-remote-update-regs instr)) vec)
+         (loop for reg in (vm-remote-update-regs instr)
+               do (add-byte (logand *reg-mask* (reg-to-byte reg)) vec)))
       (:stop-program
 			(output-instr-and-values vec #b10100010))
 	   (:cpu-id

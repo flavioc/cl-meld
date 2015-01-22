@@ -486,8 +486,25 @@
          (type-check-clause-head-assignments (agg-construct-head0 c))
 			(type-check-all-subgoals-and-conditionals (agg-construct-head0 c))
          ;; replace spec variable's types.
-			(do-agg-specs (agg-construct-specs c) (:op op :var to)
+			(do-agg-specs (agg-construct-specs c) (:op op :var to :args args)
 				(case op
+               (:custom
+                  (let* ((fun (first args))
+                         (start (second args))
+                         (vtype (get-var-constraint (var-name to)))
+                         (start-type (get-type start vtype nil))
+                         (extern (lookup-external-definition fun))
+                         (ret-type (extern-ret-type extern))
+                         (args-type (extern-types extern)))
+                   (assert (one-elem-p vtype))
+                   (set-type to vtype)
+                   (unless (and (every #L(equal !1 ret-type) args-type)
+                                 (= (length args-type) 2))
+                     (error 'type-invalid-error :text (tostring "External function ~a must have equal types." fun)))
+                   (set-type start start-type)
+                   (let ((res (merge-type (first vtype) ret-type)))
+                     (unless res
+                        (error 'type-invalid-error :text (tostring "Types ~a and ~a from external ~a do not match." (first vtype) ret-type fun))))))
 					(:min
 						(let* ((vtype (get-var-constraint (var-name to))))
 							(assert (= 1 (length vtype)))
@@ -511,7 +528,7 @@
 			(cleanup-assignments-from-agg-construct c)
 			(let ((new-ones *defined-in-context*)
 					(target-variables (mapcar #'var-name (agg-construct-vlist c))))
-              (do-agg-specs (agg-construct-specs c) (:op op :var to)
+              (do-agg-specs (agg-construct-specs c) (:op op :var to :args args)
 					(when (or (eq op :sum)
 				   			 (eq op :collect)
 								 (eq op :count)

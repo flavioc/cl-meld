@@ -95,6 +95,7 @@
 										("linear" :linear)
 										("export" :export)
 										("import" :import)
+                              ("custom" :custom)
 										("from" :from)
 										("as" :as)
 										("let" :let)
@@ -262,7 +263,7 @@
 								:linear :dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :ins :fun :end :colon
 								:not-equal :if :then :else :otherwise :prio :random
-								:min :asc :desc :or :and :export :import :as :from
+								:min :asc :desc :or :and :export :custom :import :as :from
 								:exists :initial-priority :priority-type :priority-order
 								:delay-seconds :delay-ms :question-mark
 								:static-priority :cluster-priority
@@ -557,6 +558,7 @@
 		(aggregate-spec :comma multiple-aggregate-spec #L(cons !1 !3)))
 		
 	(aggregate-spec
+      (:custom const expr :to variable #L(make-agg-spec :custom !5 (list !2 !3)))
 		(aggregate-mod :to variable #L(make-agg-spec (parse-agg-construct !1) !3)))
 	
 	(aggregate-mod
