@@ -316,7 +316,6 @@
                                        (declare (ignore ty))
                                        (when found-p
                                         (error (make-condition 'parse-failure-error :text (tostring "repeated type ~a" name) :line *line-number*))))
-                                    (warn "add ~a ~a" name orig-type)
                                     (add-typedef name orig-type)
                                     nil))
                                                             
