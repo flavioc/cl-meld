@@ -834,9 +834,12 @@
 				`(,(make-vm-cons dest acc acc (expr-type var) (make-vm-bool gc)))))
 		(:sum
 			(let ((src (lookup-used-var (var-name var))))
-				(assert (reg-dot-p src))
-				(with-reg (new)
-					`(,(make-move src new) ,(make-vm-op acc acc :float-plus new)))))
+            (cond
+             ((reg-p src)
+               `(,(make-vm-op acc acc :float-plus src)))
+             (t
+               (with-reg (new)
+                  `(,(make-move src new) ,(make-vm-op acc acc :float-plus new)))))))
 		(:count
 			(with-reg (new)
 				`(,(make-move (make-vm-int 1) new) ,(make-vm-op acc acc :int-plus new))))

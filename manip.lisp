@@ -510,6 +510,9 @@
 (defun subgoal-add-route (sub route)
 	(assert (var-p route))
    (subgoal-add-tagged-option sub :route route))
+(defun subgoal-get-remote-dest (subgoal)
+   (first (subgoal-get-tagged-option subgoal :route)))
+
 (defun subgoal-set-thread (sub)
    (subgoal-add-option sub :thread))
 (defun subgoal-is-thread-p (sub)
@@ -527,8 +530,6 @@
 	(subgoal-add-tagged-option subgoal :min var))
 (defun subgoal-has-random-p (subgoal)
 	(subgoal-has-option-p subgoal :random))
-(defun subgoal-get-remote-dest (subgoal)
-   (first (subgoal-get-tagged-option subgoal :route)))
 (defun subgoal-get-min-variable (subgoal)
 	(let ((ret (subgoal-get-tagged-option subgoal :min)))
 		(when ret

@@ -76,6 +76,10 @@
 		(lambda ()
 			(multiple-value-bind (typ rest) (funcall lexer)
 				(if (eq typ :const)
+              (multiple-value-bind (ty found-p) (gethash rest *parser-typedef-types*)
+                  (cond
+                   (found-p (values :type-name rest))
+                   (t
 					(lex-const rest ("type" :type)
 								 		("exists" :exists)
 										("extern" :extern)
@@ -112,7 +116,7 @@
 										("index" (if *parsed-header* :const :index))
 										("true" :true)
 										("false" :false)
-										("nil" :nil))
+										("nil" :nil)))))
 					(values typ rest *line-number*))))))
 					
 (defun make-var-parser (var)
@@ -189,6 +193,10 @@
 
 (defvar *parser-imported-predicates* nil)
 (defun add-imported-predicate (imp) (push imp *parser-imported-predicates*))
+
+(defvar *parser-typedef-types* nil)
+(defun add-typedef (name typ)
+   (setf (gethash name *parser-typedef-types*) typ))
    
 (defun generate-part-expression (final-type body fun-args args)
    (let ((this-fun-arg (first fun-args))
@@ -267,7 +275,7 @@
 								:exists :initial-priority :priority-type :priority-order
 								:delay-seconds :delay-ms :question-mark
 								:static-priority :cluster-priority
-								:random-priority :lpaco :host :index))
+								:random-priority :lpaco :host :index :type-name))
 
 	(program
 	  (includes definitions directives externs consts
@@ -302,6 +310,16 @@
 	 (definition definitions #'(lambda (d ls) (if (null d) ls (cons d ls)))))
 
    (definition
+      (:type atype const :dot #'(lambda (ty orig-type name d)
+                                    (declare (ignore ty d))
+                                    (multiple-value-bind (ty found-p) (gethash name *parser-typedef-types*)
+                                       (declare (ignore ty))
+                                       (when found-p
+                                        (error (make-condition 'parse-failure-error :text (tostring "repeated type ~a" name) :line *line-number*))))
+                                    (warn "add ~a ~a" name orig-type)
+                                    (add-typedef name orig-type)
+                                    nil))
+                                                            
 		(:import predicate-options const type-args-part :as const :from const :dot #'(lambda (i opts name args as imported-name fr file d)
 																											(declare (ignore i as d fr))
 																											(add-imported-predicate (make-import name imported-name file))
@@ -407,6 +425,11 @@
 
 	(atype
 	 base-type
+    (:type-name #'(lambda (name)
+               (multiple-value-bind (typ found-p) (gethash name *parser-typedef-types*)
+                (unless found-p
+                 (error (make-condition 'parse-failure-error :text (tostring "invalid type name ~a" name) :line *line-number*)))
+                typ)))
 	 (:lpaco type-list :rparen #'(lambda (l tl r)
 												(declare (ignore l r))
 												(make-struct-type tl)))
@@ -648,6 +671,7 @@
 	 
 (defmacro with-parse-context (&body body)
    `(let ((*parsed-consts* nil)
+          (*parser-typedef-types* (make-hash-table :test #'equal))
 			 (*needed-externs* nil))
       ,@body))
       
