@@ -39,6 +39,7 @@
 	(cond
 		((or (type-int-p typ) (type-addr-p typ)
 			  (type-bool-p typ) (type-string-p typ)
+           (type-node-p typ)
 			  (type-float-p typ))
 			t)
 		((type-list-p typ)
@@ -149,6 +150,7 @@
 
 (defun reference-type-p (typ)
 	(or (eq typ :all) (type-string-p typ)
+      (type-node-p typ)
       (type-addr-p typ) (recursive-type-p typ)))
 
 (defparameter *program-types* nil)

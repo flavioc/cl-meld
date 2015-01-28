@@ -268,6 +268,9 @@
                   (when (one-elem-p forced-types)
                      (let ((ty (first forced-types)))
                       (cond
+                       ((is-all-type-p forced-types)
+                        (add-node-constraint expr :type-addr)
+                        '(:type-addr))
                        ((type-addr-p ty)
                         (add-node-constraint expr ty)
                         '(:type-addr))
@@ -279,6 +282,7 @@
                   (when (one-elem-p forced-types)
                      (let ((ty (first forced-types)))
                       (cond
+                       ((is-all-type-p forced-types) '(:type-addr))
                        ((type-addr-p ty) '(:type-addr))
                        ((type-node-p ty) `(,ty))
                        (t nil)))))

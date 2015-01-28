@@ -94,7 +94,7 @@
 		(let ((types (lookup-definition-types name)))
 			(loop for typ in (rest types)
 					for arg in (rest args)
-					when (type-addr-p typ)
+					when (or (type-addr-p typ) (type-node-p typ))
 					collect (list (first args) arg)))))
 
 (defun get-reachable-nodes (paths-sub host thread constraints)
@@ -319,7 +319,7 @@
 (defun find-linear-body-homes (clause homes)
 	(let ((vars1 (iterate-expr #'(lambda (x)
                                  (cond
-                                    ((and (var-p x) (type-addr-p (var-type x))) x))) clause)))
+                                    ((and (var-p x) (or (type-node-p (var-type x)) (type-addr-p (var-type x)))) x))) clause)))
 		(remove-duplicates (append vars1 homes) :test #'var-eq-p)))
 
 (defun localize-start (clause routes host thread)
