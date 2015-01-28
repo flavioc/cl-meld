@@ -121,11 +121,13 @@
          (do-subgoals (if (get-subgoals body) body head) (:name name :args args)
             (let ((def (lookup-definition name)))
                (with-definition def (:types types)
-                  (if (type-addr-p (first types))
+                (let ((fst (first types)))
+                  (if (or (type-node-p fst) (type-addr-p fst))
                      (unless first-node
                       (setf first-node (first args)))
                      (unless first-thread
-                      (setf first-thread (first args)))))))
+                      (when (type-thread-p fst)
+                         (setf first-thread (first args)))))))))
          (unless first-node
             (dolist (a (get-assignments (clause-body clause)))
              (with-assignment a (:expr e :var var)
@@ -139,11 +141,13 @@
       (do-subgoals head (:name name :args args)
          (let ((def (lookup-definition name)))
             (with-definition def (:types types)
-               (if (type-addr-p (first types))
+             (let ((fst (first types)))
+               (if (or (type-addr-p fst) (type-node-p fst))
                   (unless first-node
                    (setf first-node (first args))))
                   (unless first-thread
-                   (setf first-thread (first args))))))
+                   (when (type-thread-p fst)
+                      (setf first-thread (first args))))))))
       (values first-node first-thread)))
 
 (defun clause-host-thread (clause)

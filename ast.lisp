@@ -186,7 +186,7 @@
    (every #L(let ((def (lookup-subgoal-definition !1 defs)))
                (assert def (!1) "Could not retrieve definition of ~a." !1)
                (with-definition def (:types types)
-                  (type-addr-p (first types))))
+                  (or (type-node-p (first types)) (type-addr-p (first types)))))
       (get-subgoals (clause-head clause))))
 
 (defun subgoal-has-arbitrary-node-p (sub)

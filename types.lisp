@@ -12,6 +12,10 @@
 (defun make-struct-type (ls) `(:type-struct ,ls))
 (defun type-struct-list (x) (second x))
 
+(defun make-type-node (x) `(:type-node ,x))
+(defun type-node-type (x) (second x))
+(defun type-node-p (x) (tagged-p x :type-node))
+
 (defparameter *number-types* '(:type-int :type-float))
 (defparameter *list-number-types* (mapcar #'make-list-type *number-types*))
 (defparameter *list-types* '((:type-list :all)))
@@ -40,7 +44,35 @@
 		((type-list-p typ)
 			(valid-type-p (type-list-element typ)))
 		((type-struct-p typ)
-			(every #'valid-type-p (type-struct-list typ)))))
+			(every #'valid-type-p (type-struct-list typ)))
+      ((type-array-p typ)
+         (valid-type-p (type-array-element typ)))
+      (t
+       (assert nil)
+       nil)))
+
+(defun type-to-string (typ)
+   (cond
+    ((type-addr-p typ) "addr")
+    ((type-int-p typ) "int")
+    ((type-float-p typ) "float")
+    ((type-bool-p typ) "bool")
+    ((type-string-p typ) "string")
+    ((type-node-p typ) (tostring "node ~a" (type-node-type typ)))
+    ((type-list-p typ)
+     (tostring "list ~a" (type-to-string (type-list-element typ))))
+    ((type-array-p typ)
+     (tostring "array ~a" (type-to-string (type-array-element typ))))
+    ((type-struct-p typ)
+     (let ((str "struct "))
+      (loop for ty in (type-struct-list typ)
+            for i from 0
+            do (setf str (concatenate 'string (concatenate 'string str (if (= i 0) "[" ", "))
+                                 (type-to-string typ))))
+      str))
+    (t
+     (assert nil)
+     "")))
 
 (defun type-operands (op &optional forced-types)
    (cond
@@ -122,6 +154,7 @@
 (defparameter *program-types* nil)
 
 (defun add-type-to-typelist (types new)
+   (assert new)
 	(if (member new types :test #'equal)
 		types
 		(cond

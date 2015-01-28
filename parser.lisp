@@ -441,7 +441,7 @@
     (:node-type #'(lambda (name)
                     (unless (has-node-type-p name)
                         (error (make-condition 'parse-failure-error :text (tostring "invalid node type ~a" name) :line *line-number*)))
-                    :type-addr))
+                    (make-type-node name)))
     (:type-name #'(lambda (name)
                (multiple-value-bind (typ found-p) (gethash name *parser-typedef-types*)
                 (unless found-p

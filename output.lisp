@@ -709,6 +709,7 @@
             ; #b0111 type-array
 				(:type-string '(#b1001))
 				(otherwise (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ)))))
+      ((type-node-p typ) '(#b0010))
 		((type-list-p typ)
 			(let* ((sub (type-list-element typ))
 					 (bytes (type-to-bytes sub)))
@@ -970,6 +971,7 @@
 	(write-hexa stream (length *definitions*))
    (write-nodes stream *nodes*)
 	(write-hexa stream (length *program-types*))
+   (printdbg "Writing program types...")
 	(loop for typ in *program-types*
 			do (let ((bytes (type-to-bytes typ)))
 					(write-list-stream stream bytes)))
