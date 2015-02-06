@@ -481,20 +481,21 @@
 (defun make-vm-callf (name) `(:callf ,name))
 (defun vm-callf-name (call) (second call))
 
-(defun make-vm-call (name dest args gc)
+(defun make-vm-call (name dest args gc typ)
 	(assert (and (every #'reg-p args) (reg-p dest)))
 	(let ((size (length args)))
 		(cond
-			((= size 0) `(:call0 ,name ,dest ,args ,gc))
-			((= size 1) `(:call1 ,name ,dest ,args ,gc))
-			((= size 2) `(:call2 ,name ,dest ,args ,gc))
-			((= size 3) `(:call3 ,name ,dest ,args ,gc))
+			((= size 0) `(:call0 ,name ,dest ,args ,gc ,typ))
+			((= size 1) `(:call1 ,name ,dest ,args ,gc ,typ))
+			((= size 2) `(:call2 ,name ,dest ,args ,gc ,typ))
+			((= size 3) `(:call3 ,name ,dest ,args ,gc ,typ))
 			(t
-				`(:call ,name ,dest ,args ,gc)))))
+				`(:call ,name ,dest ,args ,gc ,typ)))))
 (defun vm-call-name (call) (second call))
 (defun vm-call-dest (call) (third call))
 (defun vm-call-args (call) (fourth call))
 (defun vm-call-gc (call) (fifth call))
+(defun vm-call-type (call) (sixth call))
 
 (defun make-vm-calle (name dest args gc) `(:calle ,name ,dest ,args ,gc))
 (defun vm-calle-name (call) (vm-call-name call))

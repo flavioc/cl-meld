@@ -167,10 +167,10 @@
         (t
           (values ,try-place (compile-expr-to ,expr ,try-place :top-level ,top-level))))))
 
-(defun decide-external-function (name new-reg regs gc)
+(defun decide-external-function (name new-reg regs gc call)
 	"Decides if external function is pre-defined or not."
 	(if (lookup-standard-external-function name)
-		(make-vm-call name new-reg regs (make-vm-bool gc))
+		(make-vm-call name new-reg regs (make-vm-bool gc) (expr-type call))
 		(make-vm-calle name new-reg regs (make-vm-bool gc))))
 		
 (defun get-external-function-ret-type (name)
@@ -204,12 +204,12 @@
 		(cond
 			((null dest)
 		 		(with-reg (new-dest)
-					(return-expr new-dest `(,@codes ,(decide-external-function name new-dest regs gc)))))
+					(return-expr new-dest `(,@codes ,(decide-external-function name new-dest regs gc call)))))
 			((and dest (reg-p dest))
-				(return-expr dest `(,@codes ,(decide-external-function name dest regs gc))))
+				(return-expr dest `(,@codes ,(decide-external-function name dest regs gc call))))
 			(t
 				(with-reg (new-dest)
-					(return-expr dest `(,@codes ,(decide-external-function name new-dest regs gc)
+					(return-expr dest `(,@codes ,(decide-external-function name new-dest regs gc call)
                                    ,(make-move new-dest dest (expr-type call)))))))))
 			
 (defun compile-callf-args (args args-code n)
@@ -826,9 +826,9 @@
                    (extern (lookup-external-definition fun))
                    (dest (lookup-used-var (var-name var))))
              (if (reg-p dest)
-                `(,(make-vm-call fun acc (list acc dest) (make-vm-bool gc)))
+                `(,(make-vm-call fun acc (list acc dest) (make-vm-bool gc) (expr-type var)))
                 (with-reg (reg)
-                  `(,(make-move dest reg) ,(make-vm-call fun acc (list acc reg) (make-vm-bool gc))))))))
+                  `(,(make-move dest reg) ,(make-vm-call fun acc (list acc reg) (make-vm-bool gc) (expr-type var))))))))
 		(:collect
 			(let ((dest (lookup-used-var (var-name var))))
 				`(,(make-vm-cons dest acc acc (expr-type var) (make-vm-bool gc)))))

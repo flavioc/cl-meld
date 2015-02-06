@@ -4,6 +4,7 @@
 (defun index-name (x) (second x))
 (defun index-field (x) (third x))
 (defun index-p (x) (tagged-p x :index))
+(defun find-index-name (name) (find-if #L(and (index-p !1) (string-equal name (index-name !1))) *directives*))
 
 (defun make-descending-priority (a b) `(:prio ,a ,b))
 (defun make-ascending-priority (a b) `(:prio ,b ,a))

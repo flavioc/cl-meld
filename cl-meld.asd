@@ -88,6 +88,7 @@
 		 			                      "optimize"
 		 			                      "typecheck"
 		 			                      "output"
+                                     "bt2c"
 		 			                      "context"
 		 			                      "stratification"))
 		 			(:file "stratification"
@@ -115,6 +116,9 @@
 		 			                      "stratification"
 		 			                      "external"
 												 "models/base"))
+               (:file "bt2c"
+                        :depends-on ("output"
+                                     "package"))
 		 			(:file "optimize"
 		 			         :depends-on ("manip"
 		 			                      "util"

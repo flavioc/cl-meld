@@ -852,7 +852,7 @@
          (add-byte (output-properties def) vec) ; property byte
          (add-byte (output-aggregate types) vec) ; aggregate byte
          (add-byte (output-stratification-level def) vec)
-         (let ((index (find-if #L(and (index-p !1) (string-equal name (index-name !1))) *directives*)))
+         (let ((index (find-index-name name)))
           (cond
            (index
             (add-byte (1- (index-field index)) vec))

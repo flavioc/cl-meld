@@ -32,6 +32,7 @@
 		(if is-data-p
 			(output-data-file out)
       	(output-code out))
+      (output-c-code out)
       (printdbg "All done."))
    t)
 
