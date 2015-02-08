@@ -559,7 +559,7 @@
                    (let ((res (merge-type (first vtype) ret-type)))
                      (unless res
                         (error 'type-invalid-error :text (tostring "Types ~a and ~a from external ~a do not match." (first vtype) ret-type fun))))))
-					(:min
+					((:min :sum)
 						(let* ((vtype (get-var-constraint (var-name to))))
 							(assert (= 1 (length vtype)))
 							(set-type to vtype)
@@ -573,7 +573,9 @@
 					(:count
 						(variable-is-defined to)
 						(set-type to '(:type-int))
-						(set-var-constraint (var-name to) '(:type-int)))))
+						(set-var-constraint (var-name to) '(:type-int)))
+               (otherwise
+                (error 'type-invalid-error :text (tostring "Not handling operator ~a" op)))))
          (type-check-clause-head-assignments (agg-construct-head c))
 			(type-check-all-subgoals-and-conditionals (agg-construct-head c))
 			(cleanup-assignments-from-agg-construct c)

@@ -143,6 +143,8 @@
 	(set-equal-p types1 types2))
 
 (defun type-eq-p (ty1 ty2) (equal ty1 ty2))
+(defun simple-type-eq-p (ty1 ty2) (or (eq ty1 ty2)
+                                       (and (listp ty1) (listp ty2) (eq (first ty1) (first ty2)))))
 
 (defun recursive-type-p (typ)
 	(or (type-struct-p typ) (type-list-p typ)
@@ -161,12 +163,12 @@
 		types
 		(cond
 			((type-list-p new)
-				(cons new (add-type-to-typelist types (type-list-element new))))
+            (push-end new (add-type-to-typelist types (type-list-element new))))
 			((type-struct-p new)
 				(dolist (x (type-struct-list new))
 					(setf types (add-type-to-typelist types x)))
-				(cons new types))
-			(t (cons new types)))))
+            (push-end new types))
+			(t (push-end new types)))))
 		
 (defun lookup-type-id (typ)
 	(let ((ret (position typ *program-types* :test #'equal)))

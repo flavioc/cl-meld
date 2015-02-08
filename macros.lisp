@@ -9,8 +9,9 @@
  `(pprint (macroexpand-1 ',expr)))
  
 (defmacro tostring (&rest args)
-   `(with-output-to-string (str)
-      (format str ,@args)))
+   (alexandria:with-gensyms (stream)
+      `(with-output-to-string (,stream)
+         (format ,stream ,@args))))
 	  
 (defmacro format-keyword (control &rest arguments)
  `(alexandria:format-symbol "KEYWORD" ,control ,@arguments))

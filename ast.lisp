@@ -210,3 +210,7 @@
 (defun set-constant-type (c newt)
 	(setf (fourth c) newt))
 (defsetf constant-type set-constant-type)
+
+(defun lookup-const (name)
+	(find-if #L(string-equal name (constant-name !1)) *consts*))
+

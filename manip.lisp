@@ -599,9 +599,6 @@
 (defun const-definition-name (const) (second const))
 (defun const-definition-expr (const) (third const))
 
-(defun lookup-const (name)
-	(find-if #L(string-equal name (constant-name !1)) *consts*))
-
 (defun has-constraints-p (subgoals) (some #'constraint-p subgoals))
 (defun has-assignments-p (subgoals) (some #'assignment-p subgoals))
    

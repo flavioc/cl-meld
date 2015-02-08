@@ -795,9 +795,19 @@
 		(:collect
 			`(,(make-move (make-vm-nil) acc)))
 		((:count :sum)
-			`(,(make-move (make-vm-float 0.0) acc)))
+       (with-agg-spec spec (:var var)
+         (let ((typ (var-type var)))
+            (cond
+             ((type-int-p typ) `(,(make-move (make-vm-int 0) acc)))
+             ((type-float-p typ) `(,(make-move (make-vm-float 0.0) acc)))
+             (t (assert nil))))))
 		(:min
-			`(,(make-move (make-vm-int +plus-infinity+) acc)))
+         (with-agg-spec spec (:var var)
+            (let ((typ (var-type var)))
+             (cond
+              ((type-int-p typ) `(,(make-move (make-vm-int +plus-infinity+) acc)))
+              ((type-float-p typ) (assert nil))
+              (t (assert nil))))))
 		(otherwise (error 'compile-invalid-error :text (tostring "agg-construct-start: op ~a not recognized" op)))))
 
 (defun agg-construct-end (op acc)
@@ -833,13 +843,15 @@
 			(let ((dest (lookup-used-var (var-name var))))
 				`(,(make-vm-cons dest acc acc (expr-type var) (make-vm-bool gc)))))
 		(:sum
-			(let ((src (lookup-used-var (var-name var))))
+       (with-agg-spec spec (:var var)
+			(let ((src (lookup-used-var (var-name var)))
+               (typ (var-type var)))
             (cond
              ((reg-p src)
-               `(,(make-vm-op acc acc :float-plus src)))
+               `(,(make-vm-op acc acc (if (type-int-p typ) :int-plus :float-plus) src)))
              (t
                (with-reg (new)
-                  `(,(make-move src new) ,(make-vm-op acc acc :float-plus new)))))))
+                  `(,(make-move src new) ,(make-vm-op acc acc (if (type-int-p typ) :int-plus :float-plus) new))))))))
 		(:count
 			(with-reg (new)
 				`(,(make-move (make-vm-int 1) new) ,(make-vm-op acc acc :int-plus new))))
