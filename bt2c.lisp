@@ -252,11 +252,12 @@
           (gc-p (vm-call-gc call))
           (typ (vm-call-type call)))
     (multiple-value-bind (var new-p) (allocate-c-variable variables rdest typ)
-       (format-code stream "const vm::tuple_field ~afield(vm::external::~a(~{~a~^, ~}));~%" (c-variable-name var) name (create-c-args stream variables args))
-       (format-code stream "~a = (~a)~afield.~a;~%" (declare-c-variable var new-p) (type-to-c-type typ) (c-variable-name var) (type-to-union-field typ))
+      (let ((tmp (generate-mangled-name "tmp")))
+       (format-code stream "const vm::tuple_field ~a(vm::external::~a(~{~a~^, ~}));~%" tmp name (create-c-args stream variables args))
+       (format-code stream "~a = (~a)~a.~a;~%" (declare-c-variable var new-p) (type-to-c-type typ) tmp (type-to-union-field typ))
        (when (and (vm-bool-val gc-p) (reference-type-p typ))
          (format-code stream "state.~a((~a)~a);~%" (type-to-gc-function typ) (type-to-c-type typ) (c-variable-name var)))
-       (add-c-variable variables var))))
+       (add-c-variable variables var)))))
 
 (defun create-c-matches-code (stream tpl def matches allocated-tuples &optional (skip-code "continue;"))
    (loop for match in matches
@@ -639,8 +640,9 @@
                 (typ (constant-type const-obj)))
           (format-code stream "const_~a = ~a;~%" (good-c-name name) (c-variable-name var))
           (when (reference-type-p typ)
-            (format-code stream "increment_runtime_data(const_~a, type_~a->get_type());~%"
-                  (good-c-name name) (lookup-type-id typ)))))
+            (let ((field (create-c-tuple-field-from-val stream allocated-tuples variables typ r)))
+               (format-code stream "runtime::increment_runtime_data(~a, type_~a->get_type());~%"
+                  field (lookup-type-id typ))))))
       (:move-reg-to-reg
        (let* ((r (move-from instr))
               (from (find-c-variable variables r)))
@@ -728,10 +730,11 @@
           (with-tab
              (vm-select-node-iterate instr (n instrs)
               (format-code stream "case ~a: {~%" n)
-              (with-tab
-                  (dolist (inner instrs)
-                     (do-output-c-instr stream inner frames allocated-tuples variables :is-linear-p is-linear-p)))
-                (format-code stream "}~%")))
+              (with-separate-c-context (variables allocated-tuples)
+                 (with-tab
+                     (dolist (inner instrs)
+                        (do-output-c-instr stream inner frames allocated-tuples variables :is-linear-p is-linear-p))))
+              (format-code stream "}~%")))
           (format-code stream "}~%"))
       (:stop-program
          (format-code stream "if(scheduling_mechanism) sched::threads_sched::stop_flag = true;~%"))
