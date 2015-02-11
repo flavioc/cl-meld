@@ -51,6 +51,10 @@
      :initarg :hash
      :initform nil
      :accessor frame-hash)
+    (ordered
+     :initarg :ordered
+     :initform nil
+     :accessor frame-ordered-vector)
     (is-linear-p
      :initarg :is-linear-p
      :initform nil
@@ -343,6 +347,111 @@
      (dolist (inner (iterate-instrs instr))
       (do-output-c-instr stream inner (cons frame frames) allocated-tuples variables :is-linear-p is-linear-p)))))
   (format-code stream "}~%")))
+
+(defun compile-c-order-linear-iterate (stream instr frames variables allocated-tuples node &key is-linear-p has-removes-p)
+   (let* ((def (lookup-definition (iterate-name instr)))
+          (types (definition-types def))
+          (id (lookup-def-id (iterate-name instr)))
+          (lsname (generate-mangled-name "ls"))
+          (it (generate-mangled-name "it"))
+          (vec (generate-mangled-name "vec"))
+          (needs-label-p (and has-removes-p (not is-linear-p)))
+          (tpl (generate-mangled-name "tpl"))
+          (predicate (tostring "pred_~a" id))
+          (reg (iterate-reg instr))
+          (table nil)
+          (index (find-index-name (iterate-name instr))))
+    (format-code stream "vector_iter ~a;~%" vec)
+    (flet ((create-list-loop ()
+             (format-code stream "for(auto ~a(~a->begin()), ~aend(~a->end()); ~a != ~aend; ~a++) {~%" it lsname it lsname it it it)
+             (with-tab
+                 (format-code stream "tuple *~a(*~a);~%" tpl it)
+                 (create-c-matches-code stream tpl def (iterate-matches instr) allocated-tuples "continue;")
+                 (format-code stream "iter_object obj;~%")
+                 (format-code stream "obj.tpl = ~a;~%" tpl)
+                 (format-code stream "obj.iterator = ~a;~%" it)
+                 (format-code stream "obj.ls = ~a;~%" lsname)
+                 (format-code stream "~a.push_back(obj);~%" vec))
+             (format-code stream "}~%")))
+      (with-definition def (:name name :types types)
+       (format-code stream "// iterate predicate ~a~%" (iterate-name instr))
+       (setf (gethash (reg-num reg) allocated-tuples) (make-allocated-tuple tpl predicate def))
+       (format-code stream "{~%")
+       (with-tab
+       (cond
+        ((null index)
+         (format-code stream "auto *~a(~a->linear.get_linked_list(~a));~%" lsname node id)
+         (create-list-loop))
+        (t
+          (setf table (generate-mangled-name "table"))
+          (format-code stream "if(~a->linear.stored_as_hash_table(~a)) {~%" node predicate)
+          (with-tab
+           (format-code stream "hash_table *~a(~a->linear.get_hash_table(~a));~%" table node id)
+           (format-code stream "if(~a != nullptr) {~%" table)
+           (with-tab
+            (let ((match (iterate-matches-constant-at-p (iterate-matches instr) (- (index-field index) 2))))
+             (cond
+              (match
+               (let* ((value (match-right match))
+                      (match-field (reg-dot-field (match-left match)))
+                      (tuple-field (create-c-tuple-field-from-val stream allocated-tuples variables (arg-type (nth match-field types)) value)))
+                (format-code stream "// search hash table for ~a~%" tuple-field)
+                (format-code stream "utils::intrusive_list<vm::tuple> *~a(~a->lookup_list(~a));~%"
+                 lsname table tuple-field)
+                (create-list-loop)))
+              (t
+               (let ((it2 (generate-mangled-name "it")))
+                (format-code stream "// go through hash table~%")
+                (format-code stream "for(hash_table::iterator ~a(~a->begin()); !~a.end(); ++~a) {~%" it2 table it2 it2)
+                (with-tab
+                 (format-code stream "utils::intrusive_list<vm::tuple> *~a(*~a);~%" lsname it2)
+                 (create-list-loop))
+                (format-code stream "}~%"))))))
+              (format-code stream "}~%")))
+           (format-code stream "} else {~%")
+           (with-tab
+            (format-code stream "auto *~a(~a->linear.get_linked_list(~a));~%" lsname node id)
+            (create-list-loop))
+            (format-code stream "}~%")))
+         (format-code stream "}~%")))
+      (let ((sub (order-iterate-subgoal instr)))
+         (cond
+          ((subgoal-has-random-p sub)
+           (format-code stream "utils::shuffle_vector(~a, state.randgen);~%" vec))
+          ((subgoal-has-min-p sub)
+           (format-code stream "sort(~a.begin(), ~a.end(), tuple_sorter(~a, ~a));~%" vec vec  (subgoal-get-min-variable-position sub) predicate))
+          (t (assert nil))))
+      (let* ((itv (generate-mangled-name "it"))
+             (obj (generate-mangled-name "obj"))
+             (start-loop (if needs-label-p (generate-mangled-name "loop")))
+             (frame (make-instance 'frame
+                           :list lsname
+                           :tuple tpl
+                           :iterator it
+                           :definition def
+                           :ordered vec
+                           :predicate predicate
+                           :reg reg
+                           :hash table
+                           :is-linear-p has-removes-p
+                           :start-loop start-loop)))
+         (format-code stream "for(auto ~a(~a.begin()), ~aend(~a.end()); ~a != ~aend; ++~a) {~%" itv vec itv vec itv itv itv)
+         (with-tab
+          (with-separate-c-context (variables allocated-tuples)
+            (format-code stream "iter_object ~a(*~a);~%" obj itv)
+            (format-code stream "auto ~a(~a.iterator);~%" it obj)
+            (format-code stream "auto ~a(~a.ls);~%" lsname obj)
+            (format-code stream "vm::tuple *~a(~a.tpl);~%" tpl obj)
+            (with-debug stream "DEBUG_ITER"
+             (format-code stream "std::cout << \"\\titerate \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl predicate))
+            (format-code stream "{~%")
+            (with-tab
+             (dolist (inner (iterate-instrs instr))
+              (do-output-c-instr stream inner (cons frame frames) allocated-tuples variables :is-linear-p (or is-linear-p has-removes-p))))
+             (format-code stream "}~%")
+             (when needs-label-p
+              (format-code stream "~a:continue;~%" start-loop))))
+         (format-code stream "}~%"))))
 
 (defun compile-c-linear-iterate (stream instr frames variables allocated-tuples node &key is-linear-p has-removes-p)
    (let* ((def (lookup-definition (iterate-name instr)))
@@ -1129,6 +1238,10 @@
        (compile-c-persistent-iterate stream instr frames variables allocated-tuples "node" :is-linear-p is-linear-p))
       (:thread-persistent-iterate
        (compile-c-persistent-iterate stream instr frames variables allocated-tuples "thread_node" :is-linear-p is-linear-p))
+      (:order-linear-iterate
+       (compile-c-order-linear-iterate stream instr frames variables allocated-tuples "node" :is-linear-p is-linear-p :has-removes-p t))
+      (:order-rlinear-iterate
+       (compile-c-order-linear-iterate stream instr frames variables allocated-tuples "node" :is-linear-p is-linear-p :has-removes-p nil))
       (:reset-linear (dolist (inner (vm-reset-linear-instrs instr))
                         (do-output-c-instr stream inner frames allocated-tuples variables :is-linear-p nil)))
       (:set-priority-here
@@ -1216,6 +1329,8 @@
    (format-code stream "using namespace vm;~%")
    (format-code stream "using namespace db;~%")
    (format-code stream "using namespace utils;~%")
+   (format-code stream "~%")
+   (format-code stream "#include \"vm/order.cpp\"~%")
    (format-code stream "~%")
    ;; static types
    (loop for typ in *program-types*
@@ -1324,6 +1439,7 @@
    (do-processes (:name name :instrs instrs)
       (format-code stream "static inline void run_predicate_~a(state& state, vm::tuple *tpl, db::node *node, db::node *thread_node) {~%" name)
       (with-tab
+         (format-code stream "(void)tpl; (void)node; (void)thread_node;~%")
          (let ((variables (create-variable-context))
                (allocated-tuples (create-allocated-tuples-context))
                (pred (tostring "pred_~a" (lookup-def-id name))))
@@ -1340,6 +1456,7 @@
 			do (format-code stream "static inline void perform_rule~a(state& state, db::node *node, db::node *thread_node) {~%" count)
          do (setf *name-counter* 0)
          do (with-tab
+               (format-code stream "(void)thread_node;~%")
                (let ((allocated-tuples (create-allocated-tuples-context))
                      (variables (create-variable-context)))
                   (dolist (instr code)
