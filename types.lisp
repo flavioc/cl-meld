@@ -127,7 +127,7 @@
       ((or (op-p expr) (struct-val-p expr) (call-p expr) (callf-p expr) (cons-p expr))
          (fourth expr))
       ((or (let-p expr) (if-p expr)) (fifth expr))
-      (t (error 'type-invalid-error :text (tostring "expr-type: cannot deduce type of expression ~a" expr)))))
+      (t (assert nil) (error 'type-invalid-error :text (tostring "expr-type: cannot deduce type of expression ~a" expr)))))
       
 (defun typed-var-p (var) (and (= (length var) 3)))
 (defun single-typed-var-p (var)

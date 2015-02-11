@@ -167,9 +167,10 @@
 (defun vm-ptr-val (x) (second x))
 (defun vm-ptr-p (x) (tagged-p x :ptr))
 
-(defun make-reg-dot (reg field) `(:reg-dot ,reg ,field))
+(defun make-reg-dot (reg field &key (update-p nil)) `(:reg-dot ,reg ,field ,update-p))
 (defun reg-dot-reg (reg-dot) (second reg-dot))
 (defun reg-dot-field (reg-dot) (third reg-dot))
+(defun reg-dot-update-p (reg-dot) (fourth reg-dot))
 (defun reg-dot-p (reg-dot) (tagged-p reg-dot :reg-dot))
 
 (defun make-vm-nil () '(:nil))
@@ -246,17 +247,17 @@
 			 (ref-type-p (reference-type-p typ)))
 		(cond
 			((and (reg-p con) (reg-p dest))
-		 	 `(:head-rr ,con ,dest))
+		 	 `(:head-rr ,con ,dest ,subtype))
 			((and (reg-dot-p con) (reg-p dest))
-		 	 `(:head-fr ,con ,dest))
+		 	 `(:head-fr ,con ,dest ,subtype))
 			((and (reg-dot-p con) (reg-dot-p dest))
 				(if ref-type-p
-					`(:head-ffr ,con ,dest)
-		 	 		`(:head-ff ,con ,dest)))
+					`(:head-ffr ,con ,dest ,subtype)
+		 	 		`(:head-ff ,con ,dest ,subtype)))
 			((and (reg-p dest) (reg-dot-p dest))
 				(if ref-type-p
-					`(:head-rfr ,con ,dest)
-		 	 		`(:head-rf ,con ,dest)))
+					`(:head-rfr ,con ,dest ,subtype)
+		 	 		`(:head-rf ,con ,dest ,subtype)))
 			(t (assert nil)))))
 
 (defun vm-head-cons (h) (second h))
@@ -268,13 +269,13 @@
 	(assert (type-list-p typ))
 	(cond
 		((and (reg-p con) (reg-p dest))
-	 	 `(:tail-rr ,con ,dest))
+	 	 `(:tail-rr ,con ,dest ,typ))
 		((and (reg-dot-p con) (reg-p dest))
-	 	 `(:tail-fr ,con ,dest))
+	 	 `(:tail-fr ,con ,dest ,typ))
 		((and (reg-dot-p con) (reg-dot-p dest))
-	 	 `(:tail-ff ,con ,dest))
+	 	 `(:tail-ff ,con ,dest ,typ))
 		((and (reg-p dest) (reg-dot-p dest))
-	 	 `(:tail-rf ,con ,dest))
+	 	 `(:tail-rf ,con ,dest ,typ))
 		(t (assert nil))))
 
 (defun vm-tail-cons (tail) (second tail))
@@ -289,21 +290,22 @@
 		(cond
 			((reg-p from)
 				(cond
-					((reg-p to) `(:struct-valrr ,idx ,from ,to))
+					((reg-p to) `(:struct-valrr ,idx ,from ,to ,val-type))
 					((reg-dot-p to)
 						(if ref-type-p
-							`(:struct-valrf-ref ,idx ,from ,to)
-							`(:struct-valrf ,idx ,from ,to)))))
+							`(:struct-valrf-ref ,idx ,from ,to ,val-type)
+							`(:struct-valrf ,idx ,from ,to ,val-type)))))
 			((reg-dot-p from)
 				(cond
-					((reg-p to) `(:struct-valfr ,idx ,from ,to))
+					((reg-p to) `(:struct-valfr ,idx ,from ,to ,val-type))
 					((reg-dot-p to)
 						(if ref-type-p
-							`(:struct-valff-ref ,idx ,from ,to)
-							`(:struct-valff ,idx ,from ,to))))))))
+							`(:struct-valff-ref ,idx ,from ,to ,val-type)
+							`(:struct-valff ,idx ,from ,to ,val-type))))))))
 (defun vm-struct-val-idx (x) (second x))
 (defun vm-struct-val-from (x) (third x))
 (defun vm-struct-val-to (x) (fourth x))
+(defun vm-struct-val-type (x) (fifth x))
 
 (defun make-vm-make-struct (typ to)
 	(assert (or (reg-p to) (reg-dot-p to)))
@@ -320,16 +322,22 @@
 (defun vm-if-instrs (i) (third i))
 (defun vm-if-p (i) (tagged-p i :if))
 
-(defun make-vm-if-else (r instrs1 instrs2)
+(defun make-vm-if-spec (if-expr dest)
+   `(:if-spec ,if-expr ,dest))
+(defun vm-if-spec-expr (x) (second x))
+(defun vm-if-spec-dest (x) (third x))
+
+(defun make-vm-if-else (r instrs1 instrs2 &optional if-spec)
 	(cond
 		((null instrs2)
 			(make-vm-if r instrs1))
 		(t
-			(list :if-else r instrs1 instrs2))))
+			(list :if-else r instrs1 instrs2 if-spec))))
 
 (defun vm-if-else-reg (i) (second i))
 (defun vm-if-else-instrs1 (i) (third i))
 (defun vm-if-else-instrs2 (i) (fourth i))
+(defun vm-if-else-spec (i) (fifth i))
 (defun vm-if-else-p (i) (tagged-p i :if-else))
 
 (defun specialize-op (dst v1 op v2)
