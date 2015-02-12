@@ -43,6 +43,8 @@
 							(if x t nil)))
 			priorities))
 
+(defun get-priority-static () (find-if #'priority-static-p *directives*))
+
 (defun get-priority-order ()
 	"Returns priority ordering for the program."
 	(let ((order (find-if #'priority-order-p *directives*)))

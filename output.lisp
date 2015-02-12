@@ -929,8 +929,8 @@
 	"Writes priority information."
 	(write-hexa stream 2)
 	(write-hexa stream 1) ; float
-	(let*  ((static (find-if #'priority-static-p *directives*))
-			(byt (priority-order-bit (get-priority-order))))
+	(let* ((static (get-priority-static))
+          (byt (priority-order-bit (get-priority-order))))
 		(when static
 			(setf byt (logior byt #b00000010)))
 		(write-hexa stream byt))

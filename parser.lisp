@@ -184,6 +184,11 @@
          (return-from has-function-call-p t)))
    nil)
 
+(defparameter *seen-subgoals* nil)
+(defun add-seen-subgoal (name)
+   (unless (member name *seen-subgoals* :test #'string-equal)
+    (push name *seen-subgoals*)))
+
 (defvar *needed-externs* nil)
 (defun add-needed-extern (extern-name) (push extern-name *needed-externs*))
 
@@ -543,9 +548,11 @@
 	 (inner-subgoal
 	    (const :lparen args :rparen #'(lambda (name x args y)
 	                                       (declare (ignore x y))
+                                          (add-seen-subgoal name)
 	                                       (make-subgoal name args)))
 		 (const :lparen args :rparen tuple-delay #'(lambda (name x args y delay)
 																(declare (ignore x y))
+                                                (add-seen-subgoal name)
 																(let ((sub (make-subgoal name args)))
 																	(subgoal-add-delay sub delay)
 																	sub))))
@@ -630,7 +637,7 @@
 	   (:world (return-const (make-world)))
       (:cpus (return-const (make-cpus)))
       (:host (return-const (make-host)))
-      (expr :append expr #L(make-call "append" (list !1 !3)))
+      (expr :append expr #L(make-call "lappend" (list !1 !3)))
 	   (expr :minus expr #'make-minus)
 	   (expr :mul expr #'make-mul)
 	   (expr :mod expr #'make-mod)
@@ -688,6 +695,7 @@
 	 
 (defmacro with-parse-context (&body body)
    `(let ((*parsed-consts* nil)
+          (*seen-subgoals* nil)
           (*parser-typedef-types* (make-hash-table :test #'equal))
           (*parser-node-types* nil)
 			 (*needed-externs* nil))
@@ -783,5 +791,5 @@
 (defun parse-meld-file (file)
    (with-parse-context
       (let ((ast (parse-meld-file-rec file)))
-         (ast-prepare ast)
+         (ast-prepare ast *seen-subgoals*)
          ast)))

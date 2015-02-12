@@ -272,24 +272,30 @@
        (format-code stream "const vm::tuple_field ~a(vm::external::~a(~{~a~^, ~}));~%" tmp name (create-c-args stream variables args))
        (format-code stream "~a = (~a)~a.~a;~%" (declare-c-variable var new-p) (type-to-c-type typ) tmp (type-to-union-field typ))
        (when (and (vm-bool-val gc-p) (reference-type-p typ))
-         (format-code stream "state.~a((~a)~a);~%" (type-to-gc-function typ) (type-to-c-type typ) (c-variable-name var)))
+         (format-code stream "if(~a) {~%" (c-variable-name var))
+         (with-tab
+            (format-code stream "state.~a((~a)~a);~%" (type-to-gc-function typ) (type-to-c-type typ) (c-variable-name var)))
+         (format-code stream "}~%"))
        (add-c-variable variables var)))))
 
 (defun create-c-matches-code (stream tpl def matches allocated-tuples &optional (skip-code "continue;") (match-field nil))
    (loop for match in matches
          do (let* ((reg-dot (match-left match))
                    (field (reg-dot-field reg-dot))
-                   (value (match-right match)))
-               (when (or (not match-field) (not (= field match-field)))
+                   (value (match-right match))
+                   (does-not-match-p (or (not match-field) (not (= field match-field)))))
                 (cond
                  ((vm-int-p value)
-                  (let ((val (vm-int-val value)))
-                   (format-code stream "if(~a->get_int(~a) != ~a) { ~a }~%" tpl field val skip-code)))
+                  (when does-not-match-p
+                     (let ((val (vm-int-val value)))
+                      (format-code stream "if(~a->get_int(~a) != ~a) { ~a }~%" tpl field val skip-code))))
                  ((vm-float-p value)
-                  (let ((val (vm-float-val value)))
-                   (format-code stream "if(~a->get_float(~a) != ~a) { ~a }~%" tpl field val skip-code)))
+                  (when does-not-match-p
+                     (let ((val (vm-float-val value)))
+                      (format-code stream "if(~a->get_float(~a) != ~a) { ~a }~%" tpl field val skip-code))))
                  ((vm-nil-p value)
-                  (format-code stream "if(!runtime::cons::is_null(~a->get_cons(~a))) { ~a }~%" tpl field skip-code))
+                  (when does-not-match-p
+                     (format-code stream "if(!runtime::cons::is_null(~a->get_cons(~a))) { ~a }~%" tpl field skip-code)))
                  ((reg-dot-p value)
                   (with-definition def (:types typs)
                    (let ((typ (nth field typs)))
@@ -297,8 +303,10 @@
                      (assert found)
                      (format-code stream "if(~a->~a(~a) != ~a->~a(~a)) { ~a }~%"
                       tpl (type-to-tuple-get typ) field (allocated-tuple-tpl other) (type-to-tuple-get typ) (reg-dot-field value) skip-code)))))
+                 ((vm-non-nil-p value)
+                  (format-code stream "if(runtime::cons::is_null(~a->get_cons(~a))) { ~a }~%" tpl field skip-code))
                  (t
-                  (error 'output-invalid-error :text (tostring "create-c-matches: can't create code for value ~a" value))))))))
+                  (error 'output-invalid-error :text (tostring "create-c-matches: can't create code for value ~a" value)))))))
 
 (defun iterate-match-constant-p (val)
    (cond
@@ -1357,6 +1365,25 @@
                 (node (find-c-variable variables rnode))
                 (prio (find-c-variable variables rprio)))
           (format-code stream "state.sched->set_default_node_priority((db::node*)~a, ~a);~%" (c-variable-name node) (c-variable-name prio))))
+      (:node-priority
+        (let* ((rnode (vm-node-priority-node instr))
+               (rdest (vm-node-priority-dest instr))
+               (node (find-c-variable variables rnode)))
+         (multiple-value-bind (var new-p) (allocate-c-variable variables rdest :type-float)
+          (format-code stream "~a = ((db::node*)(~a))->get_priority();~%" (declare-c-variable var new-p) (c-variable-name node))
+          (add-c-variable variables var))))
+      (:cpu-id
+       (let* ((rnode (vm-cpu-id-node instr))
+              (rdest (vm-cpu-id-dest instr))
+              (node (find-c-variable variables rnode)))
+        (multiple-value-bind (var new-p) (allocate-c-variable variables rdest :type-int)
+            (format-code stream "~a = ((db::node*)~a)->get_owner()->get_id();~%" (declare-c-variable var new-p)
+             (c-variable-name node))
+            (add-c-variable variables var))))
+      (:schedule-next
+       (let* ((rnode (vm-schedule-next-node instr))
+              (node (find-c-variable variables rnode)))
+        (format-code stream "state.sched->schedule_next((db::node*)~a);~%" (c-variable-name node))))
       (:set-default-priority-here
          (let* ((rprio (vm-set-default-priority-priority instr))
                 (prio (find-c-variable variables rprio)))
@@ -1423,6 +1450,7 @@
       (format-code stream "prog->num_args = ~a;~%" (args-needed *ast*))
       (format-code stream "prog->priority_order = ~a;~%" (case (get-priority-order) (:asc "PRIORITY_ASC") (:desc "PRIORITY_DESC")))
       (format-code stream "prog->initial_priority = initial_priority_value0(prog->priority_order == PRIORITY_DESC);~%")
+      (format-code stream "prog->priority_static = ~a;~%" (if (get-priority-static) "true" "false"))
       (format-code stream "bitmap::create(prog->thread_predicates_map, prog->num_predicates_uint);~%")
       (do-definitions (:definition def :name name :types types :id id)
          (format-code stream "{~%")

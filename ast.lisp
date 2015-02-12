@@ -98,9 +98,9 @@
 			:imported-predicates (append (imported-predicates ast1) (imported-predicates ast2))
 			:args-needed (max (args-needed ast1) (args-needed ast2))))
 
-(defun ast-prepare (ast)
+(defun ast-prepare (ast seen-subgoals)
    (let ((threads (some #'definition-is-thread-p (definitions ast))))
-      (ast-add-base-tuples ast threads)
+      (ast-add-base-tuples ast threads seen-subgoals)
       (multiple-value-bind (const-axioms var-axioms) (split-mult-return #'is-constant-axiom-p (all-axioms ast))
          (multiple-value-bind (node-const-axioms thread-const-axioms)
                      (split-mult-return #L(is-node-axiom-p !1 (definitions ast)) const-axioms)

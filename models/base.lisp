@@ -15,8 +15,11 @@
       `(unless (base-tuple-defined-p ,real-name)
          (push-end (make-definition ,real-name ',types ',options) *base-tuples*))))
 
-(defun ast-add-base-tuples (ast use-threads-p)
-   (let ((copy (mapcar #'copy-tree *base-tuples*)))
+(defun ast-add-base-tuples (ast use-threads-p seen-subgoals)
+   (let ((copy (mapcar #'copy-tree (filter #L(with-definition !1 (:name name)
+                                              (member name seen-subgoals :test #'string-equal))
+                                              *base-tuples*))))
+      ;; default predicates are added if only they are used.
       (when use-threads-p
          (push (make-definition "_init_thread" '(:type-thread) '(:init-tuple :linear :thread)) copy))
       (push (copy-tree *init-tuple*) copy)
