@@ -240,6 +240,7 @@
           (multiple-value-bind (c-field c-cast) (type-to-union-field typ)
             (format-code stream "~a.~a = (~a)~a;~%" name c-field c-cast (c-variable-name v)))))
        (t
+        (assert nil)
         (error 'output-invalid-error :text (tostring "create-c-tuple-field-from-val: do not know how to handle ~a" value))))
       name))
 
@@ -1297,33 +1298,62 @@
                 (node (tostring "((db::node*)~a)" (c-variable-name dest)))
                 (vars (loop for reg in regs
                             collect (find-c-variable variables reg)))
+                (index (find-index-name (definition-name target)))
                 (lock (generate-mangled-name "lock"))
                 (flag (generate-mangled-name "flag")))
           (format-code stream "bool ~a(false);~%" flag)
           (format-code stream "LOCK_STACK(~a);~%" lock)
           (format-code stream "if(~a->database_lock.try_lock1(LOCK_STACK_USE(~a))) {~%" node lock)
           (with-tab
-            (let ((lsname (generate-mangled-name "ls"))
-                  (it (generate-mangled-name "it")))
-             (format-code stream "auto ~a(~a->linear.get_linked_list(~a));~%" lsname node target-id)
-             (format-code stream "for(auto ~a(~a->begin()), ~aend(~a->end()); ~a != ~aend; ~a++) {~%" it lsname it lsname it it it)
-             (with-tab
-              (format-code stream "vm::tuple *tpl(*~a);~%" it)
-              (loop for typ in (mapcar #'arg-type (definition-types target))
-                    for i from 0 to (1- common)
-                    for var in vars
-                    do (cond
-                        ((type-int-p typ)
-                         (format-code stream "if(tpl->get_int(~a) != ~a) continue;~%" i (c-variable-name var)))
-                        ((or (type-node-p typ) (type-addr-p typ))
-                         (format-code stream "if(tpl->get_node(~a) != ~a) continue;~%" i (c-variable-name var)))
-                        (t (warn "~a" typ) (assert nil))))
-              (loop for i from common to (1- (length (definition-types target)))
-                    for var in (drop-first-n vars common)
-                    do (format-code stream "tpl->~a(~a, ~a);~%" (type-to-tuple-set (c-variable-type var)) i (c-variable-name var)))
-              (format-code stream "~a = true; break;~%" flag))
-             (format-code stream "}~%")
-            (format-code stream "MUTEX_UNLOCK(~a->database_lock, ~a);~%" node lock)))
+            (flet ((loop-list (ls skip)
+               (let ((lsname (generate-mangled-name "ls"))
+                     (it (generate-mangled-name "it")))
+                (format-code stream "auto ~a(~a);~%" lsname ls)
+                (format-code stream "for(auto ~a(~a->begin()), ~aend(~a->end()); ~a != ~aend; ~a++) {~%" it lsname it lsname it it it)
+                (with-tab
+                 (format-code stream "vm::tuple *tpl(*~a);~%" it)
+                 (loop for typ in (mapcar #'arg-type (definition-types target))
+                       for i from 0 to (1- common)
+                       for var in vars
+                       do (cond
+                          ((type-int-p typ)
+                           (format-code stream "if(tpl->get_int(~a) != ~a) continue;~%" i (c-variable-name var)))
+                          ((or (type-node-p typ) (type-addr-p typ))
+                           (format-code stream "if(tpl->get_node(~a) != ~a) continue;~%" i (c-variable-name var)))
+                          (t (warn "~a" typ) (assert nil))))
+                 (loop for i from common to (1- (length (definition-types target)))
+                       for var in (drop-first-n vars common)
+                       do (format-code stream "tpl->~a(~a, ~a);~%" (type-to-tuple-set (c-variable-type var)) i (c-variable-name var)))
+                 (format-code stream "~a = true; ~a;~%" flag skip))
+                (format-code stream "}~%"))))
+               (cond
+                ((null index)
+                  (loop-list (tostring "~a->linear.get_linked_list(~a)" node target-id) "break"))
+                (index
+                  (format-code stream "if(~a->linear.stored_as_hash_table(pred_~a)) {~%" node target-id)
+                  (with-tab
+                   (format-code stream "hash_table *table(~a->linear.get_hash_table(~a));~%" node target-id)
+                   (format-code stream "if(table) {~%")
+                   (with-tab
+                      (cond
+                       ((< (- (index-field index) 2) common)
+                        (let* ((idx (- (index-field index) 2))
+                               (typ (arg-type (nth idx (definition-types target))))
+                               (field (create-c-tuple-field-from-val stream allocated-tuples variables typ (nth idx regs))))
+                           (loop-list (tostring "table->lookup_list(~a)" field) "break")))
+                       (t
+                        (let ((jump (generate-mangled-name "goto")))
+                           (format-code stream "for(auto it(table->begin()); !it.end(); ++it) {~%")
+                           (with-tab
+                            (loop-list "*it" (tostring "goto ~a" jump)))
+                           (format-code stream "}~%")
+                           (format-code stream "~a: (void)0;~%" jump)))))
+                   (format-code stream "}~%"))
+                  (format-code stream "} else {~%")
+                  (with-tab
+                   (loop-list (tostring "~a->linear.get_linked_list(~a)" node target-id) "break"))
+                  (format-code stream "}~%"))))
+            (format-code stream "MUTEX_UNLOCK(~a->database_lock, ~a);~%" node lock))
           (format-code stream "}~%")
           (format-code stream "if(!~a) {~%" flag)
           (with-tab
