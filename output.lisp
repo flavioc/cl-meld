@@ -278,6 +278,12 @@
       (output-instrs (iterate-instrs instr) vec)
       (add-byte #b00000001 vec))) ; next
 
+(defun output-axioms (vec axioms)
+ (do-subgoals axioms (:name name :args args :subgoal axiom)
+  (add-byte (logand *tuple-id-mask* (lookup-def-id name)) vec)
+  (dolist (arg args)
+   (output-axiom-argument arg vec axiom))))
+
 (defun output-instr (instr vec)
    (case (instr-type instr)
       (:return (add-byte #x0 vec))
@@ -288,11 +294,7 @@
 			(write-jump vec 1
 				(add-byte #b00010100 vec)
 				(jumps-here vec)
-				(let ((axioms (vm-new-axioms-subgoals instr)))
-					(do-subgoals axioms (:name name :args args :subgoal axiom)
-						(add-byte (logand *tuple-id-mask* (lookup-def-id name)) vec)
-						(dolist (arg args)
-							(output-axiom-argument arg vec axiom))))))
+            (output-axioms vec (vm-new-axioms-subgoals instr))))
 		(:send-delay
 			(add-byte #b00010101 vec)
 			(add-byte (logand *reg-mask* (reg-to-byte (vm-send-delay-from instr))) vec)
@@ -713,7 +715,6 @@
 		((type-list-p typ)
 			(let* ((sub (type-list-element typ))
                 (id (lookup-type-id sub)))
-            (warn "~a ~a" sub id)
 				`(,#b0011 ,id)))
       ((type-array-p typ)
          (let* ((sub (type-array-element typ))
@@ -1129,12 +1130,15 @@
          (with-output-file (stream (concatenate 'string file ".m.code"))
             (format stream "~a" (print-vm))))))
 
+(defmacro with-binary-file ((stream file) &body body)
+   `(let ((*total-written* 0))
+      (with-open-file (,stream ,file :direction :output
+                                     :if-exists :supersede
+                                     :if-does-not-exist :create
+                                     :element-type '(unsigned-byte 8))
+         ,@body)))
+
 (defun output-data-file (file)
-	(let ((*total-written* 0)
-			(byte-file (concatenate 'string file ".md")))
-		(with-open-file (stream byte-file
-								:direction :output
-								:if-exists :supersede
-								:if-does-not-exist :create
-								:element-type '(unsigned-byte 8))
+	(let ((byte-file (concatenate 'string file ".md")))
+      (with-binary-file (stream byte-file)
 			(do-output-data stream))))

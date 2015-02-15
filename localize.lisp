@@ -30,7 +30,7 @@
    `(,first ,@(rest args)))
 
 (defparameter *name-counter* 0)
-(defun generate-mangled-name (&optional (prefix "__mangledname"))
+(defun generate-mangled-name (&optional (prefix "mangledname"))
    (with-output-to-string (a) (format a "__~a~a" prefix (incf *name-counter*))))
 
 (defun create-inverse-non-fact-route-definition (route new-name)

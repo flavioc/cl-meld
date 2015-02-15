@@ -1749,7 +1749,7 @@
 	(find-persistent-rules)
 	(number-clauses)
 	(find-reusable-facts)
-   ;(find-remote-updates)
+   (find-remote-updates)
 	(let ((procs (compile-processes))
 			(consts (compile-consts))
 			(functions (compile-functions)))
