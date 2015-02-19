@@ -353,7 +353,7 @@
      (format-code stream "tuple *~a(~aleaf->get_underlying_tuple());~%" tpl tpl)
      (setf (gethash (reg-num reg) allocated-tuples) (make-allocated-tuple tpl predicate def))
      (create-c-matches-code stream tpl def (iterate-matches instr) allocated-tuples)
-     (with-debug stream "DEBUG_ITER"
+     (with-debug stream "DEBUG_ITERS"
       (format-code stream "std::cout << \"\\titerate \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl predicate))
      (dolist (inner (iterate-instrs instr))
       (do-output-c-instr stream inner (cons frame frames) allocated-tuples variables :is-linear-p is-linear-p)))))
@@ -459,7 +459,7 @@
             (format-code stream "auto ~a(~a.iterator);~%" it obj)
             (format-code stream "auto ~a(~a.ls);~%" lsname obj)
             (format-code stream "vm::tuple *~a(~a.tpl);~%" tpl obj)
-            (with-debug stream "DEBUG_ITER"
+            (with-debug stream "DEBUG_ITERS"
              (format-code stream "std::cout << \"\\titerate \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl predicate))
             (format-code stream "{~%")
             (with-tab
@@ -514,7 +514,7 @@
      (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
      (format-code stream "vm::tuple *~a(~aleaf->get_underlying_tuple());~%" tpl tpl)
      (setf (gethash (reg-num reg) allocated-tuples) (make-allocated-tuple tpl predicate def))
-     (with-debug stream "DEBUG_ITER"
+     (with-debug stream "DEBUG_ITERS"
       (format-code stream "std::cout << \"\\titerate \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl predicate))
      (dolist (inner (iterate-instrs instr))
       (do-output-c-instr stream inner (cons frame frames) allocated-tuples variables :is-linear-p is-linear-p))
@@ -557,7 +557,7 @@
                    (format-code stream "}~%")))
                  (create-c-matches-code stream tpl def (iterate-matches instr) allocated-tuples (tostring "~a++; continue;" it) match-field)
                  (format-code stream "{~%")
-                 (with-debug stream "DEBUG_ITER"
+                 (with-debug stream "DEBUG_ITERS"
                      (format-code stream "std::cout << \"\\titerate \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl predicate))
                  (with-tab
                   (dolist (inner (iterate-instrs instr))
@@ -622,10 +622,57 @@
 (defun do-c-send-linear (stream node tpl pred)
    (format-code stream "~a->store.add_generated(~a, ~a);~%" node tpl pred)
    (with-debug stream "DEBUG_SENDS"
-    (format-code stream "std::cout << \"local send \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%"
-     tpl pred))
+    (format-code stream "std::cout << \"\\tsend \"; ~a->print(std::cout, ~a); std::cout << \" to \" << ~a->get_id() << std::endl;~%"
+     tpl pred node))
    (format-code stream "state.generated_facts = true;~%")
    (when *facts-generated* (format-code stream "state.linear_facts_generated++;~%")))
+
+(defun do-c-send (stream def to tpl pred)
+ (flet ((send-linear ()
+         (do-c-send-linear stream "node" tpl pred))
+        (send-persistent ()
+         (let ((name (generate-mangled-name "stpl")))
+          (format-code stream "vm::full_tuple *~a(new vm::full_tuple(~a, ~a, state.direction, state.depth));~%"
+           name tpl pred)
+          (with-debug stream "DEBUG_SENDS"
+           (format-code stream "std::cout << \"local send \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%"
+            tpl pred))
+          (format-code stream "node->store.persistent_tuples.push_back(~a);~%" name)
+          (when *facts-generated* (format-code stream "state.persistent_facts_generated++;~%")))))
+  (cond
+   ((and (is-linear-p def) (is-reused-p def))
+    (format-code stream "if(state.direction == NEGATIVE_DERIVATION) {~%")
+    (with-tab
+     (format-code stream "vm::tuple::destroy(~a, ~a, state.gc_nodes);~%" tpl pred))
+    (format-code stream "} else {~%")
+    (with-tab (send-linear))
+    (format-code stream "}~%"))
+   (t
+    (format-code stream "if(node == (db::node*)~a) {~%" to)
+    (with-tab (cond
+               ((is-linear-p def) (send-linear))
+               (t (send-persistent))))
+    (format-code stream "} else {~%")
+    (with-tab
+     (with-debug stream "DEBUG_SENDS"
+      (format-code stream "std::cout << \"\\tsend \"; ~a->print(std::cout, ~a); std::cout << \" to \" << ((db::node*)~a)->get_id() << std::endl;~%"
+       tpl pred to))
+     (format stream "#ifdef FACT_BUFFERING~%")
+     (format-code stream "auto it(state.facts_to_send.find((db::node*)~a));~%" to)
+     (format-code stream "tuple_array *arr;~%")
+     (format-code stream "if(it == state.facts_to_send.end()) {~%")
+     (with-tab
+      (format-code stream "state.facts_to_send.insert(make_pair((db::node*)~a, tuple_array()));~%" to)
+      (format-code stream "it = state.facts_to_send.find((db::node*)~a);~%" to))
+     (format-code stream "}~%")
+     (format-code stream "arr = &(it->second);~%")
+     (format-code stream "full_tuple info(~a, ~a, state.direction, state.depth);~%" tpl pred)
+     (format-code stream "arr->push_back(info);~%")
+     (format stream "#else~%")
+     (format-code stream "state.sched->new_work(node, (db::node*)~a, ~a, ~a, state.direction, state.depth);~%"
+      to tpl pred)
+     (format stream "#endif~%"))
+    (format-code stream "}~%")))))
 
 (defun add-c-persistent (stream instr variables allocated-tuples node)
  (let ((reg (vm-add-persistent-reg instr))
@@ -1064,51 +1111,7 @@
               (multiple-value-bind (p found-p) (gethash (reg-num to) variables)
                   (multiple-value-bind (tp found2) (gethash (reg-num from) allocated-tuples)
                    (let ((def (allocated-tuple-definition tp)))
-                    (flet ((send-linear ()
-                            (do-c-send-linear stream "node" (allocated-tuple-tpl tp) (allocated-tuple-pred tp)))
-                           (send-persistent ()
-                            (let ((name (generate-mangled-name "stpl")))
-                             (format-code stream "vm::full_tuple *~a(new vm::full_tuple(~a, ~a, state.direction, state.depth));~%"
-                                                name (allocated-tuple-tpl tp) (allocated-tuple-pred tp))
-                             (with-debug stream "DEBUG_SENDS"
-                              (format-code stream "std::cout << \"local send \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%"
-                               (allocated-tuple-tpl tp) (allocated-tuple-pred tp)))
-                             (format-code stream "node->store.persistent_tuples.push_back(~a);~%" name)
-                             (when *facts-generated* (format-code stream "state.persistent_facts_generated++;~%")))))
-                     (cond
-                      ((and (is-linear-p def) (is-reused-p def))
-                       (format-code stream "if(state.direction == NEGATIVE_DERIVATION) {~%")
-                       (with-tab
-                        (format-code stream "vm::tuple::destroy(~a, ~a, state.gc_nodes);~%" (allocated-tuple-tpl tp) (allocated-tuple-pred tp)))
-                       (format-code stream "} else {~%")
-                       (with-tab (send-linear))
-                       (format-code stream "}~%"))
-                      (t
-                       (format-code stream "if(node == (db::node*)~a) {~%" (c-variable-name p))
-                       (with-tab (cond
-                                  ((is-linear-p def) (send-linear))
-                                  (t (send-persistent))))
-                       (format-code stream "} else {~%")
-                       (with-tab
-                        (with-debug stream "DEBUG_SENDS"
-                         (format-code stream "std::cout << \"\\tsend \"; ~a->print(std::cout, ~a); std::cout << \" to \" << ((db::node*)~a)->get_id() << std::endl;~%"
-                          (allocated-tuple-tpl tp) (allocated-tuple-pred tp) (c-variable-name p)))
-                        (format stream "#ifdef FACT_BUFFERING~%")
-                        (format-code stream "auto it(state.facts_to_send.find((db::node*)~a));~%" (c-variable-name p))
-                        (format-code stream "tuple_array *arr;~%")
-                        (format-code stream "if(it == state.facts_to_send.end()) {~%")
-                        (with-tab
-                         (format-code stream "state.facts_to_send.insert(make_pair((db::node*)~a, tuple_array()));~%" (c-variable-name p))
-                         (format-code stream "it = state.facts_to_send.find((db::node*)~a);~%" (c-variable-name p)))
-                        (format-code stream "}~%")
-                        (format-code stream "arr = &(it->second);~%")
-                        (format-code stream "full_tuple info(~a, ~a, state.direction, state.depth);~%" (allocated-tuple-tpl tp) (allocated-tuple-pred tp))
-                        (format-code stream "arr->push_back(info);~%")
-                        (format stream "#else~%")
-                        (format-code stream "state.sched->new_work(node, (db::node*)~a, ~a, ~a, state.direction, state.depth);~%"
-                         (c-variable-name p) (allocated-tuple-tpl tp) (allocated-tuple-pred tp))
-                        (format stream "#endif~%"))
-                       (format-code stream "}~%")))))))))
+                    (do-c-send stream def (c-variable-name p) (allocated-tuple-tpl tp) (allocated-tuple-pred tp)))))))
       (:new-axioms
          (let ((axioms (vm-new-axioms-subgoals instr))
                (vec (create-bin-array))
@@ -1283,6 +1286,8 @@
                             (tpl (frame-tuple frame))
                             (pred (frame-predicate frame))
                             (it (frame-iterator frame)))
+                        (with-debug stream "DEBUG_REMOVE"
+                           (format-code stream "std::cout << \"\\tdelete \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl pred))
                         (format-code stream "~a = ~a->erase(~a);~%" it ls it)
                         (format-code stream "vm::tuple::destroy(~a, ~a, state.gc_nodes);~%" tpl pred)
                         (format-code stream "if(~a->empty()~a) node->matcher.empty_predicate(~a);~%" ls (if tbl (tostring " && ~a->empty()" tbl) "") pred))))))
@@ -1364,7 +1369,7 @@
                   for var in vars
                   for i from 0
                   do (format-code stream "~a->~a(~a, ~a);~%" tpl (type-to-tuple-set typ) i (c-variable-name var)))
-            (do-c-send-linear stream node tpl pred)))
+            (do-c-send stream edit node tpl pred)))
           (format-code stream "}~%")))
       (:rlinear-iterate
        (compile-c-linear-iterate stream instr frames variables allocated-tuples "node" :is-linear-p is-linear-p :has-removes-p nil))
