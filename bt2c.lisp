@@ -1,6 +1,6 @@
 (in-package :cl-meld)
 
-(defparameter *facts-generated* nil)
+(defparameter *facts-generated* t)
 (defparameter *data-stream* nil)
 
 (defparameter *tab-level* 0)
@@ -18,6 +18,13 @@
     (format ,stream (tostring "#ifdef ~a~%" ,macro))
     ,@body
     (format ,stream "#endif~%")))
+
+(defmacro with-c-coordination (stream &body body)
+   `(progn
+      (format-code ,stream "if(scheduling_mechanism) {~%")
+      (with-tab
+       ,@body)
+      (format-code ,stream "}~%")))
 
 (defun create-variable-context () (make-hash-table :test #'equal))
 (defun create-allocated-tuples-context () (make-hash-table :test #'equal))
@@ -225,7 +232,7 @@
       (format-code stream "vm::tuple_field ~a;~%" name)
       (cond
        ((vm-int-p value) (format-code stream "~a.int_field = ~a;~%" name (vm-int-val value)))
-       ((vm-float-p value) (format-code stream "~a.float_field = ~a;~%" name (vm-float-val value)))
+       ((vm-float-p value) (format-code stream "~a.float_field = ~20$L;~%" name (vm-float-val value)))
        ((reg-dot-p value)
         (multiple-value-bind (tp found) (gethash (reg-num (reg-dot-reg value)) allocated-tuples)
           (multiple-value-bind (c-field c-cast) (type-to-union-field typ)
@@ -294,7 +301,7 @@
                  ((vm-float-p value)
                   (when does-not-match-p
                      (let ((val (vm-float-val value)))
-                      (format-code stream "if(~a->get_float(~a) != ~a) { ~a }~%" tpl field val skip-code))))
+                      (format-code stream "if(~a->get_float(~a) != ~20$L) { ~a }~%" tpl field val skip-code))))
                  ((vm-nil-p value)
                   (when does-not-match-p
                      (format-code stream "if(!runtime::cons::is_null(~a->get_cons(~a))) { ~a }~%" tpl field skip-code)))
@@ -350,7 +357,7 @@
    (with-tab
     (with-separate-c-context (variables allocated-tuples)
      (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
-     (format-code stream "tuple *~a(~aleaf->get_underlying_tuple());~%" tpl tpl)
+     (format-code stream "tuple *~a(~aleaf->get_underlying_tuple()); (void)~a;~%" tpl tpl tpl)
      (setf (gethash (reg-num reg) allocated-tuples) (make-allocated-tuple tpl predicate def))
      (create-c-matches-code stream tpl def (iterate-matches instr) allocated-tuples)
      (with-debug stream "DEBUG_ITERS"
@@ -458,7 +465,7 @@
             (format-code stream "iter_object ~a(*~a);~%" obj itv)
             (format-code stream "auto ~a(~a.iterator);~%" it obj)
             (format-code stream "auto ~a(~a.ls);~%" lsname obj)
-            (format-code stream "vm::tuple *~a(~a.tpl);~%" tpl obj)
+            (format-code stream "vm::tuple *~a(~a.tpl); (void)~a;~%" tpl obj tpl)
             (with-debug stream "DEBUG_ITERS"
              (format-code stream "std::cout << \"\\titerate \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl predicate))
             (format-code stream "{~%")
@@ -496,7 +503,7 @@
       (format-code stream "for(auto ~aend(tuple_trie::match_end()); ~a != ~aend; ++~a) {~%" it it it it)
       (with-tab
         (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
-        (format-code stream "tuple *~a(~aleaf->get_underlying_tuple());~%" tpl tpl)
+        (format-code stream "tuple *~a(~aleaf->get_underlying_tuple()); (void)~a;~%" tpl tpl tpl)
         (create-c-matches-code stream tpl def (iterate-matches instr) allocated-tuples)
         (format-code stream "~a.push_back(~aleaf);~%" vec tpl))
       (format-code stream "}~%"))
@@ -512,7 +519,7 @@
    (with-tab
     (with-separate-c-context (variables allocated-tuples)
      (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
-     (format-code stream "vm::tuple *~a(~aleaf->get_underlying_tuple());~%" tpl tpl)
+     (format-code stream "vm::tuple *~a(~aleaf->get_underlying_tuple()); (void)~a;~%" tpl tpl tpl)
      (setf (gethash (reg-num reg) allocated-tuples) (make-allocated-tuple tpl predicate def))
      (with-debug stream "DEBUG_ITERS"
       (format-code stream "std::cout << \"\\titerate \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl predicate))
@@ -888,18 +895,18 @@
          (let ((from (move-from instr))
                (to (move-to instr)))
           (multiple-value-bind (var new-p) (allocate-c-variable variables to :type-float)
-           (format-code stream "~a = (vm::float_val)~a;~%" (declare-c-variable var new-p) (vm-float-val from))
+           (format-code stream "~a = (vm::float_val)~20$L;~%" (declare-c-variable var new-p) (vm-float-val from))
            (add-c-variable variables var))))
       (:move-float-to-stack
          (let ((flt (move-from instr)))
           (multiple-value-bind (var new-p) (allocate-c-variable variables (move-to instr) :type-float)
-            (format-code stream "~a = ~a;~%" (declare-c-variable var new-p) (vm-float-val flt))
+            (format-code stream "~a = ~20$L;~%" (declare-c-variable var new-p) (vm-float-val flt))
             (add-c-variable variables var))))
       (:move-float-to-field
          (let ((flt (move-from instr))
                (f (move-to instr)))
           (multiple-value-bind (tpl found-p) (gethash (reg-num (reg-dot-reg f)) allocated-tuples)
-           (format-code stream "~a->set_float(~a, ~a);~%" (allocated-tuple-tpl tpl) (reg-dot-field f) (vm-float-val flt)))))
+           (format-code stream "~a->set_float(~a, ~20$L);~%" (allocated-tuple-tpl tpl) (reg-dot-field f) (vm-float-val flt)))))
       (:move-int-to-reg
          (let ((from (move-from instr))
                (to (move-to instr)))
@@ -929,7 +936,7 @@
           (multiple-value-bind (tpl found) (gethash (reg-num (reg-dot-reg to)) allocated-tuples)
             (assert found)
              (format-code stream "~a->set_int(~a, ~a);~%" (allocated-tuple-tpl tpl) (reg-dot-field to) (vm-int-val from)))))
-      ((:call2 :call1 :call3)
+      ((:call2 :call1 :call3 :call)
          (create-c-call stream instr variables))
       (:not
          (let* ((place (vm-not-place instr))
@@ -1104,7 +1111,7 @@
       (:facts-consumed
          (let ((dest (vm-facts-proved-dest instr)))
           (multiple-value-bind (var new-p) (allocate-c-variable variables dest :type-int)
-           (format-code stream "~a = state.linear_facts_consumed);~%" (declare-c-variable var new-p))
+           (format-code stream "~a = state.linear_facts_consumed;~%" (declare-c-variable var new-p))
            (add-c-variable variables var))))
       (:send (let* ((to (send-to instr))
                     (from (send-from instr)))
@@ -1240,8 +1247,8 @@
                (typ (vm-head-type instr)))
           (multiple-value-bind (tpl found-p) (gethash (reg-num (reg-dot-reg f)) allocated-tuples)
             (multiple-value-bind (var new-p) (allocate-c-variable variables r typ)
-               (format-code stream "~a = ~a->get_cons(~a)->get_head().~a;~%" (declare-c-variable var new-p)
-                  (allocated-tuple-tpl tpl) (reg-dot-field f) (type-to-union-field typ))
+               (format-code stream "~a = (~a)~a->get_cons(~a)->get_head().~a;~%" (declare-c-variable var new-p)
+                  (type-to-c-type typ) (allocated-tuple-tpl tpl) (reg-dot-field f) (type-to-union-field typ))
                (add-c-variable variables var)))))
       (:head-rr
          (let* ((rls (vm-head-cons instr))
@@ -1249,7 +1256,7 @@
                 (ls (find-c-variable variables rls))
                 (typ (vm-head-type instr)))
           (multiple-value-bind (var new-p) (allocate-c-variable variables r typ)
-            (format-code stream "~a = ~a->get_head().~a;~%" (declare-c-variable var new-p) (c-variable-name ls)
+            (format-code stream "~a = (~a)~a->get_head().~a;~%" (declare-c-variable var new-p) (type-to-c-type typ) (c-variable-name ls)
              (type-to-union-field typ))
             (add-c-variable variables var))))
       (:tail-fr
@@ -1290,6 +1297,8 @@
                            (format-code stream "std::cout << \"\\tdelete \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl pred))
                         (format-code stream "~a = ~a->erase(~a);~%" it ls it)
                         (format-code stream "vm::tuple::destroy(~a, ~a, state.gc_nodes);~%" tpl pred)
+                        (when *facts-generated*
+                         (format-code stream "if (state.direction == POSITIVE_DERIVATION) state.linear_facts_consumed++;~%"))
                         (format-code stream "if(~a->empty()~a) node->matcher.empty_predicate(~a);~%" ls (if tbl (tostring " && ~a->empty()" tbl) "") pred))))))
       (:remote-update
          (let* ((edit (vm-remote-update-edit-definition instr))
@@ -1460,18 +1469,18 @@
       (:schedule-next
        (let* ((rnode (vm-schedule-next-node instr))
               (node (find-c-variable variables rnode)))
-        (with-c-coordination
+        (with-c-coordination stream
            (format-code stream "state.sched->schedule_next((db::node*)~a);~%" (c-variable-name node)))))
       (:set-default-priority-here
          (let* ((rprio (vm-set-default-priority-priority instr))
                 (prio (find-c-variable variables rprio)))
-          (with-c-coordination
+          (with-c-coordination stream
              (format-code stream "state.sched->set_default_node_priority(node, ~a);~%" (c-variable-name prio)))))
-      (:set-moving-here (with-c-coordination (format-code stream "state.sched->set_node_moving(node);~%")))
+      (:set-moving-here (with-c-coordination stream (format-code stream "state.sched->set_node_moving(node);~%")))
       (:set-moving
        (let* ((rnode (vm-set-moving-node instr))
               (node (find-c-variable variables rnode)))
-        (with-c-coordination
+        (with-c-coordination stream
            (format-code stream "state.sched->set_node_moving((db::node*)~a);~%" (c-variable-name node)))))
       (otherwise (warn "not implemented ~a" instr))))
 
@@ -1630,6 +1639,7 @@
 			do (format-code stream "static inline void perform_rule~a(state& state, db::node *node, db::node *thread_node) {~%" count)
          do (setf *name-counter* 0)
          do (with-tab
+               (format-code stream "(void)state;~%")
                (format-code stream "(void)thread_node;~%")
                (let ((allocated-tuples (create-allocated-tuples-context))
                      (variables (create-variable-context)))

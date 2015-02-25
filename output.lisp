@@ -244,6 +244,9 @@
 			(add-byte #b1 vec)
 			(output-axiom-argument (cons-head arg) vec subgoal)
 			(output-axiom-argument (cons-tail arg) vec subgoal))
+      ((struct-p arg)
+         (loop for x in (struct-list arg)
+               do (output-axiom-argument x vec subgoal)))
 		(t (error 'output-invalid-error :text (tostring "don't know how to output this subgoal: ~a" subgoal)))))
 
 (defun constant-matches-p (iter-matches)

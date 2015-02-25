@@ -270,6 +270,10 @@
    (setf (second constraint) new-expr))
 (defsetf constraint-expr set-constraint-expr)
 
+(defun complex-const-p (s)
+ (and (struct-p s)
+  (every #'literal-p (struct-list s))))
+
 (defun literal-p (s)
 	(or (int-p s) (float-p s)
 		(string-constant-p s)
@@ -552,7 +556,7 @@
 (defun subgoal-is-const-p (subgoal)
 	(with-subgoal subgoal (:args args)
 		; we want to ignore constants in this case (faster loading)
-		(every #L(and (const-p !1) (not (get-constant-p !1))) args)))
+		(every #L(and (or (complex-const-p !1) (const-p !1)) (not (get-constant-p !1))) args)))
 (defun subgoal-add-delay (subgoal delay)
 	(assert (and (numberp delay) (> delay 0)))
 	(subgoal-add-tagged-option subgoal :delay delay))

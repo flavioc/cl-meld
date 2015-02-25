@@ -422,7 +422,7 @@
 (defun vm-int-p (int) (tagged-p int :int))
 (defun vm-int-val (int) (second int))
 
-(defun make-vm-float (flt) `(:float ,flt))
+(defun make-vm-float (flt) `(:float ,(coerce flt 'double-float)))
 (defun vm-float-p (flt) (tagged-p flt :float))
 (defun vm-float-val (flt) (second flt))
 
