@@ -61,6 +61,10 @@
 (defparameter *line-number* 0)
 (defparameter *parsed-header* nil)
 
+(defparameter *parser-typedef-types* nil)
+(defun add-typedef (name typ)
+   (setf (gethash name *parser-typedef-types*) typ))
+
 (define-condition parse-failure-error (error)
    ((text :initarg :text :reader text) (line :initarg :line :reader line)))
 
@@ -200,10 +204,6 @@
 (defvar *parser-imported-predicates* nil)
 (defun add-imported-predicate (imp) (push imp *parser-imported-predicates*))
 
-(defvar *parser-typedef-types* nil)
-(defun add-typedef (name typ)
-   (setf (gethash name *parser-typedef-types*) typ))
-
 (defvar *parser-node-types* nil)
 (defun add-node-type (name)
    (push name *parser-node-types*))
@@ -268,9 +268,10 @@
          (error (make-condition 'parse-failure-error :text (tostring "aggregate declaration not recognized ~a" str) :line *line-number*)))))
 
 (define-parser meld-parser
+   (:muffle-conflicts t)
  	(:start-symbol program)
  	
- 	(:precedence ((:left :mul :div :mod :in :ins) (:left :plus :minus :append) (:right :and) (:right :or)))
+ 	(:precedence ((:left :mul :div :mod :in :ins) (:left :plus :minus :append) (:right :and) (:right :or) (:left :otherwise)))
  	
 	(:terminals (:const :type :true :false :variable :number :string :lparen :rparen
 								:bar :arrow :dot :comma :type-bool :type-int :type-addr :type-thread
