@@ -63,7 +63,9 @@
 	(let ((found (find-if #'initial-priority-p *directives*)))
 		(if found
 			(initial-priority-value found)
-			(get-default-priority))))
+         (case (get-priority-order)
+          (:asc most-negative-double-float)
+          (:desc most-positive-double-float)))))
 
 (defun assign-priorities (base priorities)
 	"Using the start priority 'base', it assigns increasing priorities taking into

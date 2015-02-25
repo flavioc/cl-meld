@@ -1545,7 +1545,7 @@
       (format-code stream "prog->num_args = ~a;~%" (args-needed *ast*))
       (format-code stream "All->check_arguments(prog->num_args);~%")
       (format-code stream "prog->priority_order = ~a;~%" (case (get-priority-order) (:asc "PRIORITY_ASC") (:desc "PRIORITY_DESC")))
-      (format-code stream "prog->initial_priority = initial_priority_value0(prog->priority_order == PRIORITY_DESC);~%")
+      (format-code stream "prog->initial_priority = ~20$L;~%" (get-initial-priority))
       (format-code stream "prog->priority_static = ~a;~%" (if (get-priority-static) "true" "false"))
       (format-code stream "bitmap::create(prog->thread_predicates_map, prog->num_predicates_uint);~%")
       (do-definitions (:definition def :name name :types types :id id)
