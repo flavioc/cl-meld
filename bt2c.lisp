@@ -1506,7 +1506,7 @@
 
 (defun do-output-c-includes (stream file)
    (format-code stream "#include <strstream>~%")
-   (format-code stream "#include <memory~%")
+   (format-code stream "#include <memory>~%")
    (format-code stream "~%")
    (format-code stream "#include \"interface.hpp\"~%")
    (format-code stream "#include \"external/others.hpp\"~%")
