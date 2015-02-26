@@ -1506,6 +1506,7 @@
 
 (defun do-output-c-includes (stream file)
    (format-code stream "#include <strstream>~%")
+   (format-code stream "#include <memory~%")
    (format-code stream "~%")
    (format-code stream "#include \"interface.hpp\"~%")
    (format-code stream "#include \"external/others.hpp\"~%")
@@ -1531,7 +1532,7 @@
    (format-code stream "~%")
    (format-code stream "INCBIN(Axioms, \"~a.data\");~%" file)
    (format-code stream "~%")
-   (format-code stream "std::istrstream compiled_database_stream() { return std::istrstream((const char *)gAxiomsData, gAxiomsSize); }~%")
+   (format-code stream "std::unique_ptr<std::istrstream> compiled_database_stream() { return std::unique_ptr<std::istrstream>(new std::istrstream((const char *)gAxiomsData, gAxiomsSize)); }~%")
    (format-code stream "~%"))
 
 (defun do-output-c-types (stream)
