@@ -228,10 +228,10 @@
 			(write-offset ,vec
 				(- (length ,vec) ,pos) (- ,pos (+ ,jump-many +code-offset-size+))))))
 				
-(defun output-axiom-argument (arg vec subgoal)
+(defun output-axiom-argument (arg vec subgoal intercept)
+   (funcall intercept arg vec)
 	(cond
 		((addr-p arg)
-			(add-node-value vec)
 			(output-list-bytes vec (output-addr arg)))
 		((int-p arg)
 			(if (type-float-p (expr-type arg))
@@ -242,11 +242,11 @@
 		((nil-p arg) (add-byte #b0 vec))
 		((cons-p arg)
 			(add-byte #b1 vec)
-			(output-axiom-argument (cons-head arg) vec subgoal)
-			(output-axiom-argument (cons-tail arg) vec subgoal))
+			(output-axiom-argument (cons-head arg) vec subgoal intercept)
+			(output-axiom-argument (cons-tail arg) vec subgoal intercept))
       ((struct-p arg)
          (loop for x in (struct-list arg)
-               do (output-axiom-argument x vec subgoal)))
+               do (output-axiom-argument x vec subgoal intercept)))
 		(t (error 'output-invalid-error :text (tostring "don't know how to output this subgoal: ~a" subgoal)))))
 
 (defun constant-matches-p (iter-matches)
@@ -281,11 +281,11 @@
       (output-instrs (iterate-instrs instr) vec)
       (add-byte #b00000001 vec))) ; next
 
-(defun output-axioms (vec axioms)
+(defun output-axioms (vec axioms intercept)
  (do-subgoals axioms (:name name :args args :subgoal axiom)
   (add-byte (logand *tuple-id-mask* (lookup-def-id name)) vec)
   (dolist (arg args)
-   (output-axiom-argument arg vec axiom))))
+   (output-axiom-argument arg vec axiom intercept))))
 
 (defun output-instr (instr vec)
    (case (instr-type instr)
@@ -297,7 +297,9 @@
 			(write-jump vec 1
 				(add-byte #b00010100 vec)
 				(jumps-here vec)
-            (output-axioms vec (vm-new-axioms-subgoals instr))))
+            (output-axioms vec (vm-new-axioms-subgoals instr) #'(lambda (arg vec)
+                                                                  (when (addr-p arg)
+                                                                   (add-node-value vec))))))
 		(:send-delay
 			(add-byte #b00010101 vec)
 			(add-byte (logand *reg-mask* (reg-to-byte (vm-send-delay-from instr))) vec)

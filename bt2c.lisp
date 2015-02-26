@@ -30,6 +30,11 @@
 (defun create-allocated-tuples-context () (make-hash-table :test #'equal))
 (defun good-c-name (name) (replace-all name "-" "_"))
 
+(defparameter *c-node-references* nil)
+(defun add-c-node-reference (pos addr)
+   (multiple-value-bind (ls found-p) (gethash addr *c-node-references*)
+    (setf (gethash addr *c-node-references*) (cons pos ls))))
+
 (defclass frame ()
    ((tuple
      :initarg :tuple
@@ -1256,7 +1261,11 @@
          (let ((axioms (vm-new-axioms-subgoals instr))
                (vec (create-bin-array))
                (start *total-written*))
-            (output-axioms vec axioms)
+            (output-axioms vec axioms #'(lambda (arg vec)
+                                         (when (addr-p arg)
+                                            (let ((pos (length vec)))
+                                             ;; offset to node reference
+                                             (add-c-node-reference (+ start pos) (addr-num arg))))))
             (write-vec *data-stream* vec)
             (let ((len (- *total-written* start)))
                (format-code stream "read_new_axioms(state, node, ~a, ~a);~%" start len))))
@@ -1618,6 +1627,19 @@
                      (do-output-c-instr stream instr nil allocated-tuples variables :is-linear-p nil)))
                (format-code stream "}~%~%"))))
 
+(defun do-c-references-function (stream)
+ (format-code stream "void compiled_fix_nodes(db::node *n) {~%")
+ (with-tab
+  (format-code stream "switch(n->get_id()) {~%")
+  (loop for node being the hash-keys in *c-node-references* using (hash-value pos)
+        do (let ((start *total-written*))
+            ;; write offsets
+            (dolist (off pos)
+               (write-list-stream *data-stream* (output-int off)))
+            (with-tab (format-code stream "case ~a: do_fix_nodes(n, ~a, ~a); break;~%" node start (- *total-written* start)))))
+  (format-code stream "}~%"))
+ (format-code stream "}~%"))
+
 (defun do-output-c-header (stream file)
    (setf *name-counter* 0)
    (do-output-c-includes stream file)
@@ -1690,7 +1712,9 @@
                do (format-code stream "case ~a: perform_rule~a(*s, n, t); break;~%" count count))
          (format-code stream "default: abort(); break;~%"))
       (format-code stream "}~%"))
-   (format-code stream "}~%"))
+   (format-code stream "}~%~%")
+   
+   (do-c-references-function stream))
 
 (defun do-output-c-code (stream file)
    (write-nodes *data-stream* *nodes*)
@@ -1698,6 +1722,7 @@
 
 (defun output-c-code (file &key (write-ast nil) (write-code nil))
    (let ((c-file (concatenate 'string file ".cpp"))
+         (*c-node-references* (make-hash-table))
          (data-file (concatenate 'string file ".data")))
 		(with-binary-file (*data-stream* data-file)
          (with-output-file (stream c-file)
