@@ -138,6 +138,8 @@
 (defun make-return-select () '(:return-select))
 (defun make-return-derived () '(:return-derived))
 
+(defun return-select-p (x) (tagged-p x :return-select))
+
 (defun make-vm-push () `(:push))
 (defun make-vm-pop () `(:pop))
 
@@ -539,6 +541,7 @@
 
 (defun make-vm-new-axioms (subgoals) `(:new-axioms ,subgoals))
 (defun vm-new-axioms-subgoals (na) (second na))
+(defun vm-new-axioms-p (x) (tagged-p x :new-axioms))
    
 (defun make-vm-colocated (h1 h2 dest) (list :colocated h1 h2 dest))
 (defun vm-colocated-first (c) (second c))

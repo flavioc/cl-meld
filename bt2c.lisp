@@ -404,7 +404,7 @@
     (flet ((create-list-loop ()
              (format-code stream "for(auto ~a(~a->begin()), ~aend(~a->end()); ~a != ~aend; ~a++) {~%" it lsname it lsname it it it)
              (with-tab
-                 (format-code stream "tuple *~a(*~a);~%" tpl it)
+                 (format-code stream "tuple *~a(*~a); (void)~a;~%" tpl it tpl)
                  (create-c-matches-code stream tpl def (iterate-matches instr) allocated-tuples "continue;")
                  (c-iterate-add-vector stream tpl lsname it vec))
              (format-code stream "}~%")))
@@ -559,7 +559,7 @@
              (format-code stream "for(auto ~a(~a->begin()), ~aend(~a->end()); ~a != ~aend; ) {~%" it lsname it lsname it it)
              (with-tab
               (with-separate-c-context (variables allocated-tuples)
-                 (format-code stream "tuple *~a(*~a);~%" tpl it)
+                 (format-code stream "tuple *~a(*~a); (void)~a;~%" tpl it tpl)
                  (let ((similar-tpls (locate-similar-tuples frames def)))
                   (dolist (sim similar-tpls)
                    (format-code stream "if(~a == ~a) {~%" tpl sim)
@@ -838,6 +838,19 @@
        (format-code stream "vm::tuple::destroy(~a, ~a, state.gc_nodes);~%" (allocated-tuple-tpl tpl) (allocated-tuple-pred tpl))
        (format-code stream "break;~%")))
      (format-code stream "}~%"))))
+
+(defun do-output-c-new-axioms (instr)
+   (let ((axioms (vm-new-axioms-subgoals instr))
+         (vec (create-bin-array))
+         (start *total-written*))
+      (output-axioms vec axioms #'(lambda (arg vec)
+                                   (when (addr-p arg)
+                                      (let ((pos (length vec)))
+                                       ;; offset to node reference
+                                       (add-c-node-reference (+ start pos) (addr-num arg))))))
+      (write-vec *data-stream* vec)
+      (let ((len (- *total-written* start)))
+         (values start len))))
 
 (defun do-output-c-instr (stream instr frames allocated-tuples variables &key is-linear-p)
    (declare (optimize compilation-speed) (optimize (speed 0)))
@@ -1257,31 +1270,38 @@
                   (multiple-value-bind (tp found2) (gethash (reg-num from) allocated-tuples)
                    (let ((def (allocated-tuple-definition tp)))
                     (do-c-send stream def (c-variable-name p) (allocated-tuple-tpl tp) (allocated-tuple-pred tp)))))))
-      (:new-axioms
-         (let ((axioms (vm-new-axioms-subgoals instr))
-               (vec (create-bin-array))
-               (start *total-written*))
-            (output-axioms vec axioms #'(lambda (arg vec)
-                                         (when (addr-p arg)
-                                            (let ((pos (length vec)))
-                                             ;; offset to node reference
-                                             (add-c-node-reference (+ start pos) (addr-num arg))))))
-            (write-vec *data-stream* vec)
-            (let ((len (- *total-written* start)))
-               (format-code stream "read_new_axioms(state, node, ~a, ~a);~%" start len))))
       (:select-node
           (when (vm-select-node-empty-p instr)
            (return-from do-output-c-instr nil))
+          ;; write axioms first.
+          (let ((node-table (make-hash-table))
+                (count 0))
+             (vm-select-node-iterate instr (n instrs)
+               (let ((axioms (find-if #'vm-new-axioms-p instrs)))
+                (when axioms
+                 (multiple-value-bind (start len) (do-output-c-new-axioms axioms)
+                  (incf count)
+                  (setf (gethash n node-table) (list start len))))))
+             (when (> count 0)
+              (format-code stream "if(node->get_id() < ~a) read_axioms(state, node, ~a);~%" (number-of-nodes *nodes*) *total-written*)
+              (loop for i from 0 to (1- (number-of-nodes *nodes*))
+                    do (multiple-value-bind (val found-p) (gethash i node-table)
+                        (unless found-p
+                         (setf val (list 0 0)))
+                        (write-list-stream *data-stream* (output-int (first val)))
+                        (write-list-stream *data-stream* (output-int (second val)))))))
           (format-code stream "switch(node->get_id()) {~%")
           (with-tab
              (vm-select-node-iterate instr (n instrs)
-              (format-code stream "case ~a: {~%" n)
-              (with-separate-c-context (variables allocated-tuples)
-                 (with-tab
-                     (dolist (inner instrs)
-                        (do-output-c-instr stream inner frames allocated-tuples variables :is-linear-p is-linear-p))))
-              (format-code stream "}~%")))
-          (format-code stream "}~%"))
+              (let ((filtered-instrs (remove-if #'vm-new-axioms-p instrs)))
+                  (when (remove-if #'return-select-p filtered-instrs)
+                    (format-code stream "case ~a: {~%" n)
+                    (with-separate-c-context (variables allocated-tuples)
+                        (with-tab
+                          (dolist (inner filtered-instrs)
+                            (do-output-c-instr stream inner frames allocated-tuples variables :is-linear-p is-linear-p))))
+                    (format-code stream "}~%")))))
+              (format-code stream "}~%"))
       (:stop-program
          (format-code stream "if(scheduling_mechanism) sched::threads_sched::stop_flag = true;~%"))
       (:return-derived
@@ -1626,14 +1646,20 @@
 (defun do-c-references-function (stream)
  (format-code stream "void compiled_fix_nodes(db::node *n) {~%")
  (with-tab
-  (format-code stream "switch(n->get_id()) {~%")
-  (loop for node being the hash-keys in *c-node-references* using (hash-value pos)
-        do (let ((start *total-written*))
-            ;; write offsets
-            (dolist (off pos)
-               (write-list-stream *data-stream* (output-int off)))
-            (with-tab (format-code stream "case ~a: do_fix_nodes(n, ~a, ~a); break;~%" node start (- *total-written* start)))))
-  (format-code stream "}~%"))
+  (let ((node-table (make-hash-table)))
+      (loop for node being the hash-keys in *c-node-references* using (hash-value pos)
+            do (let ((start *total-written*))
+                  ;; write offsets
+                  (dolist (off pos)
+                    (write-list-stream *data-stream* (output-int off)))
+                  (setf (gethash node node-table) (list start (- *total-written* start)))))
+      (format-code stream "do_fix_nodes(n, ~a);~%" *total-written*)
+      (loop for i from 0 upto (1- (number-of-nodes *nodes*))
+            do (multiple-value-bind (pos found-p) (gethash i node-table)
+               (unless found-p
+                (setf pos (list 0 0)))
+               (write-list-stream *data-stream* (output-int (first pos)))
+               (write-list-stream *data-stream* (output-int (second pos)))))))
  (format-code stream "}~%"))
 
 (defun do-output-c-header (stream file)
