@@ -731,7 +731,7 @@
                 ((type-float-p typ))
                 ((or (type-node-p typ) (type-addr-p typ))
                  (let ((node (generate-mangled-name "node")))
-                  (format-code stream "db::node *~a(get_node(~a));~%" node i)
+                  (format-code stream "db::node *~a((db::node*)~a->get_node(~a));~%" node tpl i)
                   (format-code stream "if(!All->DATABASE->is_initial_node(~a)) {~%" node)
                   (with-tab
                    (format-code stream "if(~a->try_garbage_collect()) state.gc_nodes.insert((vm::node_val)~a);~%" node node))
