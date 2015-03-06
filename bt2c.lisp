@@ -729,7 +729,7 @@
                 ((type-bool-p typ))
                 ((type-int-p typ))
                 ((type-float-p typ))
-                ((type-node-p typ)
+                ((or (type-node-p typ) (type-addr-p typ))
                  (let ((node (generate-mangled-name "node")))
                   (format-code stream "db::node *~a(get_node(~a));~%" node i)
                   (format-code stream "if(!All->DATABASE->is_initial_node(~a)) {~%" node)
