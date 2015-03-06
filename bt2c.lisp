@@ -767,13 +767,15 @@
 
 (defun do-c-update (stream instr allocated-tuples variables frames)
  (let* ((reg (vm-update-reg instr))
-        (frame (locate-loop-frame frames reg)))
+        (frame (locate-loop-frame frames reg))
+        (definition (frame-definition frame))
+        (id (lookup-type-id (definition-name definition))))
    (multiple-value-bind (tp found) (gethash (reg-num reg) allocated-tuples)
       (format-code stream "// tuple ~a is updated now.~%" (allocated-tuple-tpl tp))
       (format-code stream "~a++;~%" (frame-iterator frame))
       (with-debug stream "DEBUG_SENDS"
        (format-code stream "std::cout << \"\\tupdate \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" (allocated-tuple-tpl tp) (allocated-tuple-pred tp)))
-      (format-code stream "node->matcher.register_predicate_update(~a);~%" (allocated-tuple-pred tp)))))
+      (format-code stream "node->matcher.register_predicate_update(~a);~%" id))))
 
 (defun do-c-remote-update (stream instr allocated-tuples variables)
    (let* ((edit (vm-remote-update-edit-definition instr))
