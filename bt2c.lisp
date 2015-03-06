@@ -769,7 +769,7 @@
  (let* ((reg (vm-update-reg instr))
         (frame (locate-loop-frame frames reg))
         (definition (frame-definition frame))
-        (id (lookup-type-id (definition-name definition))))
+        (id (lookup-def-id (definition-name definition))))
    (multiple-value-bind (tp found) (gethash (reg-num reg) allocated-tuples)
       (format-code stream "// tuple ~a is updated now.~%" (allocated-tuple-tpl tp))
       (format-code stream "~a++;~%" (frame-iterator frame))
