@@ -721,7 +721,7 @@
                 ((type-string-p typ)
                  (format-code stream "~a->get_string(~a)->dec_refs();~%" tpl i))
                 ((type-struct-p typ)
-                 (format-code stream "~a->get_struct(~a)->dec_refs();~%" tpl i))
+                 (format-code stream "~a->get_struct(~a)->dec_refs(state.gc_nodes);~%" tpl i))
                 ((type-bool-p typ))
                 ((type-int-p typ))
                 ((type-float-p typ))
