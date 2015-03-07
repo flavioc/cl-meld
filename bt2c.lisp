@@ -507,7 +507,7 @@
    (format-code stream "vector_leaves ~a;~%" vec)
    (format-code stream "{~%")
    (with-tab
-      (format-code stream "auto ~a(~a->pers_store.match_predicate(~a->get_id()));~%" it node predicate)
+      (format-code stream "auto ~a(~a->pers_store.match_predicate(~a));~%" it node (definition-get-persistent-id def))
       (format-code stream "for(; !~a.end(); ++~a) {~%" it it)
       (with-tab
         (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
@@ -673,12 +673,10 @@
       (format-code stream "std::cout << \"\\tsend \"; ~a->print(std::cout, ~a); std::cout << \" to \" << ((db::node*)~a)->get_id() << std::endl;~%"
        tpl pred to))
      (format stream "#ifdef FACT_BUFFERING~%")
-     (format-code stream "if(state.direction != vm::POSITIVE_DERIVATION || state.depth > 0) {~%")
-     (with-tab
-      (format-code stream "state.sched->new_work(node, (db::node*)~a, ~a, ~a, state.direction, state.depth);~%" to tpl pred)
-      (format-code stream "return;~%"))
-     (format-code stream "}~%")
-     (format-code stream "state.facts_to_send.add((db::node*)~a, ~a, ~a);~%" to tpl pred)
+     (cond
+      ((or (is-persistent-p def) (is-reused-p def))
+         (format-code stream "state.sched->new_work(node, (db::node*)~a, ~a, ~a, state.direction, state.depth);~%" to tpl pred))
+      (t (format-code stream "state.facts_to_send.add((db::node*)~a, ~a, ~a);~%" to tpl pred)))
      (format stream "#else~%")
      (format-code stream "state.sched->new_work(node, (db::node*)~a, ~a, ~a, state.direction, state.depth);~%"
       to tpl pred)

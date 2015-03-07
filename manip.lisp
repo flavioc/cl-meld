@@ -212,6 +212,8 @@
    (definition-has-option-p def :route))
 (defun is-linear-p (def)
    (definition-has-option-p def :linear))
+(defun is-persistent-p (def)
+   (not (is-linear-p def)))
 (defun is-action-p (def)
    (definition-has-option-p def :action))
 (defun is-reverse-route-p (def)
