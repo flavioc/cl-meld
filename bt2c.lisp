@@ -673,16 +673,12 @@
       (format-code stream "std::cout << \"\\tsend \"; ~a->print(std::cout, ~a); std::cout << \" to \" << ((db::node*)~a)->get_id() << std::endl;~%"
        tpl pred to))
      (format stream "#ifdef FACT_BUFFERING~%")
-     (format-code stream "auto it(state.facts_to_send.find((db::node*)~a));~%" to)
-     (format-code stream "tuple_array *arr;~%")
-     (format-code stream "if(it == state.facts_to_send.end()) {~%")
+     (format-code stream "if(state.direction != vm::POSITIVE_DERIVATION || state.depth > 0) {~%")
      (with-tab
-      (format-code stream "state.facts_to_send.insert(make_pair((db::node*)~a, tuple_array()));~%" to)
-      (format-code stream "it = state.facts_to_send.find((db::node*)~a);~%" to))
+      (format-code stream "state.sched->new_work(node, (db::node*)~a, ~a, ~a, state.direction, state.depth);~%" to tpl pred)
+      (format-code stream "return;~%"))
      (format-code stream "}~%")
-     (format-code stream "arr = &(it->second);~%")
-     (format-code stream "full_tuple info(~a, ~a, state.direction, state.depth);~%" tpl pred)
-     (format-code stream "arr->push_back(info);~%")
+     (format-code stream "state.facts_to_send.add((db::node*)~a, ~a, ~a);~%" to tpl pred)
      (format stream "#else~%")
      (format-code stream "state.sched->new_work(node, (db::node*)~a, ~a, ~a, state.direction, state.depth);~%"
       to tpl pred)
