@@ -530,6 +530,7 @@
 	(exists
 		(:exists variable-list :dot :lparen terms :rparen #'(lambda (e var-list d l terms r)
 													(declare (ignore e d l r))
+                                       (setf *has-exists-p* t)
 													(make-exist var-list terms))))
 	(subgoal
 	   (inner-subgoal  #'identity)
@@ -790,6 +791,7 @@
                   :initial-value ast)))
 
 (defun parse-meld-file (file)
+   (setf *has-exists-p* nil)
    (with-parse-context
       (let ((ast (parse-meld-file-rec file)))
          (ast-prepare ast *seen-subgoals*)

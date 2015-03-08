@@ -130,7 +130,7 @@
 
 (defun output-c-axiom-argument (stream arg id)
    (cond
-    ((addr-p arg) (format-code stream "tpl->set_node(~a, (vm::node_val)All->DATABASE->find_node(~a));~%" id (vm-addr-num arg)))
+    ((addr-p arg) (format-code stream "tpl->set_node_base(~a, (vm::node_val)All->DATABASE->find_node(~a));~%" id (vm-addr-num arg)))
     ((int-p arg)
       (if (type-float-p (expr-type arg))
          (format-code stream "tpl->set_float(~a, ~a);~%" id (int-val arg))
@@ -165,7 +165,7 @@
 
 (defun type-to-tuple-set (typ)
    (cond
-     ((or (type-addr-p typ) (type-node-p typ)) "set_node")
+     ((or (type-addr-p typ) (type-node-p typ)) (if *has-exists-p* "set_node" "set_node_base"))
      ((type-int-p typ) "set_int")
      ((type-float-p typ) "set_float")
      ((type-list-p typ) "set_cons")
@@ -1073,7 +1073,7 @@
          (let ((to (move-to instr)))
             (multiple-value-bind (tp found) (gethash (reg-num (reg-dot-reg to)) allocated-tuples)
                (assert found)
-               (format-code stream "~a->set_node(~a, (vm::node_val)node);~%" (allocated-tuple-tpl tp) (reg-dot-field to)))))
+               (format-code stream "~a->~a(~a, (vm::node_val)node);~%" (allocated-tuple-tpl tp) (if *has-exists-p* "set_node" "set_node_base") (reg-dot-field to)))))
       (:move-argument-to-reg
          (let ((r (move-to instr))
                (arg (move-from instr)))
@@ -1122,7 +1122,7 @@
            (assert found-p)
             (let ((name (generate-mangled-name "node")))
                (format-code stream "static const vm::node_val ~a((vm::node_val)All->DATABASE->find_node(~a));~%" name (vm-ptr-val from))
-               (format-code stream "~a->set_node(~a, ~a);~%" (allocated-tuple-tpl tpl) (reg-dot-field f) name)))))
+               (format-code stream "~a->~a(~a, ~a);~%" (allocated-tuple-tpl tpl) (if *has-exists-p* "set_node" "set_node_base") (reg-dot-field f) name)))))
       (:move-int-to-field
          (let ((from (move-from instr))
                (to (move-to instr)))
@@ -1520,20 +1520,23 @@
       (:set-static
        (let* ((node (vm-set-static-node instr))
               (var (find-c-variable variables node)))
-        (format-code stream "state.sched->set_node_static((db::node*)~a);~%" (c-variable-name var))))
+        (with-c-coordination stream
+           (format-code stream "state.sched->set_node_static((db::node*)~a);~%" (c-variable-name var)))))
       (:add-priority
          (let* ((rnode (vm-add-priority-node instr))
                 (rprio (vm-add-priority-priority instr))
                 (node (find-c-variable variables rnode))
                 (prio (find-c-variable variables rprio)))
-          (format-code stream "state.sched->add_node_priority((db::node*)~a, ~a);~%"
-           (c-variable-name node) (c-variable-name prio))))
+          (with-c-coordination stream
+             (format-code stream "state.sched->add_node_priority((db::node*)~a, ~a);~%"
+              (c-variable-name node) (c-variable-name prio)))))
       (:set-default-priority
          (let* ((rnode (vm-set-default-priority-node instr))
                 (rprio (vm-set-default-priority-priority instr))
                 (node (find-c-variable variables rnode))
                 (prio (find-c-variable variables rprio)))
-          (format-code stream "state.sched->set_default_node_priority((db::node*)~a, ~a);~%" (c-variable-name node) (c-variable-name prio))))
+          (with-c-coordination stream
+             (format-code stream "state.sched->set_default_node_priority((db::node*)~a, ~a);~%" (c-variable-name node) (c-variable-name prio)))))
       (:node-priority
         (let* ((rnode (vm-node-priority-node instr))
                (rdest (vm-node-priority-dest instr))
@@ -1612,13 +1615,13 @@
    (format-code stream "prog->num_linear_predicates_uint = next_multiple_of_uint(~a);~%" *c-num-linear-predicates*)
    (format-code stream "prog->number_rules = ~a;~%" (length *code-rules*))
    (format-code *header-stream* "#define COMPILED_NUM_RULES ~a~%" (length *code-rules*))
+   (format-code *header-stream* "#define COMPILED_NUM_RULES_UINT ~a~%" (next-multiple-of-uint (length *code-rules*)))
    (format-code stream "prog->number_rules_uint = next_multiple_of_uint(prog->num_rules());~%")
    (format-code stream "prog->num_args = ~a;~%" (args-needed *ast*))
    (format-code stream "All->check_arguments(prog->num_args);~%")
    (format-code stream "prog->priority_order = ~a;~%" (case (get-priority-order) (:asc "PRIORITY_ASC") (:desc "PRIORITY_DESC")))
    (format-code stream "prog->initial_priority = ~20$L;~%" (get-initial-priority))
    (format-code stream "prog->priority_static = ~a;~%" (if (get-priority-static) "true" "false"))
-   (format-code stream "bitmap::create(prog->thread_predicates_map, prog->num_predicates_uint);~%")
    (let ((has-aggs-p nil))
      (do-definitions (:definition def :name name :types types :id id)
       (format-code stream "{~%")
@@ -1728,7 +1731,7 @@
                   (list (cons rule-id code-rule)))))
 
 (defun do-output-c-rule-engine ()
-  (format-code *header-stream* "static inline void compiled_register_predicate_unavailability(utils::byte *rules, vm::bitmap& rule_queue, const size_t id) {~%")
+  (format-code *header-stream* "static inline void compiled_register_predicate_unavailability(utils::byte *rules, vm::bitmap_static<COMPILED_NUM_RULES_UINT>& rule_queue, const size_t id) {~%")
   (with-tab
      (format-code *header-stream* "switch(id) {~%")
      (do-definitions (:definition def :id id)
@@ -1741,7 +1744,7 @@
      (format-code *header-stream* "}~%"))
   (format-code *header-stream* "}~%~%")
 
-  (format-code *header-stream* "static inline void compiled_register_predicate_availability(utils::byte *rules, vm::bitmap& rule_queue, const size_t id) {~%")
+  (format-code *header-stream* "static inline void compiled_register_predicate_availability(utils::byte *rules, vm::bitmap_static<COMPILED_NUM_RULES_UINT>& rule_queue, const size_t id) {~%")
   (with-tab
      (format-code *header-stream* "switch(id) {~%")
      (do-definitions (:definition def :id id)
@@ -1754,7 +1757,7 @@
      (format-code *header-stream* "}~%"))
   (format-code *header-stream* "}~%~%")
 
-  (format-code *header-stream* "static inline void compiled_register_predicate_update(utils::byte *rules, vm::bitmap& rule_queue, const size_t id) {~%")
+  (format-code *header-stream* "static inline void compiled_register_predicate_update(utils::byte *rules, vm::bitmap_static<COMPILED_NUM_RULES_UINT>& rule_queue, const size_t id) {~%")
   (with-tab
      (format-code *header-stream* "switch(id) {~%")
      (do-definitions (:definition def :id id)
@@ -1784,8 +1787,10 @@
           (incf *c-num-persistent-predicates*)))
       (format-code stream "static vm::predicate *pred_~a{nullptr};~%" i))
    (format-code *header-stream* "#define COMPILED_NUM_PREDICATES ~a~%" (+ *c-num-persistent-predicates* *c-num-linear-predicates*))
+   (format-code *header-stream* "#define COMPILED_NUM_PREDICATES_UINT ~a~%" (next-multiple-of-uint (+ *c-num-persistent-predicates* *c-num-linear-predicates*)))
    (format-code *header-stream* "#define COMPILED_NUM_TRIES ~a~%" *c-num-persistent-predicates*)
    (format-code *header-stream* "#define COMPILED_NUM_LINEAR ~a~%" *c-num-linear-predicates*)
+   (format-code *header-stream* "#define COMPILED_NUM_LINEAR_UINT ~a~%" (next-multiple-of-uint *c-num-linear-predicates*))
    (format-code stream "~%")
    ;; static consts
    (format-code stream "// available consts in the program~%")

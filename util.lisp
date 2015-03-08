@@ -240,3 +240,5 @@ is replaced with replacement."
                            :end (or pos (length string)))
           when pos do (write-string replacement out)
           while pos)))
+
+(defun next-multiple-of-uint (x) (ceiling x 64))
