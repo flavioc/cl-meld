@@ -981,6 +981,7 @@
    (printdbg "Writing program types...")
 	(loop for typ in *program-types*
 			do (let ((bytes (type-to-bytes typ)))
+               (warn "write ~a" typ)
 					(write-list-stream stream bytes)))
 	(write-int-stream stream (length *imported-predicates*))
 	(do-imports *imported-predicates* (:imp imp :as as :from file)

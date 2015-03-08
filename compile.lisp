@@ -178,22 +178,27 @@
 		(when fun
 			(extern-ret-type fun))))
 
+(defun find-polymorphic-type (extern concrete-types)
+ (let ((template-types `(,(extern-ret-type extern) ,@(extern-types extern))))
+  (when (and (extern-poly-p extern) (has-all-type-p template-types))
+   (loop for template in template-types
+         for concrete in concrete-types
+         when (has-all-type-p template)
+         do (progn
+              (let ((typ (find-all-type template concrete)))
+               (when typ
+                (return-from find-polymorphic-type typ))))))))
+
 (defun compile-call-args (args call)
    (cond
     ((null args)
-      (let* ((extern (lookup-external-definition (call-name call)))
-             (template-types `(,(extern-ret-type extern) ,@(extern-types extern)))
-             (concrete-types `(,(expr-type call) (loop for arg in (call-args
-                                                       collect (expr-type arg))))))
-         (when (and (extern-poly-p extern) (has-all-type-p template-types))
-            (loop for template in template-types
-                  for concrete in concrete-types
-                  when (has-all-type-p template)
-                  do (progn
-                        (let ((typ (find-all-type template concrete)))
-                           (with-compilation-on-reg (arg-place arg-code) (make-int (lookup-type-id typ) :type-int)
-                            (return-from compile-call-args (values `(,arg-place) arg-code))))))))
-     (values nil nil))
+     (let ((poly-typ (find-polymorphic-type (lookup-external-definition (call-name call))
+                                            `(,(expr-type call) ,@(loop for arg in (call-args call) collect (expr-type arg))))))
+      (cond
+       (poly-typ 
+         (with-compilation-on-reg (arg-place arg-code) (make-int (lookup-type-id poly-typ) :type-int)
+                                  (values `(,arg-place) arg-code)))
+       (t (values nil nil)))))
     (t
 		(with-compilation-on-reg (arg-place arg-code) (first args)
 			(multiple-value-bind (regs codes) (compile-call-args (rest args) call)
@@ -833,11 +838,20 @@
          (with-agg-spec spec (:args args)
             (let* ((fun (first args))
                    (extern (lookup-external-definition fun))
-                   (dest (lookup-used-var (var-name var))))
-             (if (reg-p dest)
-                `(,(make-vm-call fun acc (list acc dest) (make-vm-bool gc) (expr-type var)))
-                (with-reg (reg)
-                  `(,(make-move dest reg) ,(make-vm-call fun acc (list acc reg) (make-vm-bool gc) (expr-type var))))))))
+                   (dest (lookup-used-var (var-name var)))
+                   (poly-typ (find-polymorphic-type extern (list (expr-type var) (expr-type var) (expr-type var)))))
+             (cond
+              (poly-typ
+                  (with-compilation-on-reg (arg-place arg-code) (make-int (lookup-type-id poly-typ) :type-int)
+                   (if (reg-p dest)
+                     `(,@arg-code ,(make-vm-call fun acc (list acc dest arg-place) (make-vm-bool gc) (expr-type var)))
+                     (with-reg (reg)
+                         `(,@arg-code ,(make-move dest reg) ,(make-vm-call fun acc (list acc reg arg-place) (make-vm-bool gc) (expr-type var)))))))
+              (t
+                   (if (reg-p dest)
+                     `(,(make-vm-call fun acc (list acc dest) (make-vm-bool gc) (expr-type var)))
+                     (with-reg (reg)
+                         `(,(make-move dest reg) ,(make-vm-call fun acc (list acc reg) (make-vm-bool gc) (expr-type var))))))))))
 		(:collect
 			(let ((dest (lookup-used-var (var-name var))))
 				`(,(make-vm-cons dest acc acc (expr-type var) (make-vm-bool gc)))))

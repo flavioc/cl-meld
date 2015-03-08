@@ -69,7 +69,7 @@
       (loop for ty in (type-struct-list typ)
             for i from 0
             do (setf str (concatenate 'string (concatenate 'string str (if (= i 0) "[" ", "))
-                                 (type-to-string typ))))
+                                 (type-to-string ty))))
       str))
     (t
      (assert nil)
@@ -168,6 +168,8 @@
 				(dolist (x (type-struct-list new))
 					(setf types (add-type-to-typelist types x)))
             (push-end new types))
+         ((type-array-p new)
+            (push-end new (add-type-to-typelist types (type-array-element new))))
 			(t (push-end new types)))))
 		
 (defun lookup-type-id (typ)

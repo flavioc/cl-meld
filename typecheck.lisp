@@ -236,6 +236,15 @@
      (unify-types typ (type-list-element concrete-type) (type-list-element concrete-template)))
     ((type-array-p concrete-template)
      (unify-types typ (type-array-element concrete-type) (type-array-element concrete-template)))
+    ((type-struct-p concrete-template)
+     (cond
+      ((eq (type-struct-list concrete-template) :all)
+       (subst (type-struct-list concrete-type) :all typ :test #'equal))
+      (t
+        (loop for conc in (type-struct-list concrete-type)
+              for temp in (type-struct-list concrete-template)
+              do (setf typ (unify-types typ conc temp)))
+        typ)))
     (t typ)))
 
 (defun unify-arg-types (arg-types template-ret ret-types)
@@ -254,8 +263,16 @@
     ((eq template :all) concrete)
     ((type-list-p template) (find-all-type (type-list-element template) (type-list-element concrete)))
     ((type-array-p template) (find-all-type (type-array-element template) (type-array-element concrete)))
+    ((type-struct-p template)
+     (when (eq (type-struct-list template) :all)
+      (return-from find-all-type concrete))
+     (loop for temp in (type-struct-list template)
+           for conc in (type-struct-list concrete)
+           do (let ((x (find-all-type temp conc)))
+               (when x
+                (return-from find-all-type x))))
+     (assert nil))
     (t
-     (assert nil)
      nil)))
          
 (defun get-type (expr forced-types body-p)

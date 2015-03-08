@@ -267,6 +267,14 @@
     (t
      (error 'output-invalid-error :text (tostring "type-to-gc-function: do not know how to handle ~a" typ)))))
 
+(defun type-to-gc-argument (typ)
+   (cond
+    ((type-list-p typ) (tostring "(vm::list_type*)type_~a" (lookup-type-id typ)))
+    ((type-struct-p typ) (tostring "(vm::struct_type*)type_~a" (lookup-type-id typ)))
+    ((type-array-p typ) (tostring "type_~a" (lookup-type-id (type-array-element typ))))
+    (t
+     (error 'output-invalid-error :text (tostring "type-to-gc-argument: do not know how to handle ~a" typ)))))
+
 (defun create-c-args (stream variables args)
    (loop for arg in args
          collect (let ((arg-name (generate-mangled-name "arg")))
@@ -291,7 +299,7 @@
        (when (and (vm-bool-val gc-p) (reference-type-p typ))
          (format-code stream "if(~a) {~%" (c-variable-name var))
          (with-tab
-            (format-code stream "state.~a((~a)~a);~%" (type-to-gc-function typ) (type-to-c-type typ) (c-variable-name var)))
+            (format-code stream "state.~a((~a)~a, ~a);~%" (type-to-gc-function typ) (type-to-c-type typ) (c-variable-name var) (type-to-gc-argument typ)))
          (format-code stream "}~%"))
        (add-c-variable variables var)))))
 
@@ -631,7 +639,7 @@
   (format-code stream "runtime::struct1 *~a(runtime::struct1::create((vm::struct_type*)type_~a));~%" name (lookup-type-id typ))
   (loop for param in params
         for i from 0
-        do (format-code stream "~a->set_data(~a, ~a);~%" name i param))
+        do (format-code stream "~a->set_data(~a, ~a, (vm::struct_type*)type_~a);~%" name i param (lookup-type-id typ)))
   name))
 
 (defun do-c-send-linear (stream node tpl pred)
@@ -702,7 +710,7 @@
    (allocated-tuple-tpl tt) to-field)
   (format-code stream "~a->~a(~a, ~a);~%" (allocated-tuple-tpl tt)
    (type-to-tuple-set to-type) to-field new-value)
-  (format-code stream "runtime::do_decrement_runtime(~a, type_~a->get_type(), state.gc_nodes);~%"
+  (format-code stream "runtime::do_decrement_runtime(~a, type_~a, state.gc_nodes);~%"
    old (lookup-type-id to-type))))
 
 (defun do-output-c-destroy (stream tpl def)
@@ -715,11 +723,11 @@
                 ((type-list-p typ)
                  (format-code stream "runtime::cons::dec_refs(~a->get_cons(~a), state.gc_nodes);~%" tpl i))
                 ((type-array-p typ)
-                 (format-code stream "~a->get_array(~a)->dec_refs(state.gc_nodes);~%" tpl i))
+                 (format-code stream "~a->get_array(~a)->dec_refs(type_~a, state.gc_nodes);~%" tpl i (lookup-type-id (type-array-element typ))))
                 ((type-string-p typ)
                  (format-code stream "~a->get_string(~a)->dec_refs();~%" tpl i))
                 ((type-struct-p typ)
-                 (format-code stream "~a->get_struct(~a)->dec_refs(state.gc_nodes);~%" tpl i))
+                 (format-code stream "~a->get_struct(~a)->dec_refs((struct_type*)type_~a, state.gc_nodes);~%" tpl i (lookup-type-id typ)))
                 ((type-bool-p typ))
                 ((type-int-p typ))
                 ((type-float-p typ))
@@ -1585,17 +1593,19 @@
          do (format-code stream "static vm::type *type_~a{nullptr};~%" i)))
 
 (defun do-output-c-predicates (stream)
+   (format-code *header-stream* "#define COMPILED_NUM_TYPES ~a~%" (length *program-types*))
    (loop for typ in *program-types*
          for i from 0
          do (progn
                (format-code stream "type_~a = " i)
                (create-c-type stream typ)
                (format stream ";~%")
-               (format-code stream "prog->add_type(type_~a);~%" i)))
+               (format-code stream "prog->types[~a] = type_~a;~%" i i)))
    (format-code stream "~%")
    (format-code stream "prog->num_predicates_uint = next_multiple_of_uint(~a);~%" (length *definitions*))
    (format-code stream "prog->num_linear_predicates_uint = next_multiple_of_uint(~a);~%" *c-num-linear-predicates*)
    (format-code stream "prog->number_rules = ~a;~%" (length *code-rules*))
+   (format-code *header-stream* "#define COMPILED_NUM_RULES ~a~%" (length *code-rules*))
    (format-code stream "prog->number_rules_uint = next_multiple_of_uint(prog->num_rules());~%")
    (format-code stream "prog->num_args = ~a;~%" (args-needed *ast*))
    (format-code stream "All->check_arguments(prog->num_args);~%")
@@ -1603,11 +1613,13 @@
    (format-code stream "prog->initial_priority = ~20$L;~%" (get-initial-priority))
    (format-code stream "prog->priority_static = ~a;~%" (if (get-priority-static) "true" "false"))
    (format-code stream "bitmap::create(prog->thread_predicates_map, prog->num_predicates_uint);~%")
-   (do-definitions (:definition def :name name :types types :id id)
+   (let ((has-aggs-p nil))
+     (do-definitions (:definition def :name name :types types :id id)
       (format-code stream "{~%")
       (with-tab
-         (format-code stream "predicate *p(new predicate());~%")
+         (format-code stream "predicate *p(prog->get_predicate(~a));~%" id)
          (format-code stream "pred_~a = p;~%" id)
+         (format-code stream "prog->sorted_predicates.push_back(p);~%")
          (format-code stream "p->id = ~a;~%" id)
          (format-code stream "p->is_linear = ~a;~%" (if (is-linear-p def) "true" "false"))
          (format-code stream "p->is_reverse_route = ~a;~%" (if (is-reverse-route-p def) "true" "false"))
@@ -1624,14 +1636,16 @@
          (cond
             ((is-linear-p def)
                (format-code stream "p->id2 = ~a;~%" (definition-get-linear-id def))
-               (format-code stream "prog->linear_predicates.push_back(p);~%"))
+               (format-code stream "prog->linear_predicates[~a] = p;~%" (definition-get-linear-id def)))
             (t
                (format-code stream "p->id2 = ~a;~%" (definition-get-persistent-id def))
-               (format-code stream "prog->persistent_predicates.push_back(p);~%")))
+               (format-code stream "prog->persistent_predicates[~a] = p;~%" (definition-get-persistent-id def))))
          (when (definition-aggregate-p def)
+            (setf has-aggs-p t)
             (let ((agg (definition-aggregate def)))
              (format-code stream "p->agg_info = new predicate::aggregate_info;~%")
              (format-code stream "p->agg_info->safeness = AGG_UNSAFE;~%")
+             (format-code stream "prog->safe = false;~%")
              (format-code stream "p->agg_info->field = ~a;~%" (position-if #'aggregate-p types))
              (format-code stream "p->agg_info->type = (vm::aggregate_type)~a;~%" (output-aggregate-type (aggregate-agg agg) (aggregate-type agg)))))
          (format-code stream "p->types.resize(~a);~%" (length types))
@@ -1642,9 +1656,11 @@
          (format-code stream "p->cache_info(prog);~%")
          (let ((index (find-index-name name)))
             (when index
-             (format-code stream "p->store_as_hash_table(~a);~%" (- (index-field index) 2))))
-         (format-code stream "prog->add_predicate(p);~%"))
+             (format-code stream "p->store_as_hash_table(~a);~%" (- (index-field index) 2)))))
       (format-code stream "}~%"))
+      (if has-aggs-p
+       (format-code stream "prog->has_aggregates_flag = true;~%")
+       (format-code *header-stream* "#define COMPILED_NO_AGGREGATES~%")))
    ;; compile const code
    (let ((variables (create-variable-context))
          (allocated-tuples (create-allocated-tuples-context)))
@@ -1660,7 +1676,7 @@
                   (format-code stream "prog->rules.push_back(r);~%")
                   (loop for id in (subgoal-ids code-rule)
                         do (format-code stream "r->add_predicate(~a);~%" id)
-                        do (format-code stream "prog->predicates[~a]->add_linear_affected_rule(r);~%" id)))
+                        do (format-code stream "prog->get_predicate(~a)->add_linear_affected_rule(r);~%" id)))
                (format-code stream "}~%"))))
 
 (defun do-output-c-functions (stream)
@@ -1761,6 +1777,7 @@
           (definition-set-persistent-id def *c-num-persistent-predicates*)
           (incf *c-num-persistent-predicates*)))
       (format-code stream "static vm::predicate *pred_~a{nullptr};~%" i))
+   (format-code *header-stream* "#define COMPILED_NUM_PREDICATES ~a~%" (+ *c-num-persistent-predicates* *c-num-linear-predicates*))
    (format-code *header-stream* "#define COMPILED_NUM_TRIES ~a~%" *c-num-persistent-predicates*)
    (format-code *header-stream* "#define COMPILED_NUM_LINEAR ~a~%" *c-num-linear-predicates*)
    (format-code stream "~%")
