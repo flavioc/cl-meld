@@ -713,6 +713,12 @@
   (format-code stream "runtime::do_decrement_runtime(~a, type_~a, state.gc_nodes);~%"
    old (lookup-type-id to-type))))
 
+(defun do-output-c-create (stream tpl def)
+   (let ((size (generate-mangled-name "size")))
+    (format-code stream "const size_t ~a = sizeof(vm::tuple) + sizeof(vm::tuple_field) * ~a;~%" size (length (definition-types def)))
+    (format-code stream "LOG_NEW_FACT();~%")
+    (format-code stream "vm::tuple *~a((vm::tuple*)mem::allocator<utils::byte>().allocate(~a));~%" tpl size)))
+
 (defun do-output-c-destroy (stream tpl def)
    (with-definition def (:types types)
       (let ((size (generate-mangled-name "size")))
@@ -721,7 +727,7 @@
              for i from 0
              do (cond
                 ((type-list-p typ)
-                 (format-code stream "runtime::cons::dec_refs(~a->get_cons(~a), state.gc_nodes);~%" tpl i))
+                 (format-code stream "runtime::cons::dec_refs(~a->get_cons(~a), (vm::list_type*)type_~a, state.gc_nodes);~%" tpl i (lookup-type-id typ)))
                 ((type-array-p typ)
                  (format-code stream "~a->get_array(~a)->dec_refs(type_~a, state.gc_nodes);~%" tpl i (lookup-type-id (type-array-element typ))))
                 ((type-string-p typ)
@@ -852,7 +858,7 @@
     (with-tab
      (let ((tpl (generate-mangled-name "tpl"))
            (pred (tostring "pred_~a" edit-id)))
-      (format-code stream "vm::tuple *~a(vm::tuple::create(~a));~%" tpl pred)
+      (do-output-c-create stream tpl edit)
       (loop for typ in (mapcar #'arg-type (definition-types edit))
             for var in vars
             for i from 0
@@ -970,10 +976,10 @@
             (multiple-value-bind (destt found3) (gethash (reg-num (reg-dot-reg dest)) allocated-tuples)
              (assert found3)
              (let ((head-data (create-c-tuple-field-from-val stream allocated-tuples variables (type-list-element typ) head)))
-             (format-code stream "~a->set_cons(~a, runtime::cons::create((runtime::cons*)~a->get_cons(~a), ~a, (list_type*)type_~a));~%"
+             (format-code stream "~a->set_cons(~a, runtime::cons::create((runtime::cons*)~a->get_cons(~a), ~a, type_~a));~%"
                (allocated-tuple-tpl destt) (reg-dot-field dest)
                (allocated-tuple-tpl tailt) (reg-dot-field tail) head-data
-               (lookup-type-id typ)))))))
+               (lookup-type-id (type-list-element typ))))))))
       (:cons-frf
          (let* ((tail (vm-cons-tail instr))
                 (head (vm-cons-head instr))
@@ -984,11 +990,11 @@
            (assert found1)
            (multiple-value-bind (destt found3) (gethash (reg-num (reg-dot-reg dest)) allocated-tuples)
             (assert found3)
-            (format-code stream "~a->set_cons(~a, runtime::cons::create(~a, ~a->get_field(~a), (list_type*)type_~a));~%"
+            (format-code stream "~a->set_cons(~a, runtime::cons::create(~a, ~a->get_field(~a), type_~a));~%"
              (allocated-tuple-tpl destt) (reg-dot-field dest)
              (c-variable-name tailv)
              (allocated-tuple-tpl headt) (reg-dot-field head)
-             (lookup-type-id typ))))))
+             (lookup-type-id (type-list-element typ)))))))
       (:cons-rrf
          (let ((tail (vm-cons-tail instr))
                (head (vm-cons-head instr))
@@ -1000,10 +1006,10 @@
             (multiple-value-bind (destt found3) (gethash (reg-num (reg-dot-reg dest)) allocated-tuples)
              (assert found3)
              (let ((head-data (create-c-tuple-field-from-val stream allocated-tuples variables (c-variable-type headt) head)))
-             (format-code stream "~a->set_cons(~a, runtime::cons::create((runtime::cons*)~a, ~a, (list_type*)type_~a));~%"
+             (format-code stream "~a->set_cons(~a, runtime::cons::create((runtime::cons*)~a, ~a, type_~a));~%"
                (allocated-tuple-tpl destt) (reg-dot-field dest)
                (c-variable-name tailt) head-data
-               (lookup-type-id (vm-cons-type instr)))))))))
+               (lookup-type-id (type-list-element (vm-cons-type instr))))))))))
       (:cons-frr
          (let ((tail (vm-cons-tail instr))
                (head (vm-cons-head instr))
@@ -1013,9 +1019,9 @@
            (multiple-value-bind (tailt found2) (gethash (reg-num tail) variables)
             (assert found2)
             (multiple-value-bind (var new-p) (allocate-c-variable variables dest (vm-cons-type instr))
-             (format-code stream "~a = runtime::cons::create((runtime::cons*)~a, ~a->get_field(~a), (list_type*)type_~a);~%"
+             (format-code stream "~a = runtime::cons::create((runtime::cons*)~a, ~a->get_field(~a), type_~a);~%"
                (declare-c-variable var new-p) (c-variable-name tailt) (allocated-tuple-tpl headt)
-               (reg-dot-field head) (lookup-type-id (vm-cons-type instr)))
+               (reg-dot-field head) (lookup-type-id (type-list-element (vm-cons-type instr))))
              (add-c-variable variables var))))))
       (:cons-fff
          (let ((tail (vm-cons-tail instr))
@@ -1027,10 +1033,10 @@
             (assert found2)
             (multiple-value-bind (destt found3) (gethash (reg-num (reg-dot-reg dest)) allocated-tuples)
              (assert found3)
-             (format-code stream "~a->set_cons(~a, runtime::cons::create(~a->get_cons(~a), ~a->get_field(~a), (list_type*)type_~a));~%"
+             (format-code stream "~a->set_cons(~a, runtime::cons::create(~a->get_cons(~a), ~a->get_field(~a), type_~a));~%"
                (allocated-tuple-tpl destt) (reg-dot-field dest) (allocated-tuple-tpl tailt)
                (reg-dot-field tail) (allocated-tuple-tpl headt) (reg-dot-field head)
-               (lookup-type-id (vm-cons-type instr))))))))
+               (lookup-type-id (type-list-element (vm-cons-type instr)))))))))
       (:cons-rrr
          (let* ((tail (vm-cons-tail instr))
                 (head (vm-cons-head instr))
@@ -1039,8 +1045,8 @@
                 (typ (vm-cons-type instr))
                 (field (create-c-tuple-field-from-val stream allocated-tuples variables (type-list-element typ) head)))
           (multiple-value-bind (var new-p) (allocate-c-variable variables dest typ)
-            (format-code stream "~a = runtime::cons::create(~a, ~a, (list_type*)type_~a);~%"
-               (declare-c-variable var new-p) (c-variable-name tailv) field (lookup-type-id typ))
+            (format-code stream "~a = runtime::cons::create(~a, ~a, type_~a);~%"
+               (declare-c-variable var new-p) (c-variable-name tailv) field (lookup-type-id (type-list-element typ)))
             (add-c-variable variables var))))
       (:move-nil-to-field
          (let ((to (move-to instr)))
@@ -1355,7 +1361,7 @@
                      (pred (tostring "pred_~a" tuple-id))
                      (tpl (generate-mangled-name "tpl")))
                  (setf (gethash (reg-num reg) allocated-tuples) (make-allocated-tuple tpl pred def))
-                 (format-code stream "tuple *~a(vm::tuple::create(~a));~%" tpl pred)))
+                 (do-output-c-create stream tpl def)))
       (:new-node (let* ((r (vm-new-node-reg instr)))
                   (multiple-value-bind (var new-p) (allocate-c-variable variables r :type-addr)
                      (format-code stream "~a = (vm::node_val)state.sched->create_node();~%" (declare-c-variable var new-p))
