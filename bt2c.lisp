@@ -1602,7 +1602,7 @@
          do (format-code stream "static vm::type *type_~a{nullptr};~%" i)))
 
 (defun do-output-c-predicates (stream)
-   (format-code *header-stream* "#define COMPILED_NUM_TYPES ~a~%" (length *program-types*))
+   (format *header-stream* "#define COMPILED_NUM_TYPES ~a~%" (length *program-types*))
    (loop for typ in *program-types*
          for i from 0
          do (progn
@@ -1614,8 +1614,8 @@
    (format-code stream "prog->num_predicates_uint = next_multiple_of_uint(~a);~%" (length *definitions*))
    (format-code stream "prog->num_linear_predicates_uint = next_multiple_of_uint(~a);~%" *c-num-linear-predicates*)
    (format-code stream "prog->number_rules = ~a;~%" (length *code-rules*))
-   (format-code *header-stream* "#define COMPILED_NUM_RULES ~a~%" (length *code-rules*))
-   (format-code *header-stream* "#define COMPILED_NUM_RULES_UINT ~a~%" (next-multiple-of-uint (length *code-rules*)))
+   (format *header-stream* "#define COMPILED_NUM_RULES ~a~%" (length *code-rules*))
+   (format *header-stream* "#define COMPILED_NUM_RULES_UINT ~a~%" (next-multiple-of-uint (length *code-rules*)))
    (format-code stream "prog->number_rules_uint = next_multiple_of_uint(prog->num_rules());~%")
    (format-code stream "prog->num_args = ~a;~%" (args-needed *ast*))
    (format-code stream "All->check_arguments(prog->num_args);~%")
@@ -1669,7 +1669,7 @@
       (format-code stream "}~%"))
       (if has-aggs-p
        (format-code stream "prog->has_aggregates_flag = true;~%")
-       (format-code *header-stream* "#define COMPILED_NO_AGGREGATES~%")))
+       (format *header-stream* "#define COMPILED_NO_AGGREGATES~%")))
    ;; compile const code
    (let ((variables (create-variable-context))
          (allocated-tuples (create-allocated-tuples-context)))
@@ -1786,11 +1786,11 @@
           (definition-set-persistent-id def *c-num-persistent-predicates*)
           (incf *c-num-persistent-predicates*)))
       (format-code stream "static vm::predicate *pred_~a{nullptr};~%" i))
-   (format-code *header-stream* "#define COMPILED_NUM_PREDICATES ~a~%" (+ *c-num-persistent-predicates* *c-num-linear-predicates*))
-   (format-code *header-stream* "#define COMPILED_NUM_PREDICATES_UINT ~a~%" (next-multiple-of-uint (+ *c-num-persistent-predicates* *c-num-linear-predicates*)))
-   (format-code *header-stream* "#define COMPILED_NUM_TRIES ~a~%" *c-num-persistent-predicates*)
-   (format-code *header-stream* "#define COMPILED_NUM_LINEAR ~a~%" *c-num-linear-predicates*)
-   (format-code *header-stream* "#define COMPILED_NUM_LINEAR_UINT ~a~%" (next-multiple-of-uint *c-num-linear-predicates*))
+   (format *header-stream* "#define COMPILED_NUM_PREDICATES ~a~%" (+ *c-num-persistent-predicates* *c-num-linear-predicates*))
+   (format *header-stream* "#define COMPILED_NUM_PREDICATES_UINT ~a~%" (next-multiple-of-uint (+ *c-num-persistent-predicates* *c-num-linear-predicates*)))
+   (format *header-stream* "#define COMPILED_NUM_TRIES ~a~%" *c-num-persistent-predicates*)
+   (format *header-stream* "#define COMPILED_NUM_LINEAR ~a~%" *c-num-linear-predicates*)
+   (format *header-stream* "#define COMPILED_NUM_LINEAR_UINT ~a~%" (next-multiple-of-uint *c-num-linear-predicates*))
    (format-code stream "~%")
    ;; static consts
    (format-code stream "// available consts in the program~%")
