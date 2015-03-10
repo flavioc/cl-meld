@@ -61,7 +61,7 @@
 (define-external-function "filecountwords" :type-int '(:type-string :type-int))
 (define-external-function "residual" :type-float '((:type-list :type-float) (:type-list :type-float)))
 (define-external-function "llength" :type-int '((:type-list :all)))
-(define-external-function "lappend" '(:type-list :all) '((:type-list :all) (:type-list :all)))
+(define-external-function "lappend" '(:type-list :all) '((:type-list :all) (:type-list :all)) :poly-p)
 (define-external-function "priority" :type-float '(:type-addr))
 (define-external-function "lreverse" '(:type-list :all) '((:type-list :all)) :poly-p t)
 (define-external-function "llast" :all '((:type-list :all)))
