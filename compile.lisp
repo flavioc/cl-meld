@@ -196,8 +196,8 @@
                                             `(,(expr-type call) ,@(loop for arg in (call-args call) collect (expr-type arg))))))
       (cond
        (poly-typ 
-         (with-compilation-on-reg (arg-place arg-code) (make-int (lookup-type-id poly-typ) :type-int)
-                                  (values `(,arg-place) arg-code)))
+        (with-reg (type-reg)
+            (values `(,type-reg) `(,(make-move (make-vm-type poly-typ) type-reg)))))
        (t (values nil nil)))))
     (t
 		(with-compilation-on-reg (arg-place arg-code) (first args)

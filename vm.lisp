@@ -35,6 +35,7 @@
 (defun specialize-move (from to typ)
 	(let ((ref-type-p (reference-type-p typ)))
 		(cond
+         ((vm-type-p from) `(:move-type-to-reg ,from ,to))
 			((vm-argument-p from)
 				(cond
 					((reg-p to)
@@ -433,6 +434,9 @@
 (defun vm-fabs-dest (x) (third x))
 (defun vm-fabs-p (x) (tagged-p flt :float))
 
+(defun make-vm-type (ty) `(:type ,ty))
+(defun vm-type-get (x) (second x))
+(defun vm-type-p (x) (tagged-p x :type))
 
 (defun make-vm-remote-update (dest edit-def target-def regs count)
    `(:remote-update ,dest ,edit-def ,target-def ,regs ,count))

@@ -1106,6 +1106,12 @@
           (multiple-value-bind (var new-p) (allocate-c-variable variables to :type-int)
             (add-c-variable variables var)
             (format-code stream "~a = ~a;~%" (declare-c-variable var new-p) (vm-int-val from)))))
+      (:move-type-to-reg
+         (let ((from (move-from instr))
+               (to (move-to instr)))
+          (multiple-value-bind (var new-p) (allocate-c-variable variables to :type-addr)
+           (add-c-variable variables var)
+           (format-code stream "~a = (vm::node_val)type_~a;~%" (declare-c-variable var new-p) (lookup-type-id (vm-type-get from))))))
       (:move-addr-to-reg
          (let ((from (move-from instr))
                (to (move-to instr)))

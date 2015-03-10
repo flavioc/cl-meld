@@ -614,6 +614,8 @@
 		(:thread-persistent-iterate (output-iterate vec #b10110111 instr nil))
       (:fabs
          (output-instr-and-values vec #b10111000 (vm-fabs-float instr) (vm-fabs-dest instr)))
+      (:move-type-to-reg
+         (output-instr-and-values vec #b10111001 (make-vm-int (lookup-type-id (vm-type-get (move-from instr)))) (move-to instr)))
       (:remote-update
          (output-instr-and-values vec #b10000100)
          (add-byte (logand *reg-mask* (reg-to-byte (vm-remote-update-dest instr))) vec)
