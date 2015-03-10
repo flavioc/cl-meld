@@ -90,7 +90,7 @@
 (define-external-function "facts-consumed" :type-int '(:type-addr))
 (define-external-function "lcount" :type-int '((:type-list :all) :all) :poly-p t)
 (define-external-function "lexists" :type-bool '((:type-list :all) :all) :poly-p t)
-(define-external-function "lexistss" :type-bool '((:type-list :all) (:type-list :all)))
+(define-external-function "lexistss" :type-bool '((:type-list :all) (:type-list :all)) :poly-p t)
 (define-external-function "queens_violation" :type-bool '(:type-int (:type-list :type-int)))
 (define-external-function "minimax_score" :type-int '((:type-list :type-int) :type-int :type-int))
 (define-external-function "minimax_points" :type-int '((:type-list :type-int) :type-int))
