@@ -842,11 +842,12 @@
                    (poly-typ (find-polymorphic-type extern (list (expr-type var) (expr-type var) (expr-type var)))))
              (cond
               (poly-typ
-                  (with-compilation-on-reg (arg-place arg-code) (make-int (lookup-type-id poly-typ) :type-int)
-                   (if (reg-p dest)
-                     `(,@arg-code ,(make-vm-call fun acc (list acc dest arg-place) (make-vm-bool gc) (expr-type var)))
-                     (with-reg (reg)
-                         `(,@arg-code ,(make-move dest reg) ,(make-vm-call fun acc (list acc reg arg-place) (make-vm-bool gc) (expr-type var)))))))
+                  (with-reg (arg-place)
+                   (let ((arg-code `(,(make-move (make-vm-type poly-typ) arg-place))))
+                      (if (reg-p dest)
+                        `(,@arg-code ,(make-vm-call fun acc (list acc dest arg-place) (make-vm-bool gc) (expr-type var)))
+                        (with-reg (reg)
+                            `(,@arg-code ,(make-move dest reg) ,(make-vm-call fun acc (list acc reg arg-place) (make-vm-bool gc) (expr-type var))))))))
               (t
                    (if (reg-p dest)
                      `(,(make-vm-call fun acc (list acc dest) (make-vm-bool gc) (expr-type var)))
