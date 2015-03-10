@@ -511,11 +511,12 @@
 (defun vm-call-gc (call) (fifth call))
 (defun vm-call-type (call) (sixth call))
 
-(defun make-vm-calle (name dest args gc) `(:calle ,name ,dest ,args ,gc))
+(defun make-vm-calle (name dest args gc typ) `(:calle ,name ,dest ,args ,gc ,typ))
 (defun vm-calle-name (call) (vm-call-name call))
 (defun vm-calle-dest (call) (vm-call-dest call))
 (defun vm-calle-args (call) (vm-call-args call))
 (defun vm-calle-gc (call) (vm-call-gc call))
+(defun vm-calle-type (call) (vm-call-type call))
 
 (defun make-vm-push-registers () `(:push-registers))
 (defun make-vm-pop-registers () `(:pop-registers))

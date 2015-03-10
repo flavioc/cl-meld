@@ -171,7 +171,7 @@
 	"Decides if external function is pre-defined or not."
 	(if (lookup-standard-external-function name)
 		(make-vm-call name new-reg regs (make-vm-bool gc) (expr-type call))
-		(make-vm-calle name new-reg regs (make-vm-bool gc))))
+		(make-vm-calle name new-reg regs (make-vm-bool gc) (expr-type call))))
 		
 (defun get-external-function-ret-type (name)
 	(let ((fun (lookup-standard-external-function name)))
