@@ -1583,6 +1583,7 @@
    (format-code stream "#include \"external/lists.hpp\"~%")
    (format-code stream "#include \"external/math.hpp\"~%")
    (format-code stream "#include \"external/utils.hpp\"~%")
+   (format-code stream "#include \"external/core.hpp\"~%")
    (format-code stream "#include \"db/database.hpp\"~%")
    (format-code stream "#include \"db/node.hpp\"~%")
    (format-code stream "#include \"vm/program.hpp\"~%")
