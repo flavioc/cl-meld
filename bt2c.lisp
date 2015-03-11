@@ -1555,7 +1555,7 @@
               (rdest (vm-cpu-id-dest instr))
               (node (find-c-variable variables rnode)))
         (multiple-value-bind (var new-p) (allocate-c-variable variables rdest :type-int)
-            (format-code stream "~a = ((db::node*)~a)->get_owner()->get_id();~%" (declare-c-variable var new-p)
+            (format-code stream "~a = (vm::int_val)(((db::node*)~a)->get_owner());~%" (declare-c-variable var new-p)
              (c-variable-name node))
             (add-c-variable variables var))))
       (:schedule-next
