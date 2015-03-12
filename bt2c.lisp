@@ -1504,7 +1504,14 @@
              (assert found)
              (format-code stream "if(scheduling_mechanism) {~%")
              (with-tab
-              (format-code stream "state.sched->set_node_priority((db::node*)~a, ~a);~%" (c-variable-name vnode) (c-variable-name vprio)))
+              (format stream "#ifdef COORDINATION_BUFFERING~%")
+              (with-tab
+               (format-code stream "auto it_coord(state.set_priorities.find((db::node*)~a));~%" (c-variable-name vnode))
+               (format-code stream "if (it_coord == state.set_priorities.end()) state.set_priorities[(db::node*)~a] = ~a; else { const priority_t current(it_coord->second);
+                      if (higher_priority(~a, current)) it_coord->second = ~a; }~%" (c-variable-name vnode) (c-variable-name vprio) (c-variable-name vprio) (c-variable-name vprio)))
+              (format stream "#else~%")
+              (format-code stream "state.sched->set_node_priority((db::node*)~a, ~a);~%" (c-variable-name vnode) (c-variable-name vprio))
+              (format stream "#endif~%"))
              (format-code stream "}~%")))))
       (:set-affinity
          (let* ((rnode (vm-set-affinity-node instr))
