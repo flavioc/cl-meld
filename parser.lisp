@@ -15,6 +15,7 @@
 	("@static"								(return (values :static-priority $@)))
 	("@cluster"								(return (values :cluster-priority $@)))
 	("@random"								(return (values :random-priority $@)))
+   ("@no_initial_priorities"        (return (values :no-initial-priorities $@)))
 	("@asc"									(return (values :asc $@)))
 	("@desc"									(return (values :desc $@)))
 	("@type"									(return (values :priority-type $@)))
@@ -289,7 +290,7 @@
 								:delay-seconds :delay-ms :question-mark
 								:static-priority :cluster-priority
 								:random-priority :lpaco :host :index :type-name
-                        :node-type))
+                        :no-initial-priorities :node-type))
 
 	(program
 	  (includes definitions directives externs consts
@@ -363,6 +364,8 @@
 		(:prio :cluster-priority :static-priority :dot
 				#'(lambda (p i s d) (declare (ignore p i s d))
 					(make-priority-cluster :in-file)))
+      (:prio :no-initial-priorities :dot #'(lambda (p n d) (declare (ignore p n d))
+                                       (make-priority-no-initial)))
 		(:prio :cluster-priority :random-priority :dot
 				#'(lambda (p i s d) (declare (ignore p i s d))
 					(make-priority-cluster :random)))

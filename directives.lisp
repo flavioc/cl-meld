@@ -17,6 +17,9 @@
 (defun initial-priority-value (p) (second p))
 (defun initial-priority-p (p) (tagged-p p :initial-prio))
 
+(defun make-priority-no-initial () `(:no-initial-priorities))
+(defun priority-no-initial-p (p) (tagged-p p :no-initial-priorities))
+
 (defun make-priority-order (asc-desc) `(:priority-order ,asc-desc))
 (defun priority-order (x) (second x))
 (defun priority-order-p (x) (tagged-p x :priority-order))
@@ -63,9 +66,12 @@
 	(let ((found (find-if #'initial-priority-p *directives*)))
 		(if found
 			(initial-priority-value found)
-         (case (get-priority-order)
-          (:asc most-negative-double-float)
-          (:desc most-positive-double-float)))))
+         (let ((no-initial (find-if #'priority-no-initial-p *directives*)))
+          (if no-initial
+            (get-default-priority)
+            (case (get-priority-order)
+             (:asc most-negative-double-float)
+             (:desc most-positive-double-float)))))))
 
 (defun assign-priorities (base priorities)
 	"Using the start priority 'base', it assigns increasing priorities taking into
