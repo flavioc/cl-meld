@@ -767,7 +767,9 @@
                       (it (frame-iterator frame)))
                   (with-debug stream "DEBUG_REMOVE"
                      (format-code stream "std::cout << \"\\tdelete \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl pred))
-                  (format-code stream "~a = ~a->erase(~a);~%" it ls it)
+                  (if tbl
+                     (format-code stream "~a = ~a->erase_from_list(~a, ~a);~%" it tbl ls it)
+                     (format-code stream "~a = ~a->erase(~a);~%" it ls it))
                   (do-output-c-destroy stream tpl def)
                   (when *facts-generated*
                    (format-code stream "if (state.direction == POSITIVE_DERIVATION) state.linear_facts_consumed++;~%"))
