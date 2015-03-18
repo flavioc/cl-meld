@@ -35,6 +35,10 @@
 (defun specialize-move (from to typ)
 	(let ((ref-type-p (reference-type-p typ)))
 		(cond
+         ((vm-thread-id-p from)
+            (cond
+               ((reg-dot-p to) `(:move-thread-id-to-field ,from ,to))
+               ((reg-p to) `(:move-thread-id-to-reg ,from ,to))))
          ((vm-type-p from) `(:move-type-to-reg ,from ,to))
 			((vm-argument-p from)
 				(cond
@@ -465,6 +469,9 @@
 (defun make-vm-host-id () :host-id)
 (defun vm-host-id-p (h) (eq h :host-id))
 
+(defun make-vm-thread-id () :thread-id)
+(defun vm-thread-id-p (x) (eq x :thread-id))
+
 (defun make-vm-addr (num) `(:addr ,num))
 (defun vm-addr-num (addr) (second addr))
 (defun vm-addr-p (addr) (tagged-p addr :addr))
@@ -473,6 +480,10 @@
 (defun make-send-self (reg) (make-send reg reg))
 (defun send-from (send) (second send))
 (defun send-to (send) (third send))
+
+(defun make-vm-send-thread (from to) `(:send-thread ,from ,to))
+(defun vm-send-thread-from (send) (second send))
+(defun vm-send-thread-to (send) (third send))
 
 (defun make-vm-add-linear (reg) `(:add-linear ,reg))
 (defun vm-add-linear-reg (x) (second x))

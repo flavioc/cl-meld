@@ -132,7 +132,12 @@
             (dolist (a (get-assignments (clause-body clause)))
              (with-assignment a (:expr e :var var)
                (when (and (host-p e) (not first-node))
-                  (setf first-node var))))))
+                  (setf first-node var)))))
+         (unless first-thread
+            (dolist (a (get-assignments (clause-body clause)))
+               (with-assignment a (:expr e :var var)
+                  (when (and (thread-id-p e) (not first-thread))
+                     (setf first-thread var))))))
       (values first-node first-thread)))
 
 (defun find-host-nodes-head-only (head)
@@ -526,7 +531,6 @@
 (defun subgoal-add-tagged-option (subgoal opt arg)
 	(subgoal-add-option subgoal `(,opt ,arg)))
 (defun subgoal-add-route (sub route)
-	(assert (var-p route))
    (subgoal-add-tagged-option sub :route route))
 (defun subgoal-get-remote-dest (subgoal)
    (first (subgoal-get-tagged-option subgoal :route)))

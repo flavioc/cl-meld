@@ -151,6 +151,7 @@
      ((type-array-p typ) "runtime::array*")
      ((type-struct-p typ) "runtime::struct1*")
      ((type-string-p typ) "runtime::rstring*")
+     ((type-thread-p typ) "vm::thread_val")
      (t (error 'output-invalid-error :text (tostring "type-to-c-type: do not know ~a" typ)))))
 
 (defun type-to-tuple-get (typ)
@@ -161,6 +162,7 @@
      ((type-list-p typ) "get_cons")
      ((type-array-p typ) "get_array")
      ((type-struct-p typ) "get_struct")
+     ((type-thread-p typ) "get_thread")
      (t (error 'output-invalid-error :text (tostring "type-to-tuple-get: do not know ~a" typ)))))
 
 (defun type-to-tuple-set (typ)
@@ -737,6 +739,7 @@
                 ((type-bool-p typ))
                 ((type-int-p typ))
                 ((type-float-p typ))
+                ((type-thread-p typ))
                 ((or (type-node-p typ) (type-addr-p typ))
                  (let ((node (generate-mangled-name "node")))
                   (format-code stream "db::node *~a((db::node*)~a->get_node(~a));~%" node tpl i)
@@ -1071,6 +1074,16 @@
           (multiple-value-bind (var new-p) (allocate-c-variable variables to :type-addr)
             (format-code stream "~a = (vm::node_val)node;~%" (declare-c-variable var new-p))
             (add-c-variable variables var))))
+      (:move-thread-id-to-reg
+         (let ((to (move-to instr)))
+            (multiple-value-bind (var new-p) (allocate-c-variable variables to :type-thread)
+               (format-code stream "~a = (vm::thread_val)state.sched;~%" (declare-c-variable var new-p))
+               (add-c-variable variables var))))
+      (:move-thread-id-to-field
+         (let ((to (move-to instr)))
+            (multiple-value-bind (tp found) (gethash (reg-num (reg-dot-reg to)) allocated-tuples)
+               (assert found)
+               (format-code stream "~a->set_thread(~a, (vm::thread_val)state.sched);~%" (allocated-tuple-tpl tp) (reg-dot-field to)))))
       (:move-host-id-to-field
          (let ((to (move-to instr)))
             (multiple-value-bind (tp found) (gethash (reg-num (reg-dot-reg to)) allocated-tuples)
@@ -1320,6 +1333,12 @@
                   (multiple-value-bind (tp found2) (gethash (reg-num from) allocated-tuples)
                    (let ((def (allocated-tuple-definition tp)))
                     (do-c-send stream def (c-variable-name p) (allocated-tuple-tpl tp) (allocated-tuple-pred tp)))))))
+      (:send-thread (let* ((to (send-to instr))
+                           (from (send-from instr)))
+                     (multiple-value-bind (th found-p) (gethash (reg-num to) variables)
+                        (multiple-value-bind (tp found2-p) (gethash (reg-num from) allocated-tuples)
+                           (format-code stream "execute_thread_send0((sched::thread*)~a, ~a, ~a, state);~%" (c-variable-name th)
+                              (allocated-tuple-tpl tp) (allocated-tuple-pred tp))))))
       (:select-node
           (when (vm-select-node-empty-p instr)
            (return-from do-output-c-instr nil))
@@ -1506,14 +1525,7 @@
              (assert found)
              (format-code stream "if(scheduling_mechanism) {~%")
              (with-tab
-              (format stream "#ifdef COORDINATION_BUFFERING~%")
-              (with-tab
-               (format-code stream "auto it_coord(state.set_priorities.find((db::node*)~a));~%" (c-variable-name vnode))
-               (format-code stream "if (it_coord == state.set_priorities.end()) state.set_priorities[(db::node*)~a] = ~a; else { const priority_t current(it_coord->second);
-                      if (higher_priority(~a, current)) it_coord->second = ~a; }~%" (c-variable-name vnode) (c-variable-name vprio) (c-variable-name vprio) (c-variable-name vprio)))
-              (format stream "#else~%")
-              (format-code stream "state.sched->set_node_priority((db::node*)~a, ~a);~%" (c-variable-name vnode) (c-variable-name vprio))
-              (format stream "#endif~%"))
+                (format-code stream "set_node_priority(state, (db::node*)~a, ~a);~%" (c-variable-name vnode) (c-variable-name vprio)))
              (format-code stream "}~%")))))
       (:set-affinity
          (let* ((rnode (vm-set-affinity-node instr))

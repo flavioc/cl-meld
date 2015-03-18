@@ -190,6 +190,9 @@
              ((and thread (var-eq-p thread first-arg))
                (setf all-transformed nil)
                (subgoal-set-thread sub))
+             ((addr-p first-arg)
+               (setf all-transformed nil)
+               (subgoal-add-route sub first-arg))
              (t
 					(subgoal-add-route sub first-arg)))))
       (do-comprehensions head (:right right :comprehension comp)
@@ -303,9 +306,15 @@
 (defun check-subgoal-arguments (homes clause)
 	"Check that the clause only uses certain nodes in 'homes'"
    (do-subgoals clause (:args args :name name)
-      (unless (some #'(lambda (h) (var-eq-p (first args) h)) homes)
-         (error 'localize-invalid-error
-               :text (tostring "Subgoal ~a has a bad home argument: ~a" name (first args))))))
+      (let ((first-arg (first args)))
+         (cond
+            ((var-p first-arg)
+               (unless (some #'(lambda (h) (var-eq-p first-arg h)) homes)
+                  (error 'localize-invalid-error
+                         :text (tostring "Subgoal ~a has a bad home argument: ~a" name first-arg))))
+            ((addr-p first-arg))
+            (t
+               (error 'localize-invalid-error :text (tostring "Subgoal ~a has a bad home argument ~a" name first-arg)))))))
 
 (defun body-shares-same-home-p (body home-argument thread)
 	(do-subgoals body (:args args :name name)
@@ -319,7 +328,9 @@
 (defun find-linear-body-homes (clause homes)
 	(let ((vars1 (iterate-expr #'(lambda (x)
                                  (cond
-                                    ((and (var-p x) (or (type-node-p (var-type x)) (type-addr-p (var-type x)))) x))) clause)))
+                                    ((and (var-p x) (type-thread-p (var-type x))) x)
+                                    ((and (var-p x) (or (type-node-p (var-type x)) (type-addr-p (var-type x))))
+                                    x))) clause)))
 		(remove-duplicates (append vars1 homes) :test #'var-eq-p)))
 
 (defun localize-start (clause routes host thread)
@@ -378,10 +389,13 @@
 (defun localize-check-head-by-homes (head homes)
 	(do-subgoals head (:args args)
       (let ((first-arg (first args)))
-         (unless (and (var-p first-arg)
-                     (one-of-the-vars-p homes first-arg))
-            (error 'localize-invalid-error
-                     :text (tostring "Variable was not found: ~a (available: ~{~a~^, ~})" (var-name first-arg) (mapcar #'var-name homes)))))))
+         (cond
+            ((and (var-p first-arg) (one-of-the-vars-p homes first-arg)))
+            ((var-p first-arg) (error 'localize-invalid-error
+                                    :text (tostring "Variable was not found: ~A (available: ~{~a~^, ~})" (var-name first-arg) (mapcar #'var-name homes))))
+            ((addr-p first-arg))
+            (t
+               (error 'localize-invalid-error :text (tostring "invalid destination node: ~A" first-arg)))))))
 
 (defun localize-check-head (head clause homes host thread)
 	(localize-check-head-by-homes head homes)

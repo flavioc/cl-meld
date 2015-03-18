@@ -235,6 +235,7 @@
 		((string-constant-p expr) (return-expr (make-vm-string-constant (string-constant-val expr))))
       ((addr-p expr) (return-expr (make-vm-addr (addr-num expr))))
       ((or (host-p expr) (host-id-p expr)) (return-expr (make-vm-host-id)))
+      ((thread-id-p expr) (return-expr (make-vm-thread-id)))
       ((argument-p expr)
 			(return-expr (make-vm-argument (argument-id expr))))
 		((get-constant-p expr)
@@ -434,15 +435,21 @@
 					`(,@code1 ,@code2 ,(make-vm-op dest place1 vm-op place2)))))))
 
 (defun get-remote-dest (subgoal)
-   (lookup-used-var (var-name (subgoal-get-remote-dest subgoal))))
+   (let ((dest (subgoal-get-remote-dest subgoal)))
+      (cond
+         ((var-p dest)
+            (lookup-used-var (var-name dest)))
+         ((addr-p dest)
+            (make-vm-addr (addr-num dest)))
+         (t (assert nil)))))
    
 (defun get-remote-reg-and-code (subgoal default)
    (if (subgoal-is-remote-p subgoal)
-      (let ((var (get-remote-dest subgoal)))
-         (if (reg-p var)
-            var
+      (let ((arg (get-remote-dest subgoal)))
+         (if (reg-p arg)
+            arg
             (with-reg (new-reg)
-               (values new-reg `(,(make-move var new-reg)))))) 
+               (values new-reg `(,(make-move arg new-reg)))))) 
          default))
 
 (defun find-matchable-constraint-for-var (body var reg level &optional i)
@@ -579,17 +586,23 @@
       (compile-expr-to arg reg-dot :top-level t)))
 
 (defun general-make-send (sub name tuple-reg send-to appears-body-p)
+   (warn "~a" sub)
 	(let ((def (lookup-definition name)))
 		(cond
          ((and (is-linear-p def) (subgoal-is-thread-p sub))
+            ;; send to current thread.
             (make-vm-enqueue-linear tuple-reg))
          ((and (not (is-linear-p def)) (subgoal-is-thread-p sub))
             (make-vm-add-thread-persistent tuple-reg))
          ((and (subgoal-is-thread-p sub))
             (assert nil (sub) "Cannot send subgoal ~a to thread." sub))
-			((and (not (is-reused-p def)) (is-linear-p def) (reg-eq-p tuple-reg send-to) (not appears-body-p) (not (is-action-p def)))
+         ((definition-is-thread-p def)
+            (make-vm-send-thread tuple-reg send-to))
+			((and (not (is-reused-p def)) (is-linear-p def)
+            (reg-eq-p tuple-reg send-to) (not appears-body-p) (not (is-action-p def)))
 			 	(make-vm-add-linear tuple-reg))
-			((and (or (and (is-reused-p def) (is-linear-p def)) (not (is-linear-p def))) (reg-eq-p tuple-reg send-to) (not (is-action-p def)))
+			((and (or (and (is-reused-p def) (is-linear-p def)) (not (is-linear-p def)))
+               (reg-eq-p tuple-reg send-to) (not (is-action-p def)))
 				(make-vm-add-persistent tuple-reg))
 			((and (is-action-p def) (reg-eq-p tuple-reg send-to))
 				(make-vm-run-action tuple-reg))

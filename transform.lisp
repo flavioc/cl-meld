@@ -268,6 +268,7 @@
 				((var-p expr) expr)
 				((literal-p expr) expr)
 				((get-constant-p expr) expr)
+            ((thread-id-p expr) expr)
 				((host-id-p expr) expr)
 				((argument-p expr) expr)
 				((world-p expr) expr)

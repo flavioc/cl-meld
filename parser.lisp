@@ -23,6 +23,7 @@
 	("@\\+[0-9]+s"							(return (values :delay-seconds $@)))
 	("@\\+[0-9]+ms"						(return (values :delay-ms $@)))
    ("@host"                         (return (values :host $@)))
+   ("@thread"                       (return (values :thread $@)))
 	("@world"                        (return (values :world $@)))
    ("@cpus"                         (return (values :cpus $@)))
 	("@arg[0-9]"							(return (values :arg $@)))
@@ -289,7 +290,7 @@
 								:exists :initial-priority :priority-type :priority-order
 								:delay-seconds :delay-ms :question-mark
 								:static-priority :cluster-priority
-								:random-priority :lpaco :host :index :type-name
+								:random-priority :lpaco :host :thread :index :type-name
                         :no-initial-priorities :node-type))
 
 	(program
@@ -642,6 +643,7 @@
 	   (:world (return-const (make-world)))
       (:cpus (return-const (make-cpus)))
       (:host (return-const (make-host)))
+      (:thread (return-const (make-thread-id)))
       (expr :append expr #L(make-call "lappend" (list !1 !3)))
 	   (expr :minus expr #'make-minus)
 	   (expr :mul expr #'make-mul)

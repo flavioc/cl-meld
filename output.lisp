@@ -86,6 +86,7 @@
 			(output-list-bytes vec (output-addr val)))
 		((vm-ptr-p val) (output-list-bytes vec (output-int64 (vm-ptr-val val))))
 		((vm-host-id-p val))
+      ((vm-thread-id-p val))
 		((vm-nil-p val))
 		((vm-non-nil-p val))
 		((vm-world-p val) (output-value-data (make-vm-int (number-of-nodes *nodes*)) vec))
@@ -389,6 +390,14 @@
 			(output-instr-and-values vec #b00100111 (move-from instr) (move-to instr)))
 		(:move-host-id-to-field
 			(output-instr-and-values vec #b00101000 (move-from instr) (move-to instr)))
+		(:move-thread-id-to-reg
+			(output-instr-and-values vec #b10111010 (move-to instr)))
+      (:move-thread-id-to-field
+         (output-instr-and-values vec #b10111011 (move-to instr)))
+      (:send-thread
+         (add-byte #b10111100 vec)
+         (add-byte (logand *reg-mask* (reg-to-byte (vm-send-thread-from instr))) vec)
+         (add-byte (logand *reg-mask* (reg-to-byte (vm-send-thread-to instr))) vec))
 		(:move-reg-to-constant
 			(output-instr-and-values vec #b00101001 (move-from instr) (move-to instr)))
 		(:move-constant-to-field
