@@ -586,7 +586,6 @@
       (compile-expr-to arg reg-dot :top-level t)))
 
 (defun general-make-send (sub name tuple-reg send-to appears-body-p)
-   (warn "~a" sub)
 	(let ((def (lookup-definition name)))
 		(cond
          ((and (is-linear-p def) (subgoal-is-thread-p sub))
