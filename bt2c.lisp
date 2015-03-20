@@ -645,12 +645,10 @@
   name))
 
 (defun do-c-send-linear (stream node tpl pred)
-   (format-code stream "~a->store.add_generated(~a, ~a);~%" node tpl pred)
+   (format-code stream "state.add_generated(~a, ~a);~%" tpl pred)
    (with-debug stream "DEBUG_SENDS"
     (format-code stream "std::cout << \"\\tsend \"; ~a->print(std::cout, ~a); std::cout << \" to \" << ~a->get_id() << std::endl;~%"
-     tpl pred node))
-   (format-code stream "state.generated_facts = true;~%")
-   (when *facts-generated* (format-code stream "state.linear_facts_generated++;~%")))
+     tpl pred node)))
 
 (defun do-c-send (stream def to tpl pred)
  (flet ((send-linear ()
@@ -662,8 +660,7 @@
           (with-debug stream "DEBUG_SENDS"
            (format-code stream "std::cout << \"local send \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%"
             tpl pred))
-          (format-code stream "node->store.persistent_tuples.push_back(~a);~%" name)
-          (when *facts-generated* (format-code stream "state.persistent_facts_generated++;~%")))))
+          (format-code stream "state.add_node_persistent_fact(~a);~%" name))))
   (cond
    ((and (is-linear-p def) (is-reused-p def))
     (format-code stream "if(state.direction == NEGATIVE_DERIVATION) {~%")
@@ -693,18 +690,29 @@
      (format stream "#endif~%"))
     (format-code stream "}~%")))))
 
-(defun add-c-persistent (stream instr variables allocated-tuples node)
+(defun add-c-node-persistent (stream instr variables allocated-tuples)
  (let ((reg (vm-add-persistent-reg instr))
        (name (generate-mangled-name "p")))
   (multiple-value-bind (p found-p) (gethash (reg-num reg) allocated-tuples)
    (declare (ignore found-p))
    (with-debug stream "DEBUG_SENDS"
-    (format-code stream "std::cout << \"\\tadd persistent \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%"
+    (format-code stream "std::cout << \"\\tadd node persistent \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%"
      (allocated-tuple-tpl p) (allocated-tuple-pred p)))
    (format-code stream "full_tuple *~a(new vm::full_tuple(~a, ~a, state.direction, state.depth));~%"
-    name (allocated-tuple-tpl p) (allocated-tuple-pred p))
-   (format-code stream "~a->store.persistent_tuples.push_back(~a);~%" node name)
-   (when *facts-generated* (format-code stream "state.persistent_facts_generated++;~%")))))
+     name (allocated-tuple-tpl p) (allocated-tuple-pred p))
+   (format-code stream "state.add_node_persistent_fact(~a);~%" name))))
+
+(defun add-c-thread-persistent (stream instr variables allocated-tuples)
+ (let ((reg (vm-add-persistent-reg instr))
+       (name (generate-mangled-name "p")))
+  (multiple-value-bind (p found-p) (gethash (reg-num reg) allocated-tuples)
+   (declare (ignore found-p))
+   (with-debug stream "DEBUG_SENDS"
+    (format-code stream "std::cout << \"\\tadd thread persistent \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%"
+     (allocated-tuple-tpl p) (allocated-tuple-pred p)))
+   (format-code stream "full_tuple *~a(new vm::full_tuple(~a, ~a, state.direction, state.depth));~%"
+     name (allocated-tuple-tpl p) (allocated-tuple-pred p))
+   (format-code stream "state.add_thread_persistent_fact(~a);~%" name))))
 
 (defun c-update-tuple-field (stream tt to-field to-type new-value)
  (let ((old (generate-mangled-name "old")))
@@ -1400,9 +1408,9 @@
                        (allocated-tuple-tpl p) (allocated-tuple-pred p)))
                      (format-code stream "node->matcher.new_linear_fact(~a);~%" (lookup-def-id (definition-name (allocated-tuple-definition p))))
                      (format-code stream "node->linear.add_fact(~a, ~a);~%" (allocated-tuple-tpl p) (allocated-tuple-pred p))
-                     (when *facts-generated* (format-code stream "state.linear_facts_generated++;~%")))))
-      (:add-persistent (add-c-persistent stream instr variables allocated-tuples "node"))
-      (:add-thread-persistent (add-c-persistent stream instr variables allocated-tuples "thread_node"))
+                     (format-code stream "state.linear_facts_generated++;~%"))))
+      (:add-persistent (add-c-node-persistent stream instr variables allocated-tuples))
+      (:add-thread-persistent (add-c-thread-persistent stream instr variables allocated-tuples))
       (:update (do-c-update stream instr allocated-tuples variables frames))
       (:push )
       (:pop )
@@ -1431,10 +1439,7 @@
            (with-debug stream "DEBUG_SENDS"
             (format-code stream "std::cout << \"\\tenqueue \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%"
              (allocated-tuple-tpl tpl) (allocated-tuple-pred tpl)))
-           (format-code stream "node->store.add_generated(~a, ~a);~%" (allocated-tuple-tpl tpl) (allocated-tuple-pred tpl))
-           (format-code stream "state.generated_facts = true;~%")
-           (when *facts-generated*
-            (format-code stream "state.linear_facts_generated++;~%")))))
+           (format-code stream "state.add_generated(~a, ~a);~%" (allocated-tuple-tpl tpl) (allocated-tuple-pred tpl)))))
       (:set-static-here (format-code stream "state.sched->set_node_static(node);~%"))
       (:cpu-static
          (let* ((rnode (vm-cpu-static-node instr))

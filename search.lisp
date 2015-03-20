@@ -267,6 +267,7 @@
 	(cond
 		((bool-p expr) expr)
 		((host-id-p expr) nil)
+      ((thread-id-p expr) nil)
 		((literal-p expr) expr)
 		((nil-p expr) expr)
 		((call-p expr) nil)
