@@ -54,4 +54,4 @@
      (return-from data-input-node-axioms nil))
     (loop for other-node across vec
           collect (make-subgoal "edge" (list (make-addr other-node)
-                (make-float (1+ (random (snap-rand-state obj)))))))))
+                (make-float (1+ (random 500 (snap-rand-state obj)))))))))
