@@ -121,6 +121,7 @@
                      ("min" :min)
                      ("priority" (if *parsed-header* :const :prio))
                      ("index" (if *parsed-header* :const :index))
+                     ("data" (if *parsed-header* :const :data))
                      ("true" :true)
                      ("false" :false)
                      ("nil" :nil)))))
@@ -291,7 +292,7 @@
 								:delay-seconds :delay-ms :question-mark
 								:static-priority :cluster-priority
 								:random-priority :lpaco :host :thread :index :type-name
-                        :no-initial-priorities :node-type))
+                        :data :no-initial-priorities :node-type))
 
 	(program
 	  (includes definitions directives externs consts
@@ -352,6 +353,7 @@
 
 	(directives
 		()
+      (data directives #'cons)
       (index directives #'cons)
 		(priority directives #'cons))
 
@@ -359,6 +361,15 @@
       (:index :const :div :number :dot #'(lambda (i name s field d)
                                           (declare (ignore i s d))
                                           (make-index name (parse-integer field)))))
+
+   (data
+      (:data :const :string :dot #'(lambda (i name file d)
+                                          (declare (ignore i d))
+                                          (let* ((path (subseq file 1 (1- (length file))))
+                                                 (full-path (concatenate 'string
+                                                            (directory-namestring *default-pathname-defaults*)
+                                                            path)))
+                                          (make-data-input name full-path)))))
 	
 	(priority
 		(:prio :static-priority :dot #'(lambda (p s d) (declare (ignore p s d)) (make-priority-static)))

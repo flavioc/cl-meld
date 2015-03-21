@@ -5,6 +5,7 @@
 (defparameter *header-stream* nil)
 (defparameter *c-num-linear-predicates* 0)
 (defparameter *c-num-persistent-predicates* 0)
+(defparameter *data-input* nil)
 
 (defparameter *tab-level* 0)
 (defun current-c-tab ()
@@ -894,9 +895,8 @@
        (format-code stream "break;~%")))
      (format-code stream "}~%"))))
 
-(defun do-output-c-new-axioms (instr)
-   (let ((axioms (vm-new-axioms-subgoals instr))
-         (vec (create-bin-array))
+(defun do-output-c-new-axioms (axioms)
+   (let ((vec (create-bin-array))
          (start *total-written*))
       (output-axioms vec axioms #'(lambda (arg vec)
                                    (when (addr-p arg)
@@ -1348,17 +1348,24 @@
                            (format-code stream "execute_thread_send0((sched::thread*)~a, ~a, ~a, state);~%" (c-variable-name th)
                               (allocated-tuple-tpl tp) (allocated-tuple-pred tp))))))
       (:select-node
-          (when (vm-select-node-empty-p instr)
-           (return-from do-output-c-instr nil))
           ;; write axioms first.
           (let ((node-table (make-hash-table))
                 (count 0))
              (vm-select-node-iterate instr (n instrs)
                (let ((axioms (find-if #'vm-new-axioms-p instrs)))
                 (when axioms
-                 (multiple-value-bind (start len) (do-output-c-new-axioms axioms)
-                  (incf count)
-                  (setf (gethash n node-table) (list start len))))))
+                 (let ((subgoals (vm-new-axioms-subgoals axioms)))
+                     (warn "~a" subgoals)
+                    (multiple-value-bind (start len) (do-output-c-new-axioms subgoals)
+                     (incf count)
+                     (setf (gethash n node-table) (list start len)))))))
+             (when *data-input*
+               (loop for i from 0 upto (number-of-nodes *nodes*)
+                     do (let ((axioms (data-input-node-axioms *data-input* i)))
+                           (when axioms
+                              (multiple-value-bind (start len) (do-output-c-new-axioms axioms)
+                                 (incf count)
+                                 (setf (gethash i node-table) (list start len)))))))
              (when (> count 0)
               (format-code stream "if(node->get_id() < ~a) read_axioms(state, node, ~a);~%" (number-of-nodes *nodes*) *total-written*)
               (loop for i from 0 to (1- (number-of-nodes *nodes*))
@@ -1899,11 +1906,24 @@
    (write-nodes *data-stream* *nodes*)
    (do-output-c-header stream file))
 
+(defun call-data-input (input)
+   (printdbg "Reading input file ~A..." (data-input-file input))
+   (cond
+    ((string-equal (data-input-template input) "stanford-snap")
+     (let ((ret (snap-file-read (data-input-file input))))
+        (setf *nodes* (snap-file-nodes ret))
+        ret))
+    (t (assert nil))))
+
 (defun output-c-code (file &key (write-ast nil) (write-code nil))
    (let ((c-file (concatenate 'string file ".cpp"))
          (*c-node-references* (make-hash-table))
          (header-file (concatenate 'string file ".hpp"))
-         (data-file (concatenate 'string file ".data")))
+         (data-file (concatenate 'string file ".data"))
+         (data-input (find-data-input)))
+      (if data-input
+         (setf *data-input* (call-data-input data-input))
+         (setf *data-input* nil))
 		(with-binary-file (*data-stream* data-file)
          (with-output-file (stream c-file)
           (with-output-file (*header-stream* header-file)
