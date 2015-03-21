@@ -18,7 +18,10 @@
      :accessor snap-edges)
     (nodes
      :initarg :nodes
-     :accessor snap-nodes)))
+     :accessor snap-nodes)
+    (rnd
+     :initarg rand-state
+     :accessor snap-rand-state)))
 
 (defun snap-file-read (filename)
    (let ((*snap-id* 0)
@@ -35,7 +38,8 @@
              (setf edges (make-array 16 :fill-pointer 0 :adjustable t))
              (vector-push node2 edges)
              (setf (gethash node1 edge-table) edges))))))
-      (make-instance 'snap-data :nodes ids :edges edge-table)))
+      (make-instance 'snap-data :nodes ids :edges edge-table
+                                 :rand-state (sb-ext:seed-random-state 0))))
 
 (defun snap-file-nodes (snap)
  (let ((nodes (make-mapping-set)))
@@ -49,4 +53,5 @@
     (unless found-p
      (return-from data-input-node-axioms nil))
     (loop for other-node across vec
-          collect (make-subgoal "edge" (list (make-addr other-node) (make-float 10))))))
+          collect (make-subgoal "edge" (list (make-addr other-node)
+                (make-float (1+ (random (snap-rand-state obj)))))))))
