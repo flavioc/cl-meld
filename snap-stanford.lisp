@@ -20,7 +20,7 @@
      :initarg :nodes
      :accessor snap-nodes)
     (rnd
-     :initarg rand-state
+     :initarg :rand-state
      :accessor snap-rand-state)))
 
 (defun snap-file-read (filename)
