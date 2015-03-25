@@ -1355,7 +1355,6 @@
                (let ((axioms (find-if #'vm-new-axioms-p instrs)))
                 (when axioms
                  (let ((subgoals (vm-new-axioms-subgoals axioms)))
-                     (warn "~a" subgoals)
                     (multiple-value-bind (start len) (do-output-c-new-axioms subgoals)
                      (incf count)
                      (setf (gethash n node-table) (list start len)))))))
