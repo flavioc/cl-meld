@@ -440,7 +440,7 @@
 
 ;;;; ASSIGNMENTS
 
-(defun make-assignment (var expr) (list :assign var expr))
+(defun make-assignment (var expr) `(:assign ,var ,expr))
 (defun assignment-p (ls) (tagged-p ls :assign))
 (defun assignment-var (ls) (second ls))
 (defun assignment-expr (ls) (third ls))

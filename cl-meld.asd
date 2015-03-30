@@ -68,6 +68,8 @@
 		 			(:file "localize"
 		 			         :depends-on ("package"
 		 			                      "search"
+                                     "ast"
+                                     "context"
 		 			                      "macros"
 		 			                      "transform"))
 		 			(:file "vm"

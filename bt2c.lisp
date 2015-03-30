@@ -306,7 +306,7 @@
          (format-code stream "}~%"))
        (add-c-variable variables var)))))
 
-(defun create-c-matches-code (stream tpl def matches allocated-tuples &optional (skip-code "continue;") (match-field nil))
+(defun create-c-matches-code (stream tpl def matches variables allocated-tuples &optional (skip-code "continue;") (match-field nil))
    (loop for match in matches
          do (let* ((reg-dot (match-left match))
                    (field (reg-dot-field reg-dot))
@@ -324,6 +324,11 @@
                  ((vm-nil-p value)
                   (when does-not-match-p
                      (format-code stream "if(!runtime::cons::is_null(~a->get_cons(~a))) { ~a }~%" tpl field skip-code)))
+                 ((reg-p value)
+                   (when does-not-match-p
+                    (let ((var (find-c-variable variables value)))
+                      (format-code stream "if(~a->~a(~a) != ~a) { ~a }~%" tpl (type-to-tuple-get (c-variable-type var)) field
+                          (c-variable-name var) skip-code))))
                  ((reg-dot-p value)
                   (with-definition def (:types typs)
                    (let ((typ (nth field typs)))
@@ -378,7 +383,7 @@
      (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
      (format-code stream "tuple *~a(~aleaf->get_underlying_tuple()); (void)~a;~%" tpl tpl tpl)
      (setf (gethash (reg-num reg) allocated-tuples) (make-allocated-tuple tpl predicate def))
-     (create-c-matches-code stream tpl def (iterate-matches instr) allocated-tuples)
+     (create-c-matches-code stream tpl def (iterate-matches instr) variables allocated-tuples)
      (with-debug stream "DEBUG_ITERS"
       (format-code stream "std::cout << \"\\titerate \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl predicate))
      (dolist (inner (iterate-instrs instr))
@@ -419,7 +424,7 @@
              (format-code stream "for(auto ~a(~a->begin()), ~aend(~a->end()); ~a != ~aend; ~a++) {~%" it lsname it lsname it it it)
              (with-tab
                  (format-code stream "tuple *~a(*~a); (void)~a;~%" tpl it tpl)
-                 (create-c-matches-code stream tpl def (iterate-matches instr) allocated-tuples "continue;")
+                 (create-c-matches-code stream tpl def (iterate-matches instr) variables allocated-tuples "continue;")
                  (c-iterate-add-vector stream tpl lsname it vec))
              (format-code stream "}~%")))
       (with-definition def (:name name :types types)
@@ -523,7 +528,7 @@
       (with-tab
         (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
         (format-code stream "tuple *~a(~aleaf->get_underlying_tuple()); (void)~a;~%" tpl tpl tpl)
-        (create-c-matches-code stream tpl def (iterate-matches instr) allocated-tuples)
+        (create-c-matches-code stream tpl def (iterate-matches instr) variables allocated-tuples)
         (format-code stream "~a.push_back(~aleaf);~%" vec tpl))
       (format-code stream "}~%"))
    (format-code stream "}~%"))
@@ -581,7 +586,7 @@
                     (format-code stream "~a++;~%" it)
                     (format-code stream "continue;~%"))
                    (format-code stream "}~%")))
-                 (create-c-matches-code stream tpl def (iterate-matches instr) allocated-tuples (tostring "~a++; continue;" it) match-field)
+                 (create-c-matches-code stream tpl def (iterate-matches instr) variables allocated-tuples (tostring "~a++; continue;" it) match-field)
                  (format-code stream "{~%")
                  (with-debug stream "DEBUG_ITERS"
                      (format-code stream "std::cout << \"\\titerate \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl predicate))
