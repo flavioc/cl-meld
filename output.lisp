@@ -35,7 +35,7 @@
 	(dolist (b ls) (add-byte b vec)))
    
 (defun output-int (int)
-   (assert (< int 2147483647))
+   (assert (<= int 2147483647))
    (loop for i upto 3
       collect (ldb (byte 8 (* i 8)) int)))
 (defun output-int64 (int)
