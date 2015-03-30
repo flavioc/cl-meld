@@ -336,6 +336,9 @@
                      (assert found)
                      (format-code stream "if(~a->~a(~a) != ~a->~a(~a)) { ~a }~%"
                       tpl (type-to-tuple-get typ) field (allocated-tuple-tpl other) (type-to-tuple-get typ) (reg-dot-field value) skip-code)))))
+                 ((vm-host-id-p value)
+                  (when does-not-match-p
+                     (format-code stream "if(~a->get_node(~a) != (vm::node_val)state.node) { ~a }~%" tpl field skip-code)))
                  ((vm-non-nil-p value)
                   (format-code stream "if(runtime::cons::is_null(~a->get_cons(~a))) { ~a }~%" tpl field skip-code))
                  (t
