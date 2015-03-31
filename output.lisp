@@ -62,12 +62,17 @@
 	(cond
 		((reg-p val) t)
 		((reg-dot-p val) t)
+      ((vm-int-p val) nil)
+      ((vm-float-p val) nil)
+      ((vm-nil-p val) nil)
+      ((vm-non-nil-p val) nil)
+      ((vm-host-id-p val) t)
 		((vm-pcounter-p val) t)
 		((vm-stack-p val) t)
 		((vm-list-p val)
 			(or (variable-value-p (vm-list-head val))
 				(variable-value-p (vm-list-tail val))))
-		(t nil)))
+		(t (assert nil))))
 		
 (defun output-value-data (val vec)
 	(cond

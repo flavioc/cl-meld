@@ -128,7 +128,8 @@
                      expr)
       found))
 
-(defun valid-assignment-p (vars) #'(lambda (a) (tree-subsetp (all-variable-names (assignment-expr a)) vars)))
+(defun valid-assignment-p (vars)
+   #'(lambda (a) (tree-subsetp (all-variable-names (assignment-expr a)) vars)))
 (defun select-valid-assignments (body subgoals &optional (base-vars nil))
    (loop with vars = (union base-vars (all-variable-names subgoals))
          with ass = (get-assignments body)

@@ -13,11 +13,12 @@
 
 (defun free-reg (regs reg)
    (remove reg regs :count 1 :test #'reg-eq-p))
-		
+
 (defun find-unused-reg (regs)
 	(loop for i upto (1- *num-regs*)
 		do (if (not (has-reg-p regs (make-reg i)))
 				(return-from find-unused-reg (make-reg i)))))
+
 (defun find-unused-n-regs (regs n)
    (let ((c 0))
       (loop for i upto (1- *num-regs*)
@@ -109,13 +110,15 @@
           (or (check-arguments op1 op2)
               (check-arguments op2 op1))))))))
 
-(defun create-new-assignment-from-equal (constraint)
+(defun create-new-assignment-from-equal (all-vars)
    "From a constraint of the form NewVar = Expr, create a new assignment."
-   (let* ((cexpr (constraint-expr constraint))
-          (v1 (op-op1 cexpr)) (v2 (op-op2 cexpr))
-          (var (if (var-p v1) v1 v2))
-          (expr (if (var-p v1) v2 v1)))
-    (make-assignment var expr)))
+   #'(lambda (constraint)
+      (let* ((cexpr (constraint-expr constraint))
+             (v1 (op-op1 cexpr)) (v2 (op-op2 cexpr))
+             (is-v1-p (and (var-p v1) (not (member (var-name v1) all-vars))))
+             (var (if is-v1-p v1 v2))
+             (expr (if is-v1-p v2 v1)))
+        (make-assignment var expr))))
 
 (defun get-compile-constraints-and-assignments (body)
    "Return constraints and assignments that can be used from the body."
@@ -124,11 +127,10 @@
           (all-vars (append vars-ass (all-used-var-names)))
           (constraints (filter (valid-constraint-p all-vars) (get-constraints body)))
           (equal-constraints (filter (equal-ass-constraint-p all-vars) (get-constraints body)))
-          (new-ass (mapcar #'create-new-assignment-from-equal equal-constraints))
-          (new-body (remove-all body `(,@assignments ,@constraints ,@equal-constraints)))
-          (ret (remove-unneeded-assignments `(,@assignments ,@constraints))))
-    (values (filter #'constraint-p ret)
-            `(,@(filter #'assignment-p ret) ,@new-ass)
+          (new-ass (mapcar (create-new-assignment-from-equal all-vars) equal-constraints))
+          (new-body (remove-all body `(,@assignments ,@constraints ,@equal-constraints))))
+    (values constraints
+            `(,@assignments ,@new-ass)
             new-body)))
 
 (defun make-low-constraint (typ v1 v2) `(,typ ,v1 ,v2))
@@ -433,7 +435,8 @@
 								c2 code2)))
 				(with-dest-or-new-reg (dest)
 					(compile-op-expr expr p1 p2 c1 c2 dest))))
-      (t (error 'compile-invalid-error :text (tostring "Unknown expression to compile: ~a" expr)))))
+      (t (assert nil)
+         (error 'compile-invalid-error :text (tostring "Unknown expression to compile: ~a" expr)))))
 
 (defun compile-op-expr (expr new-place1 new-place2 new-code1 new-code2 dest)
 	(cond
@@ -486,12 +489,15 @@
 		((float-p var) (values (make-vm-float (float-val var)) nil))
 		((var-p var)
 			(let ((already-defined (lookup-used-var (var-name var))))
-			 (multiple-value-bind (cs other-var) (when (zerop level) (find-first-assignment-constraint-to-var body var))
+			 (multiple-value-bind (cs other-var) (when (zerop level)
+                                               (find-first-assignment-constraint-to-var body var))
 		   	(cond
 		      	(already-defined
 						(cond
 							((zerop level)
 							 (values already-defined nil))
+                     ((vm-host-id-p already-defined)
+                      (values already-defined nil))
 							((not (reg-eq-p (reg-dot-reg already-defined) reg))
 								(values already-defined nil))))
 					((and (not already-defined) (zerop level) cs (lookup-used-var (var-name other-var)))
@@ -1095,6 +1101,7 @@
    (if (null assignments)
        (funcall head-fun)
        (let ((ass (find-if (valid-assignment-p (all-used-var-names)) assignments)))
+         (assert ass)
          (with-reg (new-reg)
             (with-assignment ass (:var var :expr expr)
                (with-compiled-expr (place instrs
@@ -1112,10 +1119,11 @@
     (let ((assigns (get-assignments body)))
       (cond
          ((and (not (null head)) (clause-head-is-recursive-p head))
-            (let ((code (compile-assignments-and-head assigns head #L(loop for clause in head
-                                                                     append (with-compile-context (compile-iterate (clause-body clause) (clause-body clause)
-                                                                                          (clause-head clause) sub-regs :inside inside))))))
-               (remove-defined-assignments assigns)
+            (let ((code (compile-assignments-and-head assigns
+                         head #L(loop for clause in head
+                                      append (with-compile-context (compile-iterate (clause-body clause) (clause-body clause)
+                                                                                    (clause-head clause) sub-regs :inside inside))))))
+              (remove-defined-assignments assigns)
                code))
          (t
             (let ((head-code (compile-assignments-and-head assigns head #L(do-compile-head head sub-regs inside head-compiler))))
@@ -1124,15 +1132,25 @@
                   `(,(make-vm-rule-done) ,@head-code)
             	head-code))))))
 
+(defun subgoal-has-modifier-p (sub)
+   (or (subgoal-has-random-p sub)
+      (subgoal-has-min-p sub)))
+
 (defun select-next-subgoal-for-compilation (body)
 	"Selects next subgoal for compilation. We give preference to subgoals with modifiers (random/min/etc)."
-	(let ((no-args (find-if #'(lambda (sub) (and (subgoal-p sub) (null (subgoal-args sub)))) body)))
-		(if no-args
-			no-args
-			(let ((with-mod (find-if #'(lambda (sub) (and (subgoal-p sub) (or (subgoal-has-random-p sub) (subgoal-has-min-p sub)))) body)))
-				(if with-mod
-					with-mod
-					(find-if #'subgoal-p body))))))
+   (let ((sorted (stable-sort (get-subgoals body)
+                               #'(lambda (sub1 sub2)
+                                   (let ((args1 (length (subgoal-args sub1)))
+                                         (args2 (length (subgoal-args sub2)))
+                                         (index1 (find-index-name (subgoal-name sub1)))
+                                         (index2 (find-index-name (subgoal-name sub2))))
+                                    (cond
+                                     ((subgoal-has-modifier-p sub1) t)
+                                     ((and index2 (not index1)) t)
+                                     ((and index1 (not index2)) nil)
+                                     (t nil)))))))
+      (when sorted
+       (first sorted))))
 
 (defun constraints-in-the-same-subgoal-p (reg)
 	#'(lambda (c)
@@ -1186,16 +1204,18 @@
    (cond
     ((and (null constraints)
           (null assignments))
-      (remove-defined-assignments (mapcar #'car tmp-assignments))
-      (let ((unneeded-regs (mapcar #'cdr tmp-assignments)))
-         (loop for reg in unneeded-regs
-               do (setf *used-regs* (free-reg *used-regs* reg))))
-     (funcall rest-compiler))
+     (let ((code (funcall rest-compiler)))
+        (remove-defined-assignments (mapcar #'car tmp-assignments))
+        (let ((unneeded-regs (mapcar #'cdr tmp-assignments)))
+          (loop for reg in unneeded-regs
+                do (setf *used-regs* (free-reg *used-regs* reg))))
+        code))
     (t
       (let* ((all-vars (all-used-var-names))
             (new-constraint (select-best-constraint constraints all-vars)))
          (if (null new-constraint)
             (let* ((ass (find-if (valid-assignment-p all-vars) assignments)))
+               (assert ass)
                (with-assignment ass (:var var :expr expr)
                   (with-compiled-expr (place instrs) expr
                    (let* ((ass-used-after-p (expr-uses-var-p (append body head) var))

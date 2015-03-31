@@ -306,43 +306,63 @@
          (format-code stream "}~%"))
        (add-c-variable variables var)))))
 
+(defun create-c-match-code (stream obj value typ variables allocated-tuples skip-code &key (does-not-match-p nil))
+ (cond
+  ((vm-any-p value) )
+  ((vm-int-p value)
+   (when does-not-match-p
+      (let ((val (vm-int-val value)))
+       (format-code stream "if(~a != ~a) { ~a }~%" obj val skip-code))))
+  ((vm-float-p value)
+   (when does-not-match-p
+      (let ((val (vm-float-val value)))
+       (format-code stream "if(~a != ~20$L) { ~a }~%" obj val skip-code))))
+  ((vm-nil-p value)
+   (when does-not-match-p
+      (format-code stream "if(!runtime::cons::is_null(~a)) { ~a }~%" obj skip-code)))
+  ((reg-p value)
+    (when does-not-match-p
+     (let ((var (find-c-variable variables value)))
+       (format-code stream "if(~a != ~a) { ~a }~%" obj (c-variable-name var) skip-code))))
+  ((reg-dot-p value)
+     (multiple-value-bind (other found) (gethash (reg-num (reg-dot-reg value)) allocated-tuples)
+      (assert found)
+      (format-code stream "if(~a != ~a->~a(~a)) { ~a }~%"
+       obj (allocated-tuple-tpl other) (type-to-tuple-get typ) (reg-dot-field value) skip-code)))
+  ((vm-host-id-p value)
+   (when does-not-match-p
+      (format-code stream "if(~a != (vm::node_val)state.node) { ~a }~%" obj skip-code)))
+  ((vm-list-p value)
+   (when does-not-match-p
+      (let ((head (vm-list-head value))
+            (tail (vm-list-tail value))
+            (ltyp (type-list-element typ))
+            (head-var (generate-mangled-name "head"))
+            (tail-var (generate-mangled-name "tail")))
+       (format-code stream "if(runtime::cons::is_null(~a)) { ~a }~%" obj skip-code)
+       (format-code stream "{~%")
+       (with-tab
+          (format-code stream "~a ~a(~a->get_head().~a);~%" (type-to-c-type ltyp) head-var obj (type-to-union-field ltyp))
+          (format-code stream "~a ~a(~a->get_tail());~%" (type-to-c-type typ) tail-var obj)
+          (format-code stream "(void)~a; (void)~a;~%" head-var tail-var)
+          (create-c-match-code stream head-var head ltyp variables allocated-tuples skip-code :does-not-match-p does-not-match-p)
+          (create-c-match-code stream tail-var tail typ variables allocated-tuples skip-code :does-not-match-p does-not-match-p))
+       (format-code stream "}~%"))))
+  ((vm-non-nil-p value)
+   (format-code stream "if(runtime::cons::is_null(~a)) { ~a }~%" obj skip-code))
+  (t
+   (error 'output-invalid-error :text (tostring "create-c-match-code: can't create code for value ~a" value)))))
+
 (defun create-c-matches-code (stream tpl def matches variables allocated-tuples &optional (skip-code "continue;") (match-field nil))
    (loop for match in matches
          do (let* ((reg-dot (match-left match))
                    (field (reg-dot-field reg-dot))
                    (value (match-right match))
                    (does-not-match-p (or (not match-field) (not (= field match-field)))))
-                (cond
-                 ((vm-int-p value)
-                  (when does-not-match-p
-                     (let ((val (vm-int-val value)))
-                      (format-code stream "if(~a->get_int(~a) != ~a) { ~a }~%" tpl field val skip-code))))
-                 ((vm-float-p value)
-                  (when does-not-match-p
-                     (let ((val (vm-float-val value)))
-                      (format-code stream "if(~a->get_float(~a) != ~20$L) { ~a }~%" tpl field val skip-code))))
-                 ((vm-nil-p value)
-                  (when does-not-match-p
-                     (format-code stream "if(!runtime::cons::is_null(~a->get_cons(~a))) { ~a }~%" tpl field skip-code)))
-                 ((reg-p value)
-                   (when does-not-match-p
-                    (let ((var (find-c-variable variables value)))
-                      (format-code stream "if(~a->~a(~a) != ~a) { ~a }~%" tpl (type-to-tuple-get (c-variable-type var)) field
-                          (c-variable-name var) skip-code))))
-                 ((reg-dot-p value)
-                  (with-definition def (:types typs)
-                   (let ((typ (nth field typs)))
-                    (multiple-value-bind (other found) (gethash (reg-num (reg-dot-reg value)) allocated-tuples)
-                     (assert found)
-                     (format-code stream "if(~a->~a(~a) != ~a->~a(~a)) { ~a }~%"
-                      tpl (type-to-tuple-get typ) field (allocated-tuple-tpl other) (type-to-tuple-get typ) (reg-dot-field value) skip-code)))))
-                 ((vm-host-id-p value)
-                  (when does-not-match-p
-                     (format-code stream "if(~a->get_node(~a) != (vm::node_val)state.node) { ~a }~%" tpl field skip-code)))
-                 ((vm-non-nil-p value)
-                  (format-code stream "if(runtime::cons::is_null(~a->get_cons(~a))) { ~a }~%" tpl field skip-code))
-                 (t
-                  (error 'output-invalid-error :text (tostring "create-c-matches: can't create code for value ~a" value)))))))
+               (with-definition def (:types typs)
+                 (let* ((typ (nth field typs))
+                        (obj (tostring "~a->~a(~a)" tpl (type-to-tuple-get typ) field)))
+                  (create-c-match-code stream obj value typ variables allocated-tuples skip-code :does-not-match-p does-not-match-p))))))
 
 (defun iterate-match-constant-p (val)
    (cond
