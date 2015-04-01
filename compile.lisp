@@ -1174,6 +1174,8 @@
 (defun create-iterate-instruction (sub def match-constraints tuple-reg iterate-code)
 	(with-subgoal sub (:name name)
 		(cond
+         ((and (subgoal-is-thread-p sub) (is-linear-p def) (not (subgoal-to-be-deleted-p sub def)))
+          (make-thread-rlinear-iterate name tuple-reg match-constraints iterate-code))
          ((and (subgoal-is-thread-p sub) (is-linear-p def))
           (make-thread-linear-iterate name tuple-reg match-constraints iterate-code))
          ((and (subgoal-is-thread-p sub) (not (is-linear-p def)))

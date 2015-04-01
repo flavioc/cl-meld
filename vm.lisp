@@ -411,6 +411,7 @@
 (defun make-linear-iterate (name reg matches instrs) `(:linear-iterate ,name ,reg ,matches ,instrs))
 (defun make-rlinear-iterate (name reg matches instrs) `(:rlinear-iterate ,name ,reg ,matches ,instrs))
 (defun make-thread-linear-iterate (name reg matches instrs) `(:thread-linear-iterate ,name ,reg ,matches ,instrs))
+(defun make-thread-rlinear-iterate (name reg matches instrs) `(:thread-rlinear-iterate ,name ,reg ,matches ,instrs))
 
 (defun order-iterate-subgoal (x) (sixth x))
 
