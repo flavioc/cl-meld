@@ -75,8 +75,10 @@
 (defun lookup-used-var (var-name)
    (multiple-value-bind (data found) (gethash var-name *vars-places*)
       (when found data)))
-(defun add-used-var (var-name data) (setf (gethash var-name *vars-places*) data))
-(defun remove-used-var (var-name) (remhash var-name *vars-places*))
+(defun add-used-var (var-name data)
+   (setf (gethash var-name *vars-places*) data))
+(defun remove-used-var (var-name)
+   (remhash var-name *vars-places*))
 (defun all-used-var-names () (alexandria:hash-table-keys *vars-places*))
 
 (defun hash-table-to-stack (hash)
@@ -906,6 +908,7 @@
        (with-agg-spec spec (:var var)
 			(let ((src (lookup-used-var (var-name var)))
                (typ (var-type var)))
+            (assert src)
             (cond
              ((reg-p src)
                `(,(make-vm-op acc acc (if (type-int-p typ) :int-plus :float-plus) src)))
@@ -934,13 +937,13 @@
 			(let ((inner-code (compile-iterate (agg-construct-body c) (agg-construct-body c) nil nil
 									:head-compiler #'(lambda (h d sr s)
 																(declare (ignore h d sr s))
-                                                (let ((step-code (loop for var-reg in vars-regs
+                                                (let ((step-code (loop for var-reg in (reverse vars-regs)
                                                                         for spec in (agg-construct-specs c)
                                                                         for gc in gcs
                                                                         append (agg-construct-step (third var-reg) (second var-reg) (first var-reg) gc spec))))
                                                  `(,@step-code ,@(do-compile-head-code (agg-construct-head0 c) nil nil nil)))))))
-				(dolist (var-reg vars-regs)
-					(add-used-var (var-name (first var-reg)) (second var-reg)))
+            (dolist (var-reg vars-regs)
+               (add-used-var (var-name (first var-reg)) (second var-reg)))
 				(let ((head-code (do-compile-head-code (agg-construct-head c) sub-regs nil nil)))
 					(dolist (var-reg vars-regs)
 						(remove-used-var (var-name (first var-reg))))
