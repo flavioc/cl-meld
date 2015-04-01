@@ -1682,7 +1682,7 @@
           (cond
            ((subgoal-is-reused-p sub))
            (t
-            (let ((found(find-same-subgoal tmp-head sub constraints)))
+            (let ((found (find-same-subgoal tmp-head sub constraints)))
              (when found
               (push sub mark-subgoals)
               (push found to-remove)

@@ -1054,13 +1054,9 @@
 					
 (defun test-same-arguments-p (args1 args2 constraints)
 	(every #'(lambda (arg1 arg2)
-					(cond
-						((equal arg1 arg2) t)
-						(t
-							(multiple-value-bind (cs other-var) (find-first-assignment-constraint-to-var constraints arg1)
-								(when cs
-									(equal arg2 other-var))))))
-				args1 args2))
+             (member arg2 (find-all-possible-assignments constraints arg1)
+                     :test #'equal))
+       args1 args2))
 
 (defun find-action-problems ()
    "Build rule dependency graph and check if an action

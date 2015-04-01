@@ -188,6 +188,27 @@
 				(when ret2
 					(values (first ret2) (op-op1 (constraint-expr (first ret2)))))))))
 
+(defun find-all-possible-assignments (constraints expr)
+   "From a list of constraints, find all expressions that are equal to 'expr'."
+   (let ((bag (list expr))
+         (try-again t))
+    (loop while try-again
+          do (progn
+               (setf try-again nil)
+               (loop for constr in constraints
+                     do (let ((cexpr (constraint-expr constr)))
+                                 (when (equal-p cexpr)
+                                    (let ((expr1 (op-op1 cexpr))
+                                          (expr2 (op-op2 cexpr)))
+                                       (cond
+                                        ((and (some #L(equal !1 expr1) bag) (not (member expr2 bag :test #'equal)))
+                                          (push expr2 bag)
+                                          (setf try-again t))
+                                        ((and (some #L(equal !1 expr2) bag) (not (member expr1 bag :test #'equal)))
+                                         (push expr1 bag)
+                                         (setf try-again t)))))))))
+    bag))
+
 (defun find-not-constraints (body)
 	(find-constraints body #L(not-p !1)))
 	
