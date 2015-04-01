@@ -673,7 +673,8 @@
         do (format-code stream "~a->set_data(~a, ~a, (vm::struct_type*)type_~a);~%" name i param (lookup-type-id typ)))
   name))
 
-(defun do-c-send-linear (stream node tpl pred)
+(defun do-c-send-linear (stream node tpl pred def)
+   (format-code stream "// sending fact ~a~%" (definition-name def))
    (format-code stream "state.add_generated(~a, ~a);~%" tpl pred)
    (with-debug stream "DEBUG_SENDS"
     (format-code stream "std::cout << \"\\tsend \"; ~a->print(std::cout, ~a); std::cout << \" to \" << ~a->get_id() << std::endl;~%"
@@ -681,7 +682,7 @@
 
 (defun do-c-send (stream def to tpl pred)
  (flet ((send-linear ()
-         (do-c-send-linear stream "node" tpl pred))
+         (do-c-send-linear stream "node" tpl pred def))
         (send-persistent ()
          (let ((name (generate-mangled-name "stpl")))
           (format-code stream "vm::full_tuple *~a(new vm::full_tuple(~a, ~a, state.direction, state.depth));~%"
@@ -754,6 +755,7 @@
 
 (defun do-output-c-create (stream tpl def)
    (let ((size (generate-mangled-name "size")))
+    (format-code stream "// create fact ~a~%" (definition-name def))
     (format-code stream "const size_t ~a = sizeof(vm::tuple) + sizeof(vm::tuple_field) * ~a;~%" size (length (definition-types def)))
     (format-code stream "LOG_NEW_FACT();~%")
     (format-code stream "vm::tuple *~a((vm::tuple*)mem::allocator<utils::byte>().allocate(~a));~%" tpl size)))
@@ -1535,6 +1537,8 @@
        (compile-c-linear-iterate stream instr frames variables allocated-tuples "node" :is-linear-p is-linear-p :has-removes-p t))
       (:thread-linear-iterate
        (compile-c-linear-iterate stream instr frames variables allocated-tuples "thread_node" :is-linear-p is-linear-p :has-removes-p t))
+      (:thread-rlinear-iterate
+       (compile-c-linear-iterate stream instr frames variables allocated-tuples "thread_node" :is-linear-p is-linear-p :has-removes-p nil))
       (:persistent-iterate
        (compile-c-persistent-iterate stream instr frames variables allocated-tuples "node" :is-linear-p is-linear-p))
       (:thread-persistent-iterate
