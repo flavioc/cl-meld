@@ -98,6 +98,7 @@
                      ("thread" :type-thread)
                      ("string" :type-string)
                      ("list" :type-list)
+                     ("set" :type-set)
                      ("array" :type-array)
                      ("include" :include)
                      ("random" :random)
@@ -282,7 +283,7 @@
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl :arg :tilde :append
 								:lsparen :rsparen :nil :type-list :local
-                        :type-array
+                        :type-array :type-set
 								:route :include :file :world :cpus :action
 								:linear :dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :ins :fun :end :colon
@@ -471,6 +472,9 @@
 	 (:lpaco type-list :rparen #'(lambda (l tl r)
 												(declare (ignore l r))
 												(make-struct-type tl)))
+    (:type-set atype #'(lambda (l ty)
+                           (declare (ignore l))
+                           (make-set-type ty)))
 	 (:type-list atype #'(lambda (l ty)
 	                           (declare (ignore l))
 										(make-list-type ty)))

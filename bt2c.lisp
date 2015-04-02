@@ -107,6 +107,8 @@
          (format stream (tostring "new list_type(type_~a)" (lookup-type-id (type-list-element typ)))))
       ((type-array-p typ)
          (format stream (tostring "new array_type(type_~a)" (lookup-type-id (type-array-element typ)))))
+      ((type-set-p typ)
+         (format stream (tostring "new set_type(type_~a)" (lookup-type-id (type-array-element typ)))))
       ((type-struct-p typ)
          (format stream "new struct_type({~{~a~^, ~}})"
             (loop for typ in (type-struct-list typ)
@@ -150,6 +152,7 @@
      ((type-list-p typ) "runtime::cons*")
      ((type-bool-p typ) "vm::bool_val")
      ((type-array-p typ) "runtime::array*")
+     ((type-set-p typ) "runtime::set*")
      ((type-struct-p typ) "runtime::struct1*")
      ((type-string-p typ) "runtime::rstring*")
      ((type-thread-p typ) "vm::thread_val")
@@ -162,6 +165,7 @@
      ((type-float-p typ) "get_float")
      ((type-list-p typ) "get_cons")
      ((type-array-p typ) "get_array")
+     ((type-set-p typ) "get_set")
      ((type-struct-p typ) "get_struct")
      ((type-thread-p typ) "get_thread")
      (t (error 'output-invalid-error :text (tostring "type-to-tuple-get: do not know ~a" typ)))))
@@ -173,6 +177,7 @@
      ((type-float-p typ) "set_float")
      ((type-list-p typ) "set_cons")
      ((type-array-p typ) "set_array")
+     ((type-set-p typ) "set_set")
      ((type-struct-p typ) "set_struct")
      (t
       (error 'output-invalid-error :text (tostring "type-to-tuple-set: do not know ~a" typ)))))
@@ -184,6 +189,7 @@
      ((type-float-p typ) (values "float_field" "vm::float_val"))
      ((type-list-p typ) (values "ptr_field" "vm::ptr_val"))
      ((type-array-p typ) (values "ptr_field" "vm::ptr_val"))
+     ((type-set-p typ) (values "ptr_field" "vm::ptr_val"))
      ((type-struct-p typ) (values "ptr_field" "vm::ptr_val"))
      ((type-bool-p typ) (values "bool_field" "vm::bool_val"))
      ((type-string-p typ) (values "ptr_field" "vm::ptr_val"))
@@ -267,6 +273,7 @@
     ((type-list-p typ) "add_cons")
     ((type-struct-p typ) "add_struct")
     ((type-array-p typ) "add_array")
+    ((type-set-p typ) "add_set")
     (t
      (error 'output-invalid-error :text (tostring "type-to-gc-function: do not know how to handle ~a" typ)))))
 
@@ -275,6 +282,7 @@
     ((type-list-p typ) (tostring "(vm::list_type*)type_~a" (lookup-type-id typ)))
     ((type-struct-p typ) (tostring "(vm::struct_type*)type_~a" (lookup-type-id typ)))
     ((type-array-p typ) (tostring "type_~a" (lookup-type-id (type-array-element typ))))
+    ((type-set-p typ) (tostring "type_~a" (lookup-type-id (type-set-element typ))))
     (t
      (error 'output-invalid-error :text (tostring "type-to-gc-argument: do not know how to handle ~a" typ)))))
 
@@ -771,6 +779,8 @@
                  (format-code stream "runtime::cons::dec_refs(~a->get_cons(~a), (vm::list_type*)type_~a, state.gc_nodes);~%" tpl i (lookup-type-id typ)))
                 ((type-array-p typ)
                  (format-code stream "~a->get_array(~a)->dec_refs(type_~a, state.gc_nodes);~%" tpl i (lookup-type-id (type-array-element typ))))
+                ((type-set-p typ)
+                 (format-code stream "~a->get_set(~a)->dec_refs(type_~a, state.gc_nodes);~%" tpl i (lookup-type-id (type-set-element typ))))
                 ((type-string-p typ)
                  (format-code stream "~a->get_string(~a)->dec_refs();~%" tpl i))
                 ((type-struct-p typ)
@@ -1644,6 +1654,7 @@
    (format-code stream "#include \"interface.hpp\"~%")
    (format-code stream "#include \"external/others.hpp\"~%")
    (format-code stream "#include \"external/array.hpp\"~%")
+   (format-code stream "#include \"external/set.hpp\"~%")
    (format-code stream "#include \"external/lists.hpp\"~%")
    (format-code stream "#include \"external/math.hpp\"~%")
    (format-code stream "#include \"external/utils.hpp\"~%")

@@ -44,6 +44,12 @@
               (merged (merge-type sub1 sub2)))
         (if merged
          (make-array-type merged))))
+      ((and (type-set-p t1) (type-set-p t2))
+       (let* ((sub1 (type-set-element t1))
+              (sub2 (type-set-element t2))
+              (merged (merge-type sub1 sub2)))
+        (if merged
+         (make-set-type merged))))
 		((and (type-struct-p t1) (type-struct-p t2))
 			(let ((l1 (type-struct-list t1))
 					(l2 (type-struct-list t2)))
@@ -238,6 +244,8 @@
      (unify-types typ (type-list-element concrete-type) (type-list-element concrete-template)))
     ((type-array-p concrete-template)
      (unify-types typ (type-array-element concrete-type) (type-array-element concrete-template)))
+    ((type-set-p concrete-template)
+     (unify-types typ (type-set-element concrete-type) (type-set-element concrete-template)))
     ((type-struct-p concrete-template)
      (cond
       ((eq (type-struct-list concrete-template) :all)
@@ -265,6 +273,7 @@
     ((eq template :all) concrete)
     ((type-list-p template) (find-all-type (type-list-element template) (type-list-element concrete)))
     ((type-array-p template) (find-all-type (type-array-element template) (type-array-element concrete)))
+    ((type-set-p template) (find-all-type (type-set-element template) (type-set-element concrete)))
     ((type-struct-p template)
      (when (eq (type-struct-list template) :all)
       (return-from find-all-type concrete))

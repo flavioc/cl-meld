@@ -734,6 +734,7 @@
 				(:type-bool '(#b0101))
             (:type-thread '(#b0110))
             ; #b0111 type-array
+            ; #b1000 type-set
 				(:type-string '(#b1001))
 				(otherwise (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ)))))
       ((type-node-p typ) '(#b0010))
@@ -745,6 +746,10 @@
          (let* ((sub (type-array-element typ))
                 (id (lookup-type-id sub)))
           `(,#b0111 ,id)))
+      ((type-set-p typ)
+         (let* ((sub (type-set-element typ))
+                (id (lookup-type-id sub)))
+          `(,#b1000 ,id)))
 		((type-struct-p typ)
 			(let ((ls (type-struct-list typ)))
 				(let ((x `(,#b0100 ,(length ls) ,@(loop for ty in ls collect (lookup-type-id ty)))))
