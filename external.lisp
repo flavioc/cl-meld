@@ -107,3 +107,4 @@
 (define-external-function "set_add" '(:type-set :all) '((:type-set :all) :all) :poly-p t)
 (define-external-function "set_from_list" '(:type-set :all) '((:type-list :all)) :poly-p t)
 (define-external-function "array_exists" :type-bool '((:type-array :all) :all) :poly-p t)
+(define-external-function "ltake" '(:type-list :all) '((:type-list :all) :type-int))

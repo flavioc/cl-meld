@@ -605,6 +605,10 @@
 			#'(lambda (l specs b1 body b2 head r)
 					(declare (ignore l b1 b2 r))
 					(make-agg-construct specs nil body head)))
+      (:lsparen multiple-aggregate-spec :bar terms :bar :bar terms :rsparen
+         #'(lambda (l specs b1 body b2 b3 head r)
+               (declare (ignore l b1 b2 b3 r))
+               (make-agg-construct specs nil body head nil)))
 		(:lsparen multiple-aggregate-spec :bar variable-list :bar terms :bar terms :rsparen
 			#'(lambda (l specs b1 vlist b2 body b3 head r)
 				(declare (ignore l r b1 b2 b3 r))
