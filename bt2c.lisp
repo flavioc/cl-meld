@@ -306,7 +306,7 @@
       (let ((tmp (generate-mangled-name "tmp")))
        (format-code stream "const vm::tuple_field ~a(vm::external::~a(~{~a~^, ~}));~%" tmp name (create-c-args stream variables args))
        (format-code stream "~a = (~a)~a.~a;~%" (declare-c-variable var new-p) (type-to-c-type typ) tmp (type-to-union-field typ))
-       (when (and (vm-bool-val gc-p) (reference-type-p typ))
+       (when (and (vm-bool-val gc-p) (reference-type-p typ) (not (type-node-p typ)))
          (format-code stream "if(~a) {~%" (c-variable-name var))
          (with-tab
             (format-code stream "state.~a((~a)~a, ~a);~%" (type-to-gc-function typ) (type-to-c-type typ) (c-variable-name var) (type-to-gc-argument typ)))

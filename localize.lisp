@@ -426,7 +426,11 @@
    (do-all-var-axioms (:clause clause)
       (remove-home-argument-clause clause))
    (do-node-definitions (:definition def :types typs)
-      (setf (definition-types def) (rest typs))))
+      (let ((fst (first typs)))
+       ;; set definition attribute if first argument is not a regular node.
+       (unless (type-addr-p fst)
+         (definition-set-type def fst))
+      (setf (definition-types def) (rest typs)))))
 
 (defmacro with-localize-context ((routes) &body body)
    `(let ((,routes (get-route-names))

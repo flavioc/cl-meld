@@ -189,6 +189,10 @@
    (definition-add-tagged-option def :update (list updates count)))
 (defun definition-is-update-p (def)
    (definition-get-tagged-option def :update))
+(defun definition-set-type (def typ)
+   (definition-add-tagged-option def :type typ))
+(defun definition-get-type (def)
+   (definition-get-tagged-option def :type))
 (defun definition-get-update-count (def)
    (second (definition-get-tagged-option def :update)))
 (defun definition-get-update-definition (def)
@@ -334,7 +338,7 @@
 (defun argument-p (x) (tagged-p x :argument))
 (defun argument-id (x) (second x))
 
-(defun make-get-constant (name &optional type) `(:get-constant ,name ,type))
+(defun make-get-constant (name &optional (type :all)) `(:get-constant ,name ,type))
 (defun get-constant-p (c) (tagged-p c :get-constant))
 (defun get-constant-name (c) (second c))
    

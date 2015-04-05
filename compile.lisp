@@ -1383,18 +1383,47 @@
 					    (node (addr-num fst)))
 					(setf (subgoal-args sub) (rest args)) ; remove home argument
 					(push sub (gethash node hash)))))
+      (loop for i from 0 upto (number-of-nodes *nodes*)
+            do (multiple-value-bind (axioms found-p) (gethash i hash)
+                  (when axioms
+                     (setf (gethash i hash) (compile-node-axioms axioms)))
+                  (let ((node-type (get-node-constraint i)))
+                   (when node-type 
+                    (warn "~a ~a" i node-type)
+                     (do-node-var-axioms (:body body :head head :clause clause :operation :append)
+                      (let ((clause-type (find-var-axiom-type clause)))
+                       (warn "=> ~a: ~a" clause clause-type)
+                       (when (and clause-type (equal node-type clause-type))
+                        (warn "add ~a" clause)
+                        (let ((code (compile-with-starting-subgoal body head)))
+                         (setf (gethash i hash) `(,@(gethash i hash) ,@code))))))))))
 		(let ((vm (make-vm-select-node)))
 			(loop for key being the hash-keys of hash
 					using (hash-value value)
-               do (vm-select-node-push vm key (compile-node-axioms value)))
+               do (vm-select-node-push vm key value))
 			(list vm))))
+
+(defun find-var-axiom-type (clause)
+   (with-clause clause (:head head)
+    (let (typ)
+      (do-subgoals head (:name name)
+       (let ((def (lookup-definition name)))
+        (let ((this-type (definition-get-type def)))
+           (cond
+            (typ
+               (assert (equal typ this-type)))
+            (t
+               (setf typ this-type))))))
+      typ)))
 	
 (defun compile-init-process ()
 	(let ((const-axiom-code (compile-const-axioms))
 			(*compiling-axioms* t))
    	(append const-axiom-code
 			(do-node-var-axioms (:body body :head head :clause clause :operation :append)
-      		(compile-with-starting-subgoal body head)))))
+            (let ((type (find-var-axiom-type clause)))
+             (unless type
+               (compile-with-starting-subgoal body head)))))))
 
 (defun compile-init-thread-process ()
    (do-thread-var-axioms (:body body :head head :clause clause :operation :append)
