@@ -6,6 +6,9 @@
    `(if *debug-msgs*
       (format t ,(concatenate 'string str "~%") ,@args)))
 
+(defun create-tab (&optional (n 4))
+   (tostring "~{~a~}" (loop for i from 1 to n collect "  ")))
+
 (defun create-bin-array (&optional (size 0)) (make-array size :element-type '(unsigned-byte 8) :adjustable t :fill-pointer 0))
 
 (defun str->sym (str) (values (intern str)))

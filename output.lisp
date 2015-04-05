@@ -129,7 +129,9 @@
 				      ((reg-dot-p val) #b000010)
 						((vm-argument-p val) #b00000111)
 						((vm-constant-p val) #b00001000)
-				      (t (error 'output-invalid-error :text (tostring "Invalid expression value: ~a" val))))))
+				      (t (assert nil)
+                   ;(error 'output-invalid-error :text (tostring "Invalid expression value: ~a" val))
+                   ))))
 		(add-byte flag vec)
 		(output-value-data val vec)))
 
@@ -650,36 +652,44 @@
 	   (:node-priority
 			(output-instr-and-values vec #b01111111 (vm-node-priority-node instr) (vm-node-priority-dest instr)))
      (:select-node
-							(when (vm-select-node-empty-p instr)
-								(return-from output-instr nil))
-							(let* ((total-nodes (number-of-nodes *nodes*))
-                           (size-header (* 2 +code-offset-size+))
-                           (hash (make-hash-table))
-                           (end-hash (make-hash-table)))
-                        (add-byte #b00001010 vec)
-                        (save-pos (start vec)
-                           (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) ; size of complete select instruction
-                           (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) ; table size
-                           (write-offset vec total-nodes (+ start +code-offset-size+))
-                           (loop for i from 0 to (1- total-nodes)
-                                 do (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec))
-                           (save-pos (begin-instrs vec)
-                              (vm-select-node-iterate instr (n instrs)
-                                 (save-pos (cur vec)
-                                    (setf (gethash n hash) (- cur begin-instrs))
-                                    (output-instrs instrs vec)
-                                    (save-pos (end vec)
-                                       (setf (gethash n end-hash) (- end +code-offset-size+))))))
-                           (save-pos (end-select vec)
-                              (loop for i from 0 to (1- total-nodes)
-                                    for pos = (* i +code-offset-size+)
-                                    do (alexandria:when-let ((offset (gethash i hash)))
-                                          ;; offset is always one more, since when 0 it means there is
-                                          ;; no code for the corresponding node
-                                          (write-offset vec (1+ offset) (+ start size-header pos)))
-                                    do (alexandria:when-let ((write-end (gethash i end-hash)))
-                                          (write-offset vec (- end-select (1- write-end)) write-end)))
-                              (write-offset vec (- end-select (1- start)) start)))))
+         (let* ((total-nodes (number-of-nodes *nodes*))
+               (size-header (* 2 +code-offset-size+))
+               (hash (make-hash-table))
+               (end-hash (make-hash-table)))
+            (add-byte #b00001010 vec)
+            (save-pos (start vec)
+               (output-list-bytes vec (output-int 0)) ; size of complete select instruction
+               (output-list-bytes vec (output-int 0)) ; table size
+               (write-offset vec total-nodes (+ start +code-offset-size+))
+               (loop for i from 0 to (1- total-nodes)
+                     do (output-list-bytes vec (output-int 0)))
+               (save-pos (begin-instrs vec)
+                  (vm-select-node-iterate instr (n instrs)
+                     (save-pos (cur vec)
+                        (setf (gethash n hash) (- cur begin-instrs))
+                        (output-instrs instrs vec)
+                        (save-pos (end vec)
+                           (setf (gethash n end-hash) (- end +code-offset-size+)))))
+                  (when *data-input*
+                    (loop for i from 0 upto total-nodes
+                          do (let ((axioms (data-input-node-axioms *data-input* i)))
+                               (when axioms
+                                (save-pos (cur vec)
+                                   (setf (gethash i hash) (- cur begin-instrs))
+                                   (output-instr (make-vm-new-axioms axioms) vec)
+                                   (output-instr (make-return-select) vec)
+                                   (save-pos (end vec)
+                                      (setf (gethash i end-hash) (- end +code-offset-size+)))))))))
+               (save-pos (end-select vec)
+                         (loop for i from 0 to (1- total-nodes)
+                               for pos = (* i +code-offset-size+)
+                               do (alexandria:when-let ((offset (gethash i hash)))
+                                                       ;; offset is always one more, since when 0 it means there is
+                                     ;; no code for the corresponding node
+                                     (write-offset vec (1+ offset) (+ start size-header pos)))
+                               do (alexandria:when-let ((write-end (gethash i end-hash)))
+                                                       (write-offset vec (- end-select (1- write-end)) write-end)))
+                         (write-offset vec (- end-select (1- start)) start)))))
       (:return-select (add-byte #b00001011 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec))
       (:rule
          (add-byte #b00010000 vec)

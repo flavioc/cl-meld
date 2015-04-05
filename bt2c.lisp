@@ -5,7 +5,6 @@
 (defparameter *header-stream* nil)
 (defparameter *c-num-linear-predicates* 0)
 (defparameter *c-num-persistent-predicates* 0)
-(defparameter *data-input* nil)
 
 (defparameter *tab-level* 0)
 (defun current-c-tab ()
@@ -1891,7 +1890,9 @@
    (do-output-c-rule-engine)
 
    ;; create predicate code
+   (printdbg "Generating C++ functions for each persistent predicate...")
    (do-processes (:name name :instrs instrs)
+      (printdbg "~a~a" (create-tab) name)
       (format-code stream "static inline void run_predicate_~a(state& state, vm::tuple *tpl, db::node *node, db::node *thread_node) {~%" name)
       (with-tab
          (format-code stream "(void)tpl; (void)node; (void)thread_node;~%")
@@ -1904,9 +1905,11 @@
       (format-code stream "}~%~%"))
 
    ;; create rules
+   (printdbg "Generating C++ functions for rules...")
 	(loop for code-rule in *code-rules*
 			for count = 0 then (1+ count)
          for code = (rule-code code-rule)
+         do (printdbg "~a~a" (create-tab) (rule-string code-rule))
          do (format-code stream "// ~a~%" (replace-all (rule-string code-rule) (list #\Newline) (tostring "~C//" #\Newline)))
 			do (format-code stream "static inline void perform_rule~a(state& state, db::node *node, db::node *thread_node) {~%" count)
          do (setf *name-counter* 0)
@@ -1948,24 +1951,11 @@
    (write-nodes *data-stream* *nodes*)
    (do-output-c-header stream file))
 
-(defun call-data-input (input)
-   (printdbg "Reading input file ~A..." (data-input-file input))
-   (cond
-    ((string-equal (data-input-template input) "stanford-snap")
-     (let ((ret (snap-file-read (data-input-file input))))
-        (setf *nodes* (snap-file-nodes ret))
-        ret))
-    (t (assert nil))))
-
 (defun output-c-code (file &key (write-ast nil) (write-code nil))
    (let ((c-file (concatenate 'string file ".cpp"))
          (*c-node-references* (make-hash-table))
          (header-file (concatenate 'string file ".hpp"))
-         (data-file (concatenate 'string file ".data"))
-         (data-input (find-data-input)))
-      (if data-input
-         (setf *data-input* (call-data-input data-input))
-         (setf *data-input* nil))
+         (data-file (concatenate 'string file ".data")))
 		(with-binary-file (*data-stream* data-file)
          (with-output-file (stream c-file)
           (with-output-file (*header-stream* header-file)

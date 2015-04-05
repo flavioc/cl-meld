@@ -45,7 +45,7 @@
  (let ((nodes (make-mapping-set)))
    (loop for key being the hash-keys of (snap-nodes snap)
          using (hash-value node)
-           do (add-mapping nodes node key))
+           do (add-mapping nodes node node))
    nodes))
 
 (defmethod data-input-node-axioms ((obj snap-data) (n integer))
