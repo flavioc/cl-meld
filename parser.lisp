@@ -419,7 +419,7 @@
                   
    (fun-args
       (fun-arg #'list)
-      (fun-arg :comma fun-args #'cons))
+      (fun-arg :comma fun-args #L(cons !1 !3)))
       
    (fun-arg
       (atype variable #'(lambda (typ var) (make-var (var-name var) typ))))

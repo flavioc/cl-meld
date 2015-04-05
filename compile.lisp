@@ -1389,12 +1389,9 @@
                      (setf (gethash i hash) (compile-node-axioms axioms)))
                   (let ((node-type (get-node-constraint i)))
                    (when node-type 
-                    (warn "~a ~a" i node-type)
                      (do-node-var-axioms (:body body :head head :clause clause :operation :append)
                       (let ((clause-type (find-var-axiom-type clause)))
-                       (warn "=> ~a: ~a" clause clause-type)
                        (when (and clause-type (equal node-type clause-type))
-                        (warn "add ~a" clause)
                         (let ((code (compile-with-starting-subgoal body head)))
                          (setf (gethash i hash) `(,@(gethash i hash) ,@code))))))))))
 		(let ((vm (make-vm-select-node)))
