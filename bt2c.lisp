@@ -1686,6 +1686,10 @@
          for i from 0
          do (format-code stream "static vm::type *type_~a{nullptr};~%" i)))
 
+(defun special-definition-name (def)
+   (let ((name (definition-name def)))
+    (replace-all (string-upcase name) "-" "_")))
+
 (defun do-output-c-predicates (stream)
    (format *header-stream* "#define COMPILED_NUM_TYPES ~a~%" (length *program-types*))
    (loop for typ in *program-types*
@@ -1734,6 +1738,8 @@
             (t
                (format-code stream "p->id2 = ~a;~%" (definition-get-persistent-id def))
                (format-code stream "prog->persistent_predicates[~a] = p;~%" (definition-get-persistent-id def))))
+         (when (definition-is-special-p def)
+            (format-code stream "prog->special.mark(special_facts::~a, p);~%" (special-definition-name def)))
          (when (definition-aggregate-p def)
             (setf has-aggs-p t)
             (let ((agg (definition-aggregate def)))

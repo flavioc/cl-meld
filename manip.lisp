@@ -233,6 +233,8 @@
 	(definition-add-option def :reused))
 (defun definition-is-instruction-p (def)
    (definition-has-option-p def :instruction))
+(defun definition-is-special-p (def)
+   (definition-has-option-p def :special))
 
 (defun find-init-predicate (defs) (find-if #'is-init-p defs))
 (defun find-init-predicate-name (defs)
