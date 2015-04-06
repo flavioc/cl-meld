@@ -429,10 +429,11 @@
       (extern-definition externs #'cons))
 
    (extern-definition
-      (:extern atype const :lparen type-args :rparen :dot #'(lambda (e ret-type name l args r d)
-   	                                                         (declare (ignore e l r d))
-																					(add-needed-extern name)
-   	                                                         (make-extern name ret-type args (1- (length *needed-externs*))))))
+      (:extern atype const :lparen type-args :rparen :dot
+         #'(lambda (e ret-type name l args r d)
+             (declare (ignore e l r d))
+             (add-needed-extern name)
+             (make-extern name ret-type args (1- (length *needed-externs*))))))
 	(predicate-options
 		()
 		(predicate-option predicate-options #'cons))

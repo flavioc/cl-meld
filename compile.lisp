@@ -266,7 +266,12 @@
       ((float-p expr) (return-expr (make-vm-float (float-val expr))))
 		((string-constant-p expr) (return-expr (make-vm-string-constant (string-constant-val expr))))
       ((addr-p expr) (return-expr (make-vm-addr (addr-num expr))))
-      ((or (host-p expr) (host-id-p expr)) (return-expr (make-vm-host-id)))
+      ((or (host-p expr) (host-id-p expr))
+       (cond
+        (dest
+            (return-expr dest `(,(make-move (make-vm-host-id) dest))))
+        (t
+            (return-expr (make-vm-host-id)))))
       ((thread-id-p expr) (return-expr (make-vm-thread-id)))
       ((argument-p expr)
 			(return-expr (make-vm-argument (argument-id expr))))
@@ -290,9 +295,15 @@
                      (t
                       (return-expr dest `(,@arg-code ,(make-vm-fabs arg-place arg-place) ,(make-move arg-place dest))))))))
 					((string-equal name "cpu-id")
+                (cond
+                 ((or (null dest) (reg-p dest))
 						(with-dest-or-new-reg (dest)
 							(with-compiled-expr (arg-place arg-code :force-dest dest) (first args)
 								(return-expr dest `(,@arg-code ,(make-vm-cpu-id arg-place dest))))))
+                 (t
+                  (with-reg (new-dest)
+                     (with-compiled-expr (arg-place arg-code :force-dest new-dest) (first args)
+                        (return-expr dest `(,@arg-code ,(make-vm-cpu-id arg-place new-dest) ,(make-move new-dest dest))))))))
                ((string-equal name "is-moving")
                   (with-dest-or-new-reg (dest)
                      (with-compiled-expr (arg-place arg-code :force-dest dest) (first args)
@@ -699,6 +710,15 @@
 				(if (null send-to)
 					`(,@priority-instrs ,(make-vm-set-priority-here priority))
 					`(,@priority-instrs ,@extra-code ,(make-vm-set-priority priority send-to)))))))
+
+(defun do-compile-set-cpu (sub args)
+   (assert (= (length args) 1))
+   (with-compilation-on-reg (cpu cpu-instrs) (first args)
+      (with-old-reg (cpu)
+       (multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub nil)
+         (if (null send-to)
+            `(,@cpu-instrs ,(make-vm-set-cpu-here cpu))
+            `(,@cpu-instrs ,@extra-code ,(make-vm-set-cpu cpu send-to)))))))
 				
 (defun do-compile-add-priority (sub args)
 	(assert (= (length args) 1))
@@ -788,6 +808,8 @@
                (do-compile-set-static sub args))
             ((subgoal-is-set-moving-p name)
                (do-compile-set-moving sub args))
+            ((subgoal-is-set-cpu-p name)
+               (do-compile-set-cpu sub args))
             ((subgoal-is-set-affinity-p name)
                (do-compile-set-affinity sub args))
             ((subgoal-is-stop-program-p name)

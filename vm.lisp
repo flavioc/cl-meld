@@ -632,7 +632,10 @@
 (defun vm-set-affinity-target (x) (second x))
 (defun vm-set-affinity-node (x) (third x))
 
-(defun make-vm-cpu-id (node dest) `(:cpu-id ,node ,dest))
+(defun make-vm-cpu-id (node dest)
+   (assert (reg-p node))
+   (assert (reg-p dest))
+   `(:cpu-id ,node ,dest))
 (defun vm-cpu-id-node (x) (second x))
 (defun vm-cpu-id-dest (x) (third x))
 
