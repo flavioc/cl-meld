@@ -262,6 +262,8 @@
         (multiple-value-bind (v found) (gethash (reg-num value) variables)
           (multiple-value-bind (c-field c-cast) (type-to-union-field typ)
             (format-code stream "~a.~a = (~a)~a;~%" name c-field c-cast (c-variable-name v)))))
+       ((vm-host-id-p value)
+        (format-code stream "~a.ptr_field = (vm::ptr_val)node;~%" name))
        (t
         (assert nil)
         (error 'output-invalid-error :text (tostring "create-c-tuple-field-from-val: do not know how to handle ~a" value))))
@@ -376,6 +378,8 @@
     ((vm-int-p val) t)
     ((vm-float-p val) t)
     ((reg-dot-p val) t)
+    ((vm-host-id-p val) t)
+    ((reg-p val) t)
     (t
      (error 'output-invalid-error :text (tostring "iterate-match-constant-p: do not know if value ~a should be a constant." val)))))
 

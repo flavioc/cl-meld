@@ -10,6 +10,7 @@
       (optimize-topology)
       (printdbg "Typechecking...")
       (type-check)
+      (ast-remove-unneeded-definitions ast)
       (agg-transformer)
       (printdbg "Localizing rules...")
       (localize)

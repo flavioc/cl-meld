@@ -473,6 +473,10 @@
             (let ((place (if (nil-p op1) place2 place1))
                   (code (if (nil-p op1) code2 code1)))
                `(,@code ,(make-vm-test-nil place dest))))
+         ((and (not-equal-p expr) (or (nil-p op1) (nil-p op2)))
+            (let ((place (if (nil-p op1) place2 place1))
+                  (code (if (nil-p op1) code2 code1)))
+               `(,@code ,(make-vm-test-nil place dest) ,(make-vm-not dest dest))))
          (t
 				(let ((vm-op (set-type-to-op operand-type ret-type base-op)))
 					(assert (not (null vm-op)) (expr) "Cannot find operator for expression ~a" expr)

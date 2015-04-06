@@ -112,6 +112,9 @@
                         (thread-const-axioms ast) thread-const-axioms
                         (ast-has-thread-facts-p ast) threads))))))
 
+(defun ast-remove-unneeded-definitions (ast)
+   (setf *definitions* (remove-if #'definition-is-instruction-p *definitions*)))
+
 ;;;;;;;;;;;;;;;;;;;
 ;; Clauses
 ;;;;;;;;;;;;;;;;;;;

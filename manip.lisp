@@ -231,6 +231,9 @@
 	(definition-has-option-p def :reused))
 (defun definition-set-reused (def)
 	(definition-add-option def :reused))
+(defun definition-is-instruction-p (def)
+   (definition-has-option-p def :instruction))
+
 (defun find-init-predicate (defs) (find-if #'is-init-p defs))
 (defun find-init-predicate-name (defs)
    (definition-name (find-init-predicate defs)))
