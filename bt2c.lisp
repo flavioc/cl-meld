@@ -1690,6 +1690,16 @@
    (let ((name (definition-name def)))
     (replace-all (string-upcase name) "-" "_")))
 
+(defun do-output-c-const-code (stream)
+  (format-code stream "void execute_const_code() {~%")
+  (with-tab
+     ;; compile const code
+     (let ((variables (create-variable-context))
+           (allocated-tuples (create-allocated-tuples-context)))
+       (loop for instr in *consts-code*
+             do (do-output-c-instr stream instr nil allocated-tuples variables :is-linear-p nil))))
+  (format-code stream "}~%"))
+
 (defun do-output-c-predicates (stream)
    (format *header-stream* "#define COMPILED_NUM_TYPES ~a~%" (length *program-types*))
    (loop for typ in *program-types*
@@ -1761,11 +1771,6 @@
       (if has-aggs-p
        (format-code stream "prog->has_aggregates_flag = true;~%")
        (format *header-stream* "#define COMPILED_NO_AGGREGATES~%")))
-   ;; compile const code
-   (let ((variables (create-variable-context))
-         (allocated-tuples (create-allocated-tuples-context)))
-    (loop for instr in *consts-code*
-          do (do-output-c-instr stream instr nil allocated-tuples variables :is-linear-p nil)))
    (format-code stream "prog->sort_predicates();~%")
    (loop for code-rule in *code-rules*
          for count from 0
@@ -1887,6 +1892,9 @@
    (format-code stream "// available consts in the program~%")
 	(do-constant-list *consts* (:name name :type typ)
       (format-code stream "static ~a const_~a;~%" (type-to-c-type typ) (good-c-name name)))
+   (format-code stream "~%")
+   ;; code for constants
+   (do-output-c-const-code stream)
    (format-code stream "~%")
    ;; add_definitions function.
    (format-code stream "void add_definitions(vm::program *prog) {~%")
