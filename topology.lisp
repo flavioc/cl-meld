@@ -195,7 +195,6 @@
 		(do-rules (:clause clause)
 			(flip-nodes mapping clause)))
   (let ((data-input (find-data-input)))
-   (warn "data input ~a" data-input)
     (if data-input
       (setf *data-input* (call-data-input data-input))
       (setf *data-input* nil))))
