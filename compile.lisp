@@ -500,6 +500,21 @@
                (values new-reg `(,(make-move arg new-reg)))))) 
          default))
 
+(defmacro with-remote-reg-and-code ((reg code) subgoal default &body body)
+ (alexandria:with-gensyms (arg)
+    `(if (subgoal-is-remote-p ,subgoal)
+       (let ((,arg (get-remote-dest ,subgoal)))
+        (if (reg-p ,arg)
+         (let ((,reg ,arg)
+               (,code nil))
+             ,@body)
+         (with-reg (,reg)
+          (let ((,code (list (make-move ,arg ,reg))))
+           ,@body))))
+       (let ((,reg ,default)
+             (,code nil))
+        ,@body))))
+
 (defun find-matchable-constraint-for-var (body var reg level &optional i)
 	(cond
 		((int-p var) (values (make-vm-int (int-val var)) nil))
@@ -685,15 +700,16 @@
 			
 (defun do-compile-normal-subgoal (sub name args)
 	(with-reg (tuple-reg)
-      `(,(make-vm-alloc name tuple-reg)
-         ,@(loop for arg in args
-               for i upto (length args)
-               append (compile-head-move arg i tuple-reg))
-         ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub tuple-reg)
-            `(,@extra-code ,(if (subgoal-has-delay-p sub)
-											(make-vm-send-delay tuple-reg send-to (subgoal-delay-value sub))
-											(general-make-send sub name tuple-reg send-to
-                                     (subgoal-appears-in-any-body-p *compilation-clause* name))))))))
+    (with-remote-reg-and-code (send-to extra-code) sub tuple-reg
+         `(,@extra-code
+            ,(make-vm-alloc name tuple-reg send-to)
+            ,@(loop for arg in args
+                    for i upto (length args)
+                    append (compile-head-move arg i tuple-reg))
+            ,(if (subgoal-has-delay-p sub)
+                     (make-vm-send-delay tuple-reg send-to (subgoal-delay-value sub))
+                     (general-make-send sub name tuple-reg send-to
+                                        (subgoal-appears-in-any-body-p *compilation-clause* name)))))))
 											
 (defun subgoal-is-set-priority-p (name) (string-equal name "set-priority"))
 (defun subgoal-is-add-priority-p (name) (string-equal name "add-priority"))
@@ -1878,7 +1894,7 @@
 	(find-persistent-rules)
 	(number-clauses)
 	(find-reusable-facts)
-   (find-remote-updates)
+   ;(find-remote-updates)
 	(let ((procs (compile-processes))
 			(consts (compile-consts))
 			(functions (compile-functions)))

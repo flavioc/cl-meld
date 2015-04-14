@@ -340,7 +340,7 @@
        obj (allocated-tuple-tpl other) (type-to-tuple-get typ) (reg-dot-field value) skip-code)))
   ((vm-host-id-p value)
    (when does-not-match-p
-      (format-code stream "if(~a != (vm::node_val)state.node) { ~a }~%" obj skip-code)))
+      (format-code stream "if(~a != (vm::node_val)node) { ~a }~%" obj skip-code)))
   ((vm-list-p value)
    (when does-not-match-p
       (let ((head (vm-list-head value))
@@ -764,12 +764,12 @@
   (format-code stream "runtime::do_decrement_runtime(~a, type_~a, state.gc_nodes);~%"
    old (lookup-type-id to-type))))
 
-(defun do-output-c-create (stream tpl def)
+(defun do-output-c-create (stream tpl def node)
    (let ((size (generate-mangled-name "size")))
     (format-code stream "// create fact ~a~%" (definition-name def))
     (format-code stream "const size_t ~a = sizeof(vm::tuple) + sizeof(vm::tuple_field) * ~a;~%" size (length (definition-types def)))
     (format-code stream "LOG_NEW_FACT();~%")
-    (format-code stream "vm::tuple *~a((vm::tuple*)mem::allocator<utils::byte>().allocate(~a));~%" tpl size)))
+    (format-code stream "vm::tuple *~a((vm::tuple*)~a->alloc.allocate_obj(~a));~%" tpl node size)))
 
 (defun do-output-c-destroy (stream tpl def)
    (with-definition def (:types types)
@@ -800,7 +800,7 @@
                    (format-code stream "if(~a->try_garbage_collect()) state.gc_nodes.insert((vm::node_val)~a);~%" node node))
                   (format-code stream "}~%")))
                 (t (assert nil))))
-       (format-code stream "mem::allocator<utils::byte>().deallocate((utils::byte*)~a, ~a);~%" tpl size))))
+       (format-code stream "node->alloc.deallocate_obj((utils::byte*)~a, ~a);~%" tpl size))))
 
 (defun do-c-remove (stream instr allocated-tuples variables frames)
  (let ((reg (vm-remove-reg instr)))
@@ -915,7 +915,7 @@
     (with-tab
      (let ((tpl (generate-mangled-name "tpl"))
            (pred (tostring "pred_~a" edit-id)))
-      (do-output-c-create stream tpl edit)
+      (do-output-c-create stream tpl edit node)
       (loop for typ in (mapcar #'arg-type (definition-types edit))
             for var in vars
             for i from 0
@@ -1443,9 +1443,13 @@
                      (def (lookup-definition (vm-alloc-tuple instr)))
                      (reg (vm-alloc-reg instr))
                      (pred (tostring "pred_~a" tuple-id))
-                     (tpl (generate-mangled-name "tpl")))
+                     (tpl (generate-mangled-name "tpl"))
+                     (node-reg (vm-alloc-node instr)))
                  (setf (gethash (reg-num reg) allocated-tuples) (make-allocated-tuple tpl pred def))
-                 (do-output-c-create stream tpl def)))
+                 (do-output-c-create stream tpl def (if (reg-eq-p node-reg reg)
+                                                         "node"
+                                                         (let ((var (find-c-variable variables node-reg)))
+                                                          (tostring "((db::node*)~a)" (c-variable-name var)))))))
       (:new-node (let* ((r (vm-new-node-reg instr)))
                   (multiple-value-bind (var new-p) (allocate-c-variable variables r :type-addr)
                      (format-code stream "~a = (vm::node_val)state.sched->create_node();~%" (declare-c-variable var new-p))

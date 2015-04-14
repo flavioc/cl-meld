@@ -418,9 +418,10 @@
 (defun make-vm-update (reg) `(:update ,reg))
 (defun vm-update-reg (x) (second x))
 
-(defun make-vm-alloc (tuple reg) `(:alloc ,tuple ,reg))
+(defun make-vm-alloc (tuple reg node-reg) `(:alloc ,tuple ,reg ,node-reg))
 (defun vm-alloc-tuple (alloc) (second alloc))
 (defun vm-alloc-reg (alloc) (third alloc))
+(defun vm-alloc-node (alloc) (fourth alloc))
 
 (defun make-vm-bool (v) `(:bool ,v))
 (defun vm-bool-val (v) (second v))
