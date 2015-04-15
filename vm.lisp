@@ -423,6 +423,9 @@
 (defun vm-alloc-reg (alloc) (third alloc))
 (defun vm-alloc-node (alloc) (fourth alloc))
 
+(defun make-vm-mark-rule (rule) `(:mark-rule ,rule))
+(defun vm-mark-rule (x) (second x))
+
 (defun make-vm-bool (v) `(:bool ,v))
 (defun vm-bool-val (v) (second v))
 (defun vm-bool-p (v) (tagged-p v :bool))

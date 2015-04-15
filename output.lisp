@@ -303,6 +303,9 @@
       (:return (add-byte #x0 vec))
       (:next (add-byte #x1 vec))
       (:return-linear (add-byte #b11010000 vec))
+      (:mark-rule
+         (add-byte #b11010001 vec)
+			(output-list-bytes vec (output-int (vm-mark-rule instr))))
       (:return-derived (add-byte #b11110000 vec))
 		(:new-axioms
 			(write-jump vec 1
