@@ -15,3 +15,6 @@
 (deftuple set-cpu (:type-addr :type-int) :action :linear :instruction)
 (deftuple remove-priority (:type-addr) :action :linear :instruction)
 (deftuple just-moved (:type-addr) :linear :special)
+(deftuple thread-list (:type-thread (:type-list :type-thread)) :special)
+(deftuple other-thread (:type-thread :type-thread :type-int) :special)
+(deftuple leader-thread (:type-thread :type-thread) :special)

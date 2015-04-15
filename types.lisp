@@ -65,6 +65,7 @@
     ((type-float-p typ) "float")
     ((type-bool-p typ) "bool")
     ((type-string-p typ) "string")
+    ((type-thread-p typ) "thread")
     ((type-node-p typ) (tostring "node ~a" (type-node-type typ)))
     ((type-list-p typ)
      (tostring "list ~a" (type-to-string (type-list-element typ))))

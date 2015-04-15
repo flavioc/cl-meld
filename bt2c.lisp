@@ -1446,10 +1446,17 @@
                      (tpl (generate-mangled-name "tpl"))
                      (node-reg (vm-alloc-node instr)))
                  (setf (gethash (reg-num reg) allocated-tuples) (make-allocated-tuple tpl pred def))
-                 (do-output-c-create stream tpl def (if (reg-eq-p node-reg reg)
+                 (cond
+                  ((definition-is-thread-p def)
+                     (do-output-c-create stream tpl def (if (reg-eq-p node-reg reg)
+                                                            "thread_node"
+                                                            (let ((var (find-c-variable variables node-reg)))
+                                                             (tostring "((sched::thread*)~a)->thread_node" (c-variable-name var))))))
+                  (t
+                    (do-output-c-create stream tpl def (if (reg-eq-p node-reg reg)
                                                          "node"
                                                          (let ((var (find-c-variable variables node-reg)))
-                                                          (tostring "((db::node*)~a)" (c-variable-name var)))))))
+                                                          (tostring "((db::node*)~a)" (c-variable-name var)))))))))
       (:new-node (let* ((r (vm-new-node-reg instr)))
                   (multiple-value-bind (var new-p) (allocate-c-variable variables r :type-addr)
                      (format-code stream "~a = (vm::node_val)state.sched->create_node();~%" (declare-c-variable var new-p))
