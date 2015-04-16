@@ -1164,6 +1164,7 @@
 			(*compiling-axioms* reg-instrs) ;; axioms
 			((and subgoal def) reg-instrs) ;; persistent rule starting from a subgoal
 			((and *compiling-rule* (clause-is-persistent-p *compilation-clause*))
+          (warn "here")
           (assert nil)
           reg-instrs)
 			((and (null def) (null subgoal) *compiling-rule*)
@@ -1176,9 +1177,11 @@
            ;;; XXX: fix
           `(,@reg-instrs ,@(when sub-regs `(,(make-return-derived))))))
 			((and (not *compilation-clause*) (and subgoal) (subgoal-to-be-deleted-p subgoal def))
+          (warn "here2")
           (assert nil)
           `(,@reg-instrs ,(make-return-linear)))
 			(t
+             (warn "here3 ~a" *compiling-rule*)
             (assert nil)
             `(,@reg-instrs ,@(if inside `(,(make-return-derived)) nil))))))
 
@@ -1509,7 +1512,8 @@
 (defun compile-const-axioms ()
 	"Take all constant axioms in the program and map them to an hash table (per node).
 	Then, create a SELECT NODE instruction and add NEW-AXIOM with each set of node axioms."
-	(let ((hash (make-hash-table)))
+	(let ((hash (make-hash-table))
+         (*compiling-axioms* t))
 		(do-node-const-axioms (:subgoal sub)
 			(with-subgoal sub (:args args)
 				(let* ((fst (first args))
