@@ -34,7 +34,7 @@
            (at-least-n-p (cdr ls) (1- n)))))
            
 (defun get-first-n (ls n &optional (app nil))
-   (if (zerop n)
+   (if (or (zerop n) (null ls))
       app
       (cons (car ls)
             (get-first-n (cdr ls) (1- n) app))))
@@ -179,13 +179,13 @@
          (when found
             (rest found)))))
 
-(defun shuffle-list (ls)
+(defun shuffle-list (ls &optional (rnd *random-state*))
    (let ((hash-tbl (make-hash-table :test #'eq)))
       (sort ls #'< :key #'(lambda (x)
                               (multiple-value-bind (val found-p) (gethash x hash-tbl)
                                  (if found-p
                                     val
-                                    (setf (gethash x hash-tbl) (random 1.0))))))))
+                                    (setf (gethash x hash-tbl) (random 1.0 rnd))))))))
 
 (defun read-file (file)
    "Reads the entire file and returns a string."

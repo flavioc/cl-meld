@@ -90,6 +90,24 @@
     (loop for other-node across vec
           collect (make-subgoal "edge" (list (make-addr other-node))))))
 
+(defun snap-search-find-path (n edges n-targets rnd)
+ (let ((reached (make-hash-table)))
+  (labels ((aux (x)
+               (setf (gethash x reached) t)
+               (when (> (hash-table-count reached) (* 2 n-targets))
+                (return-from aux nil))
+               (multiple-value-bind (ls found-p) (gethash x edges)
+                  (when found-p
+                   (loop for ed being the elements of ls
+                         do (multiple-value-bind (ig found-p) (gethash ed reached)
+                              (unless found-p
+                                 (unless (aux ed)
+                                  (return-from aux nil)))))))
+               t))
+   (aux n)
+   (get-first-n (shuffle-list (loop for key being the hash-keys of reached collect key) rnd)
+                  n-targets))))
+
 (defmethod data-input-node-axioms ((obj snap-search-data) (n integer))
    (let ((facts (snap-search-build-edges obj n))
          (rnd (random 100 (snap-rand-state obj)))
@@ -98,12 +116,16 @@
     (when (gethash n (snap-search-source-nodes obj))
       (let (targets
             (ls (make-nil))
-            (n (truncate (* n-nodes (/ (coerce (snap-search-fraction obj) 'float) 100)))))
-       (loop while (< (length targets) n)
-             do (let ((id (random n-nodes (snap-rand-state obj))))
-                  (unless (member id targets)
-                   (setf ls (make-cons (make-int id :type-int) ls))
-                   (push id targets))))
+            (n-targets (truncate (* n-nodes (/ (coerce (snap-search-fraction obj) 'float) 100)))))
+       (when (evenp n)
+         (setf targets (snap-search-find-path n (snap-edges obj) n-targets (snap-rand-state obj))))
+       (unless ls
+          (loop while (< (length targets) n-targets)
+                do (let ((id (random n-nodes (snap-rand-state obj))))
+                     (unless (member id targets)
+                      (push id targets)))))
+       (loop for id in targets
+             do (setf ls (make-cons (make-int id :type-int) ls)))
        (push (make-subgoal "search" (list (make-int (snap-search-id obj) :type-int) ls)) facts)
        (incf (snap-search-id obj))))
     facts))
