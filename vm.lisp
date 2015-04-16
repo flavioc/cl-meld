@@ -16,7 +16,8 @@
                      (:and :bool-and)
                      (:equal :int-equal)
 							(:or :bool-or)))
-      (:type-addr (case op
+      ((:type-thread :type-addr)
+                  (case op
                      (:equal :addr-equal)
 							(:not-equal :addr-not-equal)
 							(:greater :addr-greater)))
