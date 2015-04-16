@@ -1560,8 +1560,9 @@
                (compile-with-starting-subgoal body head)))))))
 
 (defun compile-init-thread-process ()
-   (do-thread-var-axioms (:body body :head head :clause clause :operation :append)
-      (compile-with-starting-subgoal body head)))
+   (let ((*compiling-axioms* t))
+      (do-thread-var-axioms (:body body :head head :clause clause :operation :append)
+         (compile-with-starting-subgoal body head))))
 
 (defun compile-processes ()
 	(do-definitions (:definition def :name name :operation append)
