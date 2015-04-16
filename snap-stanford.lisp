@@ -117,9 +117,9 @@
       (let (targets
             (ls (make-nil))
             (n-targets (truncate (* n-nodes (/ (coerce (snap-search-fraction obj) 'float) 100)))))
-       (when (evenp n)
+       (when (= (mod n 5) 0)
          (setf targets (snap-search-find-path n (snap-edges obj) n-targets (snap-rand-state obj))))
-       (unless ls
+       (unless targets
           (loop while (< (length targets) n-targets)
                 do (let ((id (random n-nodes (snap-rand-state obj))))
                      (unless (member id targets)
