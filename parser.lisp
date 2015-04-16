@@ -271,6 +271,12 @@
       (t
          (error (make-condition 'parse-failure-error :text (tostring "aggregate declaration not recognized ~a" str) :line *line-number*)))))
 
+(defun parse-filename (file)
+  (let* ((path (subseq file 1 (1- (length file)))))
+      (concatenate 'string
+                   (directory-namestring *default-pathname-defaults*)
+                   path)))
+
 (define-parser meld-parser
    (:muffle-conflicts t)
  	(:start-symbol program)
@@ -366,11 +372,16 @@
    (data
       (:data :const :string :dot #'(lambda (i name file d)
                                           (declare (ignore i d))
-                                          (let* ((path (subseq file 1 (1- (length file))))
-                                                 (full-path (concatenate 'string
-                                                            (directory-namestring *default-pathname-defaults*)
-                                                            path)))
-                                          (make-data-input name full-path)))))
+                                          (let ((path (parse-filename file)))
+                                             (make-data-input name path))))
+      (:data :const :string :lsparen string-list :rsparen :dot #'(lambda (i name file l args r d)
+                                                                   (declare (ignore i d l r))
+                                                                   (let ((path (parse-filename file)))
+                                                                    (make-data-input name path args)))))
+
+   (string-list
+    ()
+    (:string string-list #L(cons (subseq !1 1 (1- (length !1))) !2)))
 	
 	(priority
 		(:prio :static-priority :dot #'(lambda (p s d) (declare (ignore p s d)) (make-priority-static)))

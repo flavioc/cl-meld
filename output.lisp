@@ -703,7 +703,9 @@
 		(:new-node
 			(add-byte #b00010011 vec)
 			(add-byte (logand *reg-mask* (reg-num (vm-new-node-reg instr))) vec))
-      (otherwise (error 'output-invalid-error :text (tostring "Unknown instruction to output ~a" instr)))))
+      (otherwise
+       (assert nil)
+       (error 'output-invalid-error :text (tostring "Unknown instruction to output ~a" instr)))))
                 
 (defun output-instrs (ls vec)
    (dolist (instr ls)

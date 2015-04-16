@@ -175,8 +175,15 @@
    (cond
     ((string-equal (data-input-template input) "stanford-snap")
      (let ((ret (snap-file-read (data-input-file input))))
-        (setf *nodes* (snap-file-nodes ret))
+        (setf *nodes* (data-input-nodes ret))
         ret))
+    ((string-equal (data-input-template input) "stanford-snap-search")
+     (let ((args (data-input-args input)))
+      (unless (= (length args) 2)
+       (assert nil))
+        (let ((ret (snap-search-file-read (data-input-file input) (parse-integer (first args)) (parse-integer (second args)))))
+         (setf *nodes* (data-input-nodes ret))
+         ret)))
     (t (assert nil))))
 
 (defun optimize-topology ()
