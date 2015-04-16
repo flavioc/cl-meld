@@ -24,9 +24,9 @@
      :accessor snap-rand-state)))
 
 (defclass snap-search-data (snap-data)
-   ((num-searches
-     :initarg :num-searches
-     :accessor snap-search-num)
+   ((nodes-search
+     :initarg :nodes-search
+     :accessor snap-search-source-nodes)
     (fraction
      :initarg :fraction
      :accessor snap-search-fraction)
@@ -58,10 +58,15 @@
 
 (defun snap-search-file-read (filename num-searches fraction)
  (multiple-value-bind (ids edge-table) (read-snap-file filename)
-   (make-instance 'snap-search-data :nodes ids :edges edge-table
-                                    :rand-state (sb-ext:seed-random-state 0)
-                                    :fraction fraction
-                                    :num-searches num-searches)))
+  (let ((source (make-hash-table))
+        (rnd (sb-ext:seed-random-state 0)))
+      (loop while (not (= (hash-table-count source) num-searches))
+            do (let ((i (random (hash-table-count ids) rnd)))
+                  (setf (gethash i source) t)))
+      (make-instance 'snap-search-data :nodes ids :edges edge-table
+                                       :rand-state rnd
+                                       :fraction fraction
+                                       :nodes-search source))))
 
 (defmethod data-input-nodes ((snap snap-data))
  (let ((nodes (make-mapping-set)))
@@ -90,7 +95,7 @@
          (rnd (random 100 (snap-rand-state obj)))
          (n-nodes (hash-table-count (snap-nodes obj))))
     (push (make-subgoal "value" (list (make-int n :type-int))) facts)
-    (when (< rnd (snap-search-fraction obj))
+    (when (gethash n (snap-search-source-nodes obj))
       (let (targets
             (ls (make-nil))
             (n (truncate (* n-nodes (/ (coerce (snap-search-fraction obj) 'float) 100)))))
