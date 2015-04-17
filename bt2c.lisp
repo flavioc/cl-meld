@@ -172,6 +172,7 @@
 (defun type-to-tuple-set (typ)
    (cond
      ((or (type-addr-p typ) (type-node-p typ)) (if *has-exists-p* "set_node" "set_node_base"))
+     ((type-thread-p typ) "set_thread")
      ((type-int-p typ) "set_int")
      ((type-float-p typ) "set_float")
      ((type-list-p typ) "set_cons")
