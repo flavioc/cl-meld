@@ -192,6 +192,7 @@
      ((type-struct-p typ) (values "ptr_field" "vm::ptr_val"))
      ((type-bool-p typ) (values "bool_field" "vm::bool_val"))
      ((type-string-p typ) (values "ptr_field" "vm::ptr_val"))
+     ((type-thread-p typ) (values "ptr_field" "vm::ptr_val"))
      (t (error 'output-invalid-error :text (tostring "type-to-union-field: do not know ~a" typ)))))
 
 (defun make-allocated-tuple (tpl pred def) (list tpl pred def))
