@@ -80,17 +80,17 @@
 		((vm-bool-p val) (if (vm-bool-val val)
 									(add-byte #b1 vec)
 									(add-byte #b0 vec)))
-		((vm-int-p val) (output-list-bytes vec (output-int (vm-int-val val))))
-		((vm-float-p val) (output-list-bytes vec (output-float (vm-float-val val))))
+		((vm-int-p val) (add-bytes vec (output-int (vm-int-val val))))
+		((vm-float-p val) (add-bytes vec (output-float (vm-float-val val))))
 		((vm-list-p val) (output-list val vec))
 		((vm-string-constant-p val)
 			(let* ((str (vm-string-constant-val val))
 					 (code (push-string-constant str)))
-				(output-list-bytes vec (output-int code))))
+				(add-bytes vec (output-int code))))
 		((vm-addr-p val)
 			(add-node-value vec) 
-			(output-list-bytes vec (output-addr val)))
-		((vm-ptr-p val) (output-list-bytes vec (output-int64 (vm-ptr-val val))))
+			(add-bytes vec (output-addr val)))
+		((vm-ptr-p val) (add-bytes vec (output-int64 (vm-ptr-val val))))
 		((vm-host-id-p val))
       ((vm-thread-id-p val))
 		((vm-nil-p val))
@@ -105,7 +105,7 @@
 		((vm-argument-p val)
 			(add-byte (vm-argument-id val) vec))
 		((vm-constant-p val)
-			(output-list-bytes vec (output-int (lookup-const-id (vm-constant-name val)))))
+			(add-bytes vec (output-int (lookup-const-id (vm-constant-name val)))))
 		(t (error 'output-invalid-error :text (tostring "invalid expression value: ~a" val)))))
 			
 (defun output-value (val vec)
@@ -144,7 +144,7 @@
 					
 (defun output-instr-and-values-extra (vec instr extra-bytes vals)
 	(add-byte instr vec)
-	(output-list-bytes vec extra-bytes)
+	(add-bytes vec extra-bytes)
 	(output-values vec vals))
 	
 (defun output-instr-and-values (vec instr &rest vals)
@@ -165,7 +165,7 @@
       (add-byte (logand *reg-mask* (reg-to-byte (vm-call-dest call))) vec)
       (add-byte (lookup-type-id typ) vec)
       (output-value-data (vm-call-gc call) vec)
-      (output-list-bytes vec extra-bytes)
+      (add-bytes vec extra-bytes)
       (output-values vec args)))
 
 (defun output-calle (vec call instr &optional extra-bytes)
@@ -175,7 +175,7 @@
          (add-byte (logand *extern-id-mask* extern-id) vec)
          (add-byte (logand *reg-mask* (reg-to-byte (vm-call-dest call))) vec)
          (output-value-data (vm-call-gc call) vec)
-			(output-list-bytes vec extra-bytes)
+			(add-bytes vec extra-bytes)
          (output-values vec args)))
       
 (defun reg-to-byte (reg) (reg-num reg))
@@ -198,10 +198,6 @@
           (field (reg-dot-field reg-dot)))
       (add-byte field vec)
 		(output-value (match-right match) vec)))
-
-(defun output-list-bytes (vec ls)
-	(dolist (b ls)
-      (add-byte b vec)))
 
 (defun output-matches (matches vec)
 	(let ((len (length matches)))
@@ -243,13 +239,13 @@
    (funcall intercept arg vec)
 	(cond
 		((addr-p arg)
-			(output-list-bytes vec (output-addr arg)))
+			(add-bytes vec (output-addr arg)))
 		((int-p arg)
 			(if (type-float-p (expr-type arg))
-				(output-list-bytes vec (output-float (int-val arg)))
-				(output-list-bytes vec (output-int (int-val arg)))))
-		((float-p arg) (output-list-bytes vec (output-float (float-val arg))))
-		((string-constant-p arg) (output-list-bytes vec (output-int (push-string-constant (string-constant-val arg)))))
+				(add-bytes vec (output-float (int-val arg)))
+				(add-bytes vec (output-int (int-val arg)))))
+		((float-p arg) (add-bytes vec (output-float (float-val arg))))
+		((string-constant-p arg) (add-bytes vec (output-int (push-string-constant (string-constant-val arg)))))
 		((nil-p arg) (add-byte #b0 vec))
 		((cons-p arg)
 			(add-byte #b1 vec)
@@ -293,10 +289,18 @@
       (add-byte #b00000001 vec))) ; next
 
 (defun output-axioms (vec axioms intercept)
- (do-subgoals axioms (:name name :args args :subgoal axiom)
-  (add-byte (logand *tuple-id-mask* (lookup-def-id name)) vec)
-  (dolist (arg args)
-   (output-axiom-argument arg vec axiom intercept))))
+ (loop while axioms
+       for sub = (first axioms)
+       do (with-subgoal sub (:name name)
+            (multiple-value-bind (same rest) (split-mult-return #L(string-equal (subgoal-name !1) name) axioms)
+               (setf same (cons sub same))
+               (setf axioms rest)
+               (add-bytes vec (output-int (length same)))
+               (add-byte (logand *tuple-id-mask* (lookup-def-id name)) vec)
+               (loop for axiom in same
+                     do (with-subgoal axiom (:args args)
+                           (dolist (arg args)
+                              (output-axiom-argument arg vec axiom intercept))))))))
 
 (defun output-instr (instr vec)
    (case (instr-type instr)
@@ -305,7 +309,7 @@
       (:return-linear (add-byte #b11010000 vec))
       (:mark-rule
          (add-byte #b11010001 vec)
-			(output-list-bytes vec (output-int (vm-mark-rule instr))))
+			(add-bytes vec (output-int (vm-mark-rule instr))))
       (:return-derived (add-byte #b11110000 vec))
 		(:new-axioms
 			(write-jump vec 1
@@ -318,7 +322,7 @@
 			(add-byte #b00010101 vec)
 			(add-byte (logand *reg-mask* (reg-to-byte (vm-send-delay-from instr))) vec)
          (add-byte (logand *reg-mask* (reg-to-byte (vm-send-delay-to instr))) vec)
-			(output-list-bytes vec (output-int (vm-send-delay-time instr))))
+			(add-bytes vec (output-int (vm-send-delay-time instr))))
       (:reset-linear
          (write-jump vec 1
             (add-byte #b00001110 vec)
@@ -662,11 +666,11 @@
                (end-hash (make-hash-table)))
             (add-byte #b00001010 vec)
             (save-pos (start vec)
-               (output-list-bytes vec (output-int 0)) ; size of complete select instruction
-               (output-list-bytes vec (output-int 0)) ; table size
+               (add-bytes vec (output-int 0)) ; size of complete select instruction
+               (add-bytes vec (output-int 0)) ; table size
                (write-offset vec total-nodes (+ start +code-offset-size+))
                (loop for i from 0 to (1- total-nodes)
-                     do (output-list-bytes vec (output-int 0)))
+                     do (add-bytes vec (output-int 0)))
                (save-pos (begin-instrs vec)
                   (vm-select-node-iterate instr (n instrs)
                      (save-pos (cur vec)
@@ -697,7 +701,7 @@
       (:return-select (add-byte #b00001011 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec))
       (:rule
          (add-byte #b00010000 vec)
-			(output-list-bytes vec (output-int (vm-rule-id instr))))
+			(add-bytes vec (output-int (vm-rule-id instr))))
       (:rule-done
          (add-byte #b00010001 vec))
 		(:new-node
