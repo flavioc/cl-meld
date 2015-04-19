@@ -122,6 +122,7 @@
                      ("min" :min)
                      ("priority" (if *parsed-header* :const :prio))
                      ("index" (if *parsed-header* :const :index))
+                     ("compact" (if *parsed-header* :const :compact))
                      ("data" (if *parsed-header* :const :data))
                      ("true" :true)
                      ("false" :false)
@@ -299,7 +300,7 @@
 								:delay-seconds :delay-ms :question-mark
 								:static-priority :cluster-priority
 								:random-priority :lpaco :host :thread :index :type-name
-                        :data :no-initial-priorities :node-type))
+                        :compact :data :no-initial-priorities :node-type))
 
 	(program
 	  (includes definitions directives externs consts
@@ -362,12 +363,18 @@
 		()
       (data directives #'cons)
       (index directives #'cons)
+      (compact directives #'cons)
 		(priority directives #'cons))
 
    (index
       (:index :const :div :number :dot #'(lambda (i name s field d)
                                           (declare (ignore i s d))
                                           (make-index name (parse-integer field)))))
+
+   (compact
+    (:compact :const :dot #'(lambda (c name d)
+                              (declare (ignore c d))
+                              (make-compact name))))
 
    (data
       (:data :const :string :dot #'(lambda (i name file d)

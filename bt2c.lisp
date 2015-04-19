@@ -401,6 +401,7 @@
         (tpl (generate-mangled-name "tpl"))
         (predicate (tostring "pred_~a" id))
         (reg (iterate-reg instr))
+        (compact-p (find-compact-name (definition-name def)))
         (frame (make-instance 'frame
                 :list nil
                 :tuple tpl
@@ -412,12 +413,23 @@
                 :start-loop nil)))
   (with-definition def (:name name :types types)
    (format-code stream "// iterate through predicate ~a~%" (iterate-name instr))
-   (format-code stream "auto ~a(~a->pers_store.match_predicate(~a));~%" it node (definition-get-persistent-id def))
-   (format-code stream "for(; !~a.end(); ++~a) {~%" it it)
+   (cond
+    (compact-p
+      (let ((arr-name (generate-mangled-name "array")))
+         (format-code stream "db::array *~a(~a->pers_store.get_array(~a));~%" arr-name node predicate)
+         (format-code stream "for(auto ~a(~a->begin(~a)), ~aend(~a->end(~a)); ~a != ~aend; ~a++) {~%"
+            it arr-name predicate it arr-name predicate it it it)))
+    (t
+      (format-code stream "auto ~a(~a->pers_store.match_predicate(~a));~%" it node (definition-get-persistent-id def))
+      (format-code stream "for(; !~a.end(); ++~a) {~%" it it)))
    (with-tab
     (with-separate-c-context (variables allocated-tuples)
-     (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
-     (format-code stream "tuple *~a(~aleaf->get_underlying_tuple()); (void)~a;~%" tpl tpl tpl)
+     (cond
+      (compact-p
+         (format-code stream "vm::tuple *~a(*~a);~%" tpl it))
+      (t
+        (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
+        (format-code stream "tuple *~a(~aleaf->get_underlying_tuple()); (void)~a;~%" tpl tpl tpl)))
      (setf (gethash (reg-num reg) allocated-tuples) (make-allocated-tuple tpl predicate def))
      (create-c-matches-code stream tpl def (iterate-matches instr) variables allocated-tuples)
      (with-debug stream "DEBUG_ITERS"
@@ -1730,6 +1742,7 @@
    (format *header-stream* "#define COMPILED_NUM_RULES_UINT ~a~%" (next-multiple-of-uint (length *code-rules*)))
    (format-code stream "prog->number_rules_uint = next_multiple_of_uint(prog->num_rules());~%")
    (format-code stream "prog->num_args = ~a;~%" (args-needed *ast*))
+   (format-code stream "prog->const_code_size = ~a;~%" (if *consts-code* "1" "0"))
    (format-code stream "All->check_arguments(prog->num_args);~%")
    (format-code stream "prog->priority_order = ~a;~%" (case (get-priority-order) (:asc "PRIORITY_ASC") (:desc "PRIORITY_DESC")))
    (format-code stream "prog->initial_priority = ~20$L;~%" (get-initial-priority))
@@ -1747,6 +1760,7 @@
          (format-code stream "p->is_action = ~a;~%" (if (is-action-p def) "true" "false"))
          (format-code stream "p->is_reused = ~a;~%" (if (is-reused-p def) "true" "false"))
          (format-code stream "p->is_thread = ~a;~%" (if (definition-is-thread-p def) "true" "false"))
+         (format-code stream "p->is_compact = ~a;~%" (if (find-compact-name name) "true" "false"))
          (format-code stream "p->has_code = ~a;~%" (if (and
                                                          (or (is-reused-p def) (not (is-linear-p def)))
                                                          (vm-find name))

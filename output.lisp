@@ -293,7 +293,6 @@
        for sub = (first axioms)
        do (with-subgoal sub (:name name)
             (multiple-value-bind (same rest) (split-mult-return #L(string-equal (subgoal-name !1) name) axioms)
-               (setf same (cons sub same))
                (setf axioms rest)
                (add-bytes vec (output-int (length same)))
                (add-byte (logand *tuple-id-mask* (lookup-def-id name)) vec)
@@ -809,6 +808,11 @@
                     (logand #b00001111 pos)))
          #b00000000)))
 
+(defun output-properties2 (def)
+   (letret (prop #b00000000)
+      (when (find-compact-name (definition-name def))
+         (setf prop (logior prop #b00000001)))
+      prop))
 (defun output-properties (def)
    (letret (prop #b00000000)
       (when (definition-aggregate def)
@@ -902,6 +906,7 @@
    (do-definitions (:definition def :name name :types types :operation collect)
       (letret (vec (create-bin-array))
          (add-byte (output-properties def) vec) ; property byte
+         (add-byte (output-properties2 def) vec) ; second property byte
          (add-byte (output-aggregate types) vec) ; aggregate byte
          (add-byte (output-stratification-level def) vec)
          (let ((index (find-index-name name)))
