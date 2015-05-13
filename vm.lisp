@@ -249,6 +249,13 @@
 (defun vm-cons-gc (c) (sixth c))
 (defun vm-cons-p (c) (tagged-p c :cons))
 
+(defun make-vm-literal-cons (c dest)
+   (assert (cons-p c))
+   (assert (reg-p dest))
+   `(:literal-cons ,c ,dest))
+(defun vm-literal-cons-expr (x) (second x))
+(defun vm-literal-cons-dest (x) (third x))
+
 (defun make-vm-head (con dest typ)
 	(assert (type-list-p typ))
 	(let* ((subtype (type-list-element typ))
@@ -442,7 +449,7 @@
 (defun make-vm-fabs (flt dest) `(:fabs ,flt ,dest))
 (defun vm-fabs-float (x) (second x))
 (defun vm-fabs-dest (x) (third x))
-(defun vm-fabs-p (x) (tagged-p flt :float))
+(defun vm-fabs-p (flt) (tagged-p flt :float))
 
 (defun make-vm-type (ty) `(:type ,ty))
 (defun vm-type-get (x) (second x))

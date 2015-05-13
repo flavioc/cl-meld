@@ -37,6 +37,7 @@
    (let ((new-regs (find-unused-n-regs regs n)))
       (values new-regs (append regs new-regs))))
 
+(defparameter *compiling-consts* nil)
 (defparameter *compiling-axioms* nil)
 (defparameter *compilation-clause* nil)
 (defparameter *compiling-rule* nil)
@@ -399,6 +400,11 @@
 				(with-dest-or-new-reg (dest)
 					(return-expr dest `(,@c ,(make-vm-head p dest (expr-type (vm-head-cons expr))))))))
       ((cons-p expr)
+       (cond
+        ((and *compiling-consts* (constant-cons-p expr))
+         (with-dest-or-new-reg (dest)
+          (return-expr dest `(,(make-vm-literal-cons expr dest)))))
+        (t
 			(let (ptail ctail phead chead d)
 				(with-compilation-on-rf (place-tail code-tail :top-level top-level) (cons-tail expr)
 						(setf ptail place-tail
@@ -408,7 +414,7 @@
                            chead code-head)))
             (with-dest-or-new-reg (dest)
                (return-expr dest `(,@ctail ,@chead ,(make-vm-cons phead ptail dest (expr-type expr)
-                                                     (make-vm-bool (not top-level))))))))
+                                                     (make-vm-bool (not top-level))))))))))
       ((not-p expr)
 			(let (p c)
 				(with-compilation-on-reg (place-expr code-expr) (not-expr expr)
@@ -1509,7 +1515,7 @@
          `(,@spec ,(make-vm-new-axioms regular))
          spec)))
       
-(defun compile-const-axioms ()
+(defun compile-const-axioms (type-reg)
 	"Take all constant axioms in the program and map them to an hash table (per node).
 	Then, create a SELECT NODE instruction and add NEW-AXIOM with each set of node axioms."
 	(let ((hash (make-hash-table))
@@ -1524,13 +1530,10 @@
             do (multiple-value-bind (axioms found-p) (gethash i hash)
                   (when axioms
                      (setf (gethash i hash) (compile-node-axioms axioms)))
-                  (let ((node-type (get-node-constraint i)))
-                   (when node-type 
-                     (do-node-var-axioms (:body body :head head :clause clause :operation :append)
-                      (let ((clause-type (find-var-axiom-type clause)))
-                       (when (and clause-type (equal node-type clause-type))
-                        (let ((code (compile-with-starting-subgoal body head)))
-                         (setf (gethash i hash) `(,@(gethash i hash) ,@code))))))))))
+                  (when *node-types*
+                     (let* ((node-type (get-node-constraint i))
+                            (id (find-node-type-id node-type)))
+                      (push (make-move (make-int id) type-reg) (gethash i hash))))))
 		(let ((vm (make-vm-select-node)))
 			(loop for key being the hash-keys of hash
 					using (hash-value value)
@@ -1551,13 +1554,25 @@
       typ)))
 	
 (defun compile-init-process ()
-	(let ((const-axiom-code (compile-const-axioms))
-			(*compiling-axioms* t))
-   	(append const-axiom-code
-			(do-node-var-axioms (:body body :head head :clause clause :operation :append)
-            (let ((type (find-var-axiom-type clause)))
-             (unless type
-               (compile-with-starting-subgoal body head)))))))
+   (with-reg (type-reg)
+      (let ((const-axiom-code (compile-const-axioms type-reg))
+            (*compiling-axioms* t))
+         `(,@(when *node-types* (list (make-move (make-int 0) type-reg)))
+            ,@const-axiom-code
+            ,@(do-node-var-axioms (:body body :head head :clause clause :operation :append)
+               (let ((type (find-var-axiom-type clause)))
+                (let ((inner (compile-with-starting-subgoal body head))
+                      (id (find-node-type-id type)))
+                 (cond
+                  ((= 0 id) inner)
+                  (t
+                    (let ((code (with-reg (code)
+                            (with-reg (cmp)
+                         `(,(make-move (make-vm-int id) code)
+                            ,(make-vm-op cmp code :int-equal type-reg)
+                            ,(make-vm-if cmp inner))))))
+                     (warn "~a" code)
+                     code))))))))))
 
 (defun compile-init-thread-process ()
    (let ((*compiling-axioms* t))
@@ -1574,9 +1589,10 @@
              nil)))))
 
 (defun compile-consts ()
-	(do-constant-list *consts* (:name name :expr expr :operation append)
-		(with-compiled-expr (place code) expr
-			`(,@code ,(make-move place (make-vm-constant name) (expr-type expr))))))
+   (let ((*compiling-consts* t))
+      (do-constant-list *consts* (:name name :expr expr :operation append)
+         (with-compiled-expr (place code) expr
+            `(,@code ,(make-move place (make-vm-constant name) (expr-type expr)))))))
 			
 (defun compile-function-arguments (body args n)
 	(if (null args)

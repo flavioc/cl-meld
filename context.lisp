@@ -7,6 +7,7 @@
 (defparameter *code-rules* nil "Virtual Machine instructions for each rule.")
 (defparameter *has-exists-p* nil "If any exists construct exists in the program.")
 (defparameter *data-input* nil)
+(defparameter *node-types* nil "Available node subtypes.")
 
 (define-symbol-macro *definitions* (definitions *ast*))
 (define-symbol-macro *node-definitions* *definitions*)

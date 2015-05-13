@@ -209,11 +209,10 @@
 (defvar *parser-imported-predicates* nil)
 (defun add-imported-predicate (imp) (push imp *parser-imported-predicates*))
 
-(defvar *parser-node-types* nil)
 (defun add-node-type (name)
-   (push name *parser-node-types*))
+   (push name *node-types*))
 (defun has-node-type-p (name)
-   (member name *parser-node-types* :test #'string-equal))
+   (member name *node-types* :test #'string-equal))
    
 (defun generate-part-expression (final-type body fun-args args)
    (let ((this-fun-arg (first fun-args))

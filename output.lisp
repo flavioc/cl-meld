@@ -235,7 +235,7 @@
 			(write-offset ,vec
 				(- (length ,vec) ,pos) (- ,pos (+ ,jump-many +code-offset-size+))))))
 				
-(defun output-axiom-argument (arg vec subgoal intercept)
+(defun output-axiom-argument (arg vec intercept)
    (funcall intercept arg vec)
 	(cond
 		((addr-p arg)
@@ -249,12 +249,12 @@
 		((nil-p arg) (add-byte #b0 vec))
 		((cons-p arg)
 			(add-byte #b1 vec)
-			(output-axiom-argument (cons-head arg) vec subgoal intercept)
-			(output-axiom-argument (cons-tail arg) vec subgoal intercept))
+			(output-axiom-argument (cons-head arg) vec intercept)
+			(output-axiom-argument (cons-tail arg) vec intercept))
       ((struct-p arg)
          (loop for x in (struct-list arg)
-               do (output-axiom-argument x vec subgoal intercept)))
-		(t (error 'output-invalid-error :text (tostring "don't know how to output this subgoal: ~a" subgoal)))))
+               do (output-axiom-argument x vec intercept)))
+		(t (error 'output-invalid-error :text (tostring "don't know how to output this arg ~a" arg)))))
 
 (defun constant-matches-p (iter-matches)
 	(loop for match in iter-matches
@@ -299,7 +299,10 @@
                (loop for axiom in same
                      do (with-subgoal axiom (:args args)
                            (dolist (arg args)
-                              (output-axiom-argument arg vec axiom intercept))))))))
+                              (output-axiom-argument arg vec intercept))))))))
+
+(defun intercept-axiom-argument (arg vec)
+ (when (addr-p arg) (add-node-value vec)))
 
 (defun output-instr (instr vec)
    (case (instr-type instr)
@@ -314,9 +317,14 @@
 			(write-jump vec 1
 				(add-byte #b00010100 vec)
 				(jumps-here vec)
-            (output-axioms vec (vm-new-axioms-subgoals instr) #'(lambda (arg vec)
-                                                                  (when (addr-p arg)
-                                                                   (add-node-value vec))))))
+            (output-axioms vec (vm-new-axioms-subgoals instr) #'intercept-axiom-argument)))
+      (:literal-cons
+       (write-jump vec 3
+         (add-byte #b10111110 vec)
+			(add-byte (logand *reg-mask* (reg-to-byte (vm-literal-cons-dest instr))) vec)
+         (add-byte (lookup-type-id (expr-type (vm-literal-cons-expr instr))) vec)
+         (jumps-here vec)
+         (output-axiom-argument (vm-literal-cons-expr instr) vec #'intercept-axiom-argument)))
 		(:send-delay
 			(add-byte #b00010101 vec)
 			(add-byte (logand *reg-mask* (reg-to-byte (vm-send-delay-from instr))) vec)

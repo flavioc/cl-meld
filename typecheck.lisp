@@ -129,12 +129,22 @@
 (defparameter *node-constraints* nil)
 
 (defmacro with-node-type-context (&body body)
-   `(let ((*node-constraints* (make-hash-table)))
+   `(let ((*node-constraints* (make-hash-table))
+          (*node-types* nil))
       ,@body))
 
 (defun get-node-constraint (addr-num)
    (multiple-value-bind (type-found found-p) (gethash addr-num *node-constraints*)
     type-found))
+
+(defun find-node-type-id (node-type)
+ (when (or (null node-type) (type-addr-p node-type))
+   (return-from find-node-type-id 0))
+ (let ((x (type-node-type node-type)))
+   (loop for name in *node-types*
+         for c from 1
+         when (string-equal name x)
+         do (return-from find-node-type-id c))))
 
 (defun add-node-constraint (addr typ)
    (multiple-value-bind (type-found found-p) (gethash (addr-num addr) *node-constraints*)

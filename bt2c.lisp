@@ -242,7 +242,8 @@
    (multiple-value-bind (v2 found-p2) (gethash (reg-num r2) variables)
     (assert found-p2)
     (multiple-value-bind (var new-p) (allocate-c-variable variables rdest typ)
-     (format-code stream "~a = ~a ~a ~a;~%" (declare-c-variable var new-p) (c-variable-name v1) op (c-variable-name v2))
+     (format-code stream "~a = ~a ~a ~a;~%" (declare-c-variable var new-p)
+      (c-variable-name v1) op (c-variable-name v2))
      (add-c-variable variables var))))))
 
 (defun create-c-tuple-field-from-val (stream allocated-tuples variables typ value)
@@ -952,17 +953,28 @@
        (format-code stream "break;~%")))
      (format-code stream "}~%"))))
 
+(defun intercept-c-axiom-argument (start)
+#'(lambda (arg vec)
+     (when (addr-p arg)
+        (let ((pos (length vec)))
+         ;; offset to node reference
+         (add-c-node-reference (+ start pos) (addr-num arg))))))
+
 (defun do-output-c-new-axioms (axioms)
    (let ((vec (create-bin-array))
          (start *total-written*))
-      (output-axioms vec axioms #'(lambda (arg vec)
-                                   (when (addr-p arg)
-                                      (let ((pos (length vec)))
-                                       ;; offset to node reference
-                                       (add-c-node-reference (+ start pos) (addr-num arg))))))
+      (output-axioms vec axioms (intercept-c-axiom-argument start))
       (write-vec *data-stream* vec)
       (let ((len (- *total-written* start)))
          (values start len))))
+
+(defun do-output-c-data (expr)
+   (let ((vec (create-bin-array))
+         (start *total-written*))
+    (output-axiom-argument expr vec (intercept-c-axiom-argument start))
+    (write-vec *data-stream* vec)
+    (let ((len (- *total-written* start)))
+     (values start len))))
 
 (defun do-output-c-instr (stream instr frames allocated-tuples variables &key is-linear-p)
    (declare (optimize compilation-speed) (optimize (speed 0)))
@@ -975,6 +987,15 @@
       (:move-ptr-to-reg (format-code stream "// move ptr to reg not implemented.~%"))
       (:end-linear )
       (:return-select (format-code stream "break;~%"))
+      (:literal-cons
+         (let* ((field (generate-mangled-name "field"))
+                (typ (expr-type (vm-literal-cons-expr instr)))
+                (typ-id (lookup-type-id typ)))
+          (format-code stream "vm::tuple_field ~a(instantiate_data(~a, type_~a));~%" field
+               (do-output-c-data (vm-literal-cons-expr instr)) typ-id)
+          (multiple-value-bind (var new-p) (allocate-c-variable variables (vm-literal-cons-dest instr) typ)
+           (format-code stream "~a(FIELD_CONS(~a));~%" (declare-c-variable var new-p) field)
+           (add-c-variable variables var))))
       (:convert-float
          (let* ((place (vm-convert-float-place instr))
                 (dest (vm-convert-float-dest instr))
