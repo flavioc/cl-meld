@@ -952,7 +952,7 @@
      (with-tab
       (format-code stream "case POSITIVE_DERIVATION:~%")
       (with-tab
-       (format-code stream "All->MACHINE->run_action(state.sched, ~a, ~a, state.gc_nodes);~%" (allocated-tuple-tpl tpl) (allocated-tuple-pred tpl))
+       (format-code stream "All->MACHINE->run_action(state.sched, ~a, ~a, &(node->alloc), state.gc_nodes);~%" (allocated-tuple-tpl tpl) (allocated-tuple-pred tpl))
        (format-code stream "break;~%"))
       (format-code stream "case NEGATIVE_DERIVATION:~%")
       (with-tab
