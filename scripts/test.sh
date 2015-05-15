@@ -13,6 +13,6 @@ sbcl --no-userinit --control-stack-size 128 --dynamic-space-size 2048 --noprint 
    (directory "$DIR/tests/progs/*.meld"))))
    (sb-ext:quit :unix-status (if (cl-meld:meld-compile-list files) 0 1)))
 EOF
-[[ $? -eq 0 ]] || exit 1
+[ $? -eq 0 ] || exit 1
 rm -f out.*
 rm -rf meld

@@ -12,7 +12,7 @@ if [ ! -f setup.lisp ]; then
    sbcl --no-userinit --load quicklisp.lisp <<EOF
 (quicklisp-quickstart:install :path ".")
 EOF
-   [[ $? -eq 0 ]] || exit 1
+   [ $? -eq 0 ] || exit 1
 fi
 sbcl --no-userinit --load setup.lisp <<EOF
 (ql:quickload "yacc")
@@ -24,7 +24,7 @@ sbcl --no-userinit --load setup.lisp <<EOF
 (ql:quickload "cl-csv")
 (ql:quickload "ieee-floats")
 EOF
-[[ $? -eq 0 ]] || exit 1
+[ $? -eq 0 ] || exit 1
 
 old_dir=$PWD
 cd dists/quicklisp/software/cl-yacc-* || exit 1
@@ -36,5 +36,5 @@ sbcl --no-userinit --control-stack-size 128 --dynamic-space-size 2048 --noprint 
 (push #p"$LISP_MELD/" asdf:*central-registry*)
 (ql:quickload "cl-meld")
 EOF
-[[ $? -eq 0 ]] || exit 1
+[ $? -eq 0 ] || exit 1
 
