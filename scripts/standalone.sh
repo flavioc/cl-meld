@@ -7,7 +7,7 @@ echo $LISP_MELD
 mkdir -p $TARGET || exit 1
 cd $TARGET || exit 1
 if [ ! -f quicklisp.lisp ]; then
-   wget https://beta.quicklisp.org/quicklisp.lisp || exit 1
+   wget http://beta.quicklisp.org/quicklisp.lisp || exit 1
 fi
 if [ ! -f setup.lisp ]; then
    sbcl --no-userinit --load quicklisp.lisp <<EOF
