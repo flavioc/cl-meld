@@ -1,6 +1,6 @@
 language: lisp
 script:
-   - cd scripts && sh standalone.sh compile && rm -rf compile
+   - cd scripts && sh standalone.sh && sh test.sh && rm -rf compile
 before_install:
   - sudo apt-get update -qq
 install:
