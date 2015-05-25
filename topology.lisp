@@ -170,6 +170,22 @@
 	                 (bfs-ordering edge-set node-set)))
 	     (otherwise (assert nil)))))
 
+(defun call-data-input (input)
+   (printdbg "Reading input file ~A..." (data-input-file input))
+   (cond
+    ((string-equal (data-input-template input) "stanford-snap")
+     (let ((ret (snap-file-read (data-input-file input))))
+        (setf *nodes* (data-input-nodes ret))
+        ret))
+    ((string-equal (data-input-template input) "stanford-snap-search")
+     (let ((args (data-input-args input)))
+      (unless (= (length args) 2)
+       (assert nil))
+        (let ((ret (snap-search-file-read (data-input-file input) (parse-integer (first args)) (parse-integer (second args)))))
+         (setf *nodes* (data-input-nodes ret))
+         ret)))
+    (t (assert nil))))
+
 (defun optimize-topology ()
    (let ((mapping (do-topology-ordering)))
       ;(print-mapping mapping)
@@ -184,4 +200,9 @@
 		(do-constant-list *consts* (:constant c)
 			(flip-nodes mapping c))
 		(do-rules (:clause clause)
-			(flip-nodes mapping clause))))
+			(flip-nodes mapping clause)))
+  (let ((data-input (find-data-input)))
+    (if data-input
+      (setf *data-input* (call-data-input data-input))
+      (setf *data-input* nil))))
+

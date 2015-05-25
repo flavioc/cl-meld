@@ -6,6 +6,9 @@
    `(if *debug-msgs*
       (format t ,(concatenate 'string str "~%") ,@args)))
 
+(defun create-tab (&optional (n 4))
+   (tostring "~{~a~}" (loop for i from 1 to n collect "  ")))
+
 (defun create-bin-array (&optional (size 0)) (make-array size :element-type '(unsigned-byte 8) :adjustable t :fill-pointer 0))
 
 (defun str->sym (str) (values (intern str)))
@@ -31,7 +34,7 @@
            (at-least-n-p (cdr ls) (1- n)))))
            
 (defun get-first-n (ls n &optional (app nil))
-   (if (zerop n)
+   (if (or (zerop n) (null ls))
       app
       (cons (car ls)
             (get-first-n (cdr ls) (1- n) app))))
@@ -176,13 +179,13 @@
          (when found
             (rest found)))))
 
-(defun shuffle-list (ls)
+(defun shuffle-list (ls &optional (rnd *random-state*))
    (let ((hash-tbl (make-hash-table :test #'eq)))
       (sort ls #'< :key #'(lambda (x)
                               (multiple-value-bind (val found-p) (gethash x hash-tbl)
                                  (if found-p
                                     val
-                                    (setf (gethash x hash-tbl) (random 1.0))))))))
+                                    (setf (gethash x hash-tbl) (random 1.0 rnd))))))))
 
 (defun read-file (file)
    "Reads the entire file and returns a string."

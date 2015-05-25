@@ -1,7 +1,7 @@
 (in-package :cl-meld)
 
 (defparameter *major-version* 0)
-(defparameter *minor-version* 12)
+(defparameter *minor-version* 13)
 
 (defparameter *init-tuple* (make-definition "_init" '(:type-addr) '(:init-tuple :linear)))
 
@@ -17,7 +17,7 @@
 
 (defun ast-add-base-tuples (ast use-threads-p seen-subgoals)
    (let ((copy (mapcar #'copy-tree (filter #L(with-definition !1 (:name name)
-                                              (member name seen-subgoals :test #'string-equal))
+                                                   (member name seen-subgoals :test #'string-equal))
                                               *base-tuples*))))
       ;; default predicates are added if only they are used.
       (when use-threads-p

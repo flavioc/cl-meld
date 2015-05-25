@@ -6,9 +6,15 @@
 (defun index-p (x) (tagged-p x :index))
 (defun find-index-name (name) (find-if #L(and (index-p !1) (string-equal name (index-name !1))) *directives*))
 
-(defun make-data-input (template file) `(:data-input ,template ,file))
+(defun make-compact (name) `(:compact ,name))
+(defun compact-name (x) (second x))
+(defun compact-p (x) (tagged-p x :compact))
+(defun find-compact-name (name) (find-if #L(and (compact-p !1) (string-equal name (compact-name !1))) *directives*))
+
+(defun make-data-input (template file &optional args) `(:data-input ,template ,file ,args))
 (defun data-input-template (x) (second x))
 (defun data-input-file (x) (third x))
+(defun data-input-args (x) (fourth x))
 (defun data-input-p (x) (tagged-p x :data-input))
 (defun find-data-input () (find-if #L(data-input-p !1) *directives*))
 
@@ -109,3 +115,4 @@ account the dependencies between predicates."
 					(push-end (make-descending-priority name1 name2) *directives*))))))
 					
 (defgeneric data-input-node-axioms (data n))
+(defgeneric data-input-nodes (data))

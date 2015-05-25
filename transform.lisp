@@ -229,7 +229,6 @@
             (transform-expr #L(var-eq-p !1 old-var)
                         #'transform (assignment-expr a)))
 			(when (subgoals-in-list-have-var-p body old-var)
-            (warn "adding constraint for host id ~a" clause)
 				(push-end (make-constraint (make-equal old-var '= expr) :type-bool) (clause-body clause)))))))
 
 (defun transform-variable-to-host-id (clause old-var)

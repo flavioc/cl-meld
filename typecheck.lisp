@@ -21,10 +21,6 @@
 	(cond
 		((eq t1 :all) t2)
 		((eq t2 :all) t1)
-		((and (listp t1) (not (listp t2)) (eq t2 (first t1))) t2)
-		((and (listp t2) (not (listp t1)) (eq t1 (first t2))) t1)
-		((and (listp t1) (not (listp t2))) nil)
-		((and (not (listp t2)) (listp t2)) nil)
       ((and (type-node-p t1) (type-node-p t2))
         (let ((a (type-node-type t1))
               (b (type-node-type t2)))
@@ -44,6 +40,12 @@
               (merged (merge-type sub1 sub2)))
         (if merged
          (make-array-type merged))))
+      ((and (type-set-p t1) (type-set-p t2))
+       (let* ((sub1 (type-set-element t1))
+              (sub2 (type-set-element t2))
+              (merged (merge-type sub1 sub2)))
+        (if merged
+         (make-set-type merged))))
 		((and (type-struct-p t1) (type-struct-p t2))
 			(let ((l1 (type-struct-list t1))
 					(l2 (type-struct-list t2)))
@@ -61,6 +63,10 @@
 								(make-struct-type result)))))))
 		((and (listp t1) (listp t2))
 			(merge-types t1 t2))
+		((and (listp t1) (not (listp t2)) (eq t2 (first t1))) t2)
+		((and (listp t2) (not (listp t1)) (eq t1 (first t2))) t1)
+		((and (listp t1) (not (listp t2))) nil)
+		((and (not (listp t2)) (listp t2)) nil)
 		((and (not (listp t1)) (not (listp t2)))
 			(if (eq t1 t2)
 				t1
@@ -123,8 +129,22 @@
 (defparameter *node-constraints* nil)
 
 (defmacro with-node-type-context (&body body)
-   `(let ((*node-constraints* (make-hash-table)))
+   `(let ((*node-constraints* (make-hash-table))
+          (*node-types* nil))
       ,@body))
+
+(defun get-node-constraint (addr-num)
+   (multiple-value-bind (type-found found-p) (gethash addr-num *node-constraints*)
+    type-found))
+
+(defun find-node-type-id (node-type)
+ (when (or (null node-type) (type-addr-p node-type))
+   (return-from find-node-type-id 0))
+ (let ((x (type-node-type node-type)))
+   (loop for name in *node-types*
+         for c from 1
+         when (string-equal name x)
+         do (return-from find-node-type-id c))))
 
 (defun add-node-constraint (addr typ)
    (multiple-value-bind (type-found found-p) (gethash (addr-num addr) *node-constraints*)
@@ -238,6 +258,8 @@
      (unify-types typ (type-list-element concrete-type) (type-list-element concrete-template)))
     ((type-array-p concrete-template)
      (unify-types typ (type-array-element concrete-type) (type-array-element concrete-template)))
+    ((type-set-p concrete-template)
+     (unify-types typ (type-set-element concrete-type) (type-set-element concrete-template)))
     ((type-struct-p concrete-template)
      (cond
       ((eq (type-struct-list concrete-template) :all)
@@ -265,6 +287,7 @@
     ((eq template :all) concrete)
     ((type-list-p template) (find-all-type (type-list-element template) (type-list-element concrete)))
     ((type-array-p template) (find-all-type (type-array-element template) (type-array-element concrete)))
+    ((type-set-p template) (find-all-type (type-set-element template) (type-set-element concrete)))
     ((type-struct-p template)
      (when (eq (type-struct-list template) :all)
       (return-from find-all-type concrete))
@@ -1054,13 +1077,9 @@
 					
 (defun test-same-arguments-p (args1 args2 constraints)
 	(every #'(lambda (arg1 arg2)
-					(cond
-						((equal arg1 arg2) t)
-						(t
-							(multiple-value-bind (cs other-var) (find-first-assignment-constraint-to-var constraints arg1)
-								(when cs
-									(equal arg2 other-var))))))
-				args1 args2))
+             (member arg2 (find-all-possible-assignments constraints arg1)
+                     :test #'equal))
+       args1 args2))
 
 (defun find-action-problems ()
    "Build rule dependency graph and check if an action
@@ -1124,59 +1143,58 @@
 			(setf *program-types* (add-type-to-typelist *program-types* (var-type arg))))))
 					
 (defun type-check ()
-   (with-node-type-context
-      (do-definitions (:name name :types typs :definition def)
-         (check-home-argument name typs))
-      (check-repeated-definitions)
-      (do-index-list *directives* (:name name :field field)
-       (let ((def (lookup-definition name)))
-        (unless def
-         (error 'type-invalid-error :text
-          (tostring "Cannot find definition ~a from index directive" name)))
-        (unless (and (>= (length (definition-types def)) field)
-                     (not (= field 0)))
-         (error 'type-invalid-error :text
-          (tostring "Field ~a from index in ~a does not exist" field name)))))
-      (dolist (const *consts*)
-         (type-check-const const))
-      (dolist (fun *functions*)
-         (type-check-function fun))
-      (do-externs *externs* (:name name :ret-type ret-type :types types)
-         (let ((extern (lookup-external-definition name)))
-            (unless extern
-               (error 'type-invalid-error :text (tostring "could not found external definition ~a" name)))
-            (unless (type-eq-p ret-type (extern-ret-type extern))
+   (do-definitions (:name name :types typs :definition def)
+      (check-home-argument name typs))
+   (check-repeated-definitions)
+   (do-index-list *directives* (:name name :field field)
+    (let ((def (lookup-definition name)))
+     (unless def
+      (error 'type-invalid-error :text
+       (tostring "Cannot find definition ~a from index directive" name)))
+     (unless (and (>= (length (definition-types def)) field)
+                  (not (= field 0)))
+      (error 'type-invalid-error :text
+       (tostring "Field ~a from index in ~a does not exist" field name)))))
+   (dolist (const *consts*)
+      (type-check-const const))
+   (dolist (fun *functions*)
+      (type-check-function fun))
+   (do-externs *externs* (:name name :ret-type ret-type :types types)
+      (let ((extern (lookup-external-definition name)))
+         (unless extern
+            (error 'type-invalid-error :text (tostring "could not found external definition ~a" name)))
+         (unless (type-eq-p ret-type (extern-ret-type extern))
+            (error 'type-invalid-error :text
+               (tostring "external function return types do not match: ~a and ~a"
+                  ret-type (extern-ret-type extern))))
+         (dolist2 (t1 types) (t2 (extern-types extern))
+            (unless (type-eq-p t1 t2)
                (error 'type-invalid-error :text
-                  (tostring "external function return types do not match: ~a and ~a"
-                     ret-type (extern-ret-type extern))))
-            (dolist2 (t1 types) (t2 (extern-types extern))
-               (unless (type-eq-p t1 t2)
-                  (error 'type-invalid-error :text
-                     (tostring "external function argument types do not match: ~a and ~a"
-                        t1 t2))))))
-      (dolist (name *exported-predicates*)
-         (let ((def (lookup-definition name)))
-            (unless def
-               (error 'type-invalid-error :text (tostring "exported predicate ~a was not found" name)))))
-      (add-variable-head)
-      (collect-basic-types) ;; collect all basic types from predicates, funs and constants.
-      (do-all-rules (:clause clause)
-         (handler-case
-            (type-check-clause clause nil)
-            (type-invalid-error (c) (error 'type-invalid-error :text
-                                     (tostring "In clause ~a~%~a" (clause-to-string clause) (text c))))))
-      (do-all-const-axioms (:subgoal sub)
-         (with-subgoal sub (:name name :args args :options opts)
-            (do-type-check-subgoal name args opts :axiom-p t)
-            (optimize-subgoals (list sub) nil)))
-      (do-all-var-axioms (:clause clause)
-         (type-check-clause clause t))
-      ;; remove unneeded constants
-      (let (to-remove)
-         ;; constants that are really constant do not need to be stored anymore since their values have been computed
-         (dolist (const *consts*)
-            (with-constant const (:name name :expr expr)
-               (when (expr-is-constant-p expr nil nil)
-                  (push const to-remove))))
-         (delete-all *consts* to-remove))
-      (find-action-problems)))
+                  (tostring "external function argument types do not match: ~a and ~a"
+                     t1 t2))))))
+   (dolist (name *exported-predicates*)
+      (let ((def (lookup-definition name)))
+         (unless def
+            (error 'type-invalid-error :text (tostring "exported predicate ~a was not found" name)))))
+   (add-variable-head)
+   (collect-basic-types) ;; collect all basic types from predicates, funs and constants.
+   (do-all-rules (:clause clause)
+      (handler-case
+         (type-check-clause clause nil)
+         (type-invalid-error (c) (error 'type-invalid-error :text
+                                  (tostring "In clause ~a~%~a" (clause-to-string clause) (text c))))))
+   (do-all-const-axioms (:subgoal sub)
+      (with-subgoal sub (:name name :args args :options opts)
+         (do-type-check-subgoal name args opts :axiom-p t)
+         (optimize-subgoals (list sub) nil)))
+   (do-all-var-axioms (:clause clause)
+      (type-check-clause clause t))
+   ;; remove unneeded constants
+   (let (to-remove)
+      ;; constants that are really constant do not need to be stored anymore since their values have been computed
+      (dolist (const *consts*)
+         (with-constant const (:name name :expr expr)
+            (when (expr-is-constant-p expr nil nil)
+               (push const to-remove))))
+      (delete-all *consts* to-remove))
+   (find-action-problems))

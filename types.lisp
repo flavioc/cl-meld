@@ -8,6 +8,10 @@
 (defun make-array-type (ty) `(:type-array ,ty))
 (defun type-array-element (x) (second x))
 
+(defun type-set-p (x) (tagged-p x :type-set))
+(defun make-set-type (ty) `(:type-set ,ty))
+(defun type-set-element (x) (second x))
+
 (defun type-struct-p (x) (tagged-p x :type-struct))
 (defun make-struct-type (ls) `(:type-struct ,ls))
 (defun type-struct-list (x) (second x))
@@ -48,6 +52,8 @@
 			(every #'valid-type-p (type-struct-list typ)))
       ((type-array-p typ)
          (valid-type-p (type-array-element typ)))
+      ((type-set-p typ)
+         (valid-type-p (type-set-element typ)))
       (t
        (assert nil)
        nil)))
@@ -59,11 +65,14 @@
     ((type-float-p typ) "float")
     ((type-bool-p typ) "bool")
     ((type-string-p typ) "string")
+    ((type-thread-p typ) "thread")
     ((type-node-p typ) (tostring "node ~a" (type-node-type typ)))
     ((type-list-p typ)
      (tostring "list ~a" (type-to-string (type-list-element typ))))
     ((type-array-p typ)
      (tostring "array ~a" (type-to-string (type-array-element typ))))
+    ((type-set-p typ)
+     (tostring "set ~a" (type-to-string (type-set-element typ))))
     ((type-struct-p typ)
      (let ((str "struct "))
       (loop for ty in (type-struct-list typ)
@@ -148,7 +157,8 @@
 
 (defun recursive-type-p (typ)
 	(or (type-struct-p typ) (type-list-p typ)
-       (type-array-p typ)))
+       (type-array-p typ)
+       (type-set-p typ)))
 
 (defun reference-type-p (typ)
 	(or (eq typ :all) (type-string-p typ)
@@ -170,6 +180,8 @@
             (push-end new types))
          ((type-array-p new)
             (push-end new (add-type-to-typelist types (type-array-element new))))
+         ((type-set-p new)
+            (push-end new (add-type-to-typelist types (type-set-element new))))
 			(t (push-end new types)))))
 		
 (defun lookup-type-id (typ)

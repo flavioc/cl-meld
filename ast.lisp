@@ -112,6 +112,9 @@
                         (thread-const-axioms ast) thread-const-axioms
                         (ast-has-thread-facts-p ast) threads))))))
 
+(defun ast-remove-unneeded-definitions (ast)
+   (setf *definitions* (remove-if #'definition-is-instruction-p *definitions*)))
+
 ;;;;;;;;;;;;;;;;;;;
 ;; Clauses
 ;;;;;;;;;;;;;;;;;;;
@@ -214,3 +217,10 @@
 (defun lookup-const (name)
 	(find-if #L(string-equal name (constant-name !1)) *consts*))
 
+(defun constant-cons-p (expr)
+  (if (nil-p expr)
+   t
+   (let ((head (cons-head expr))
+         (tail (cons-tail expr)))
+    (and (literal-p head)
+         (constant-cons-p tail)))))

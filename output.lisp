@@ -35,7 +35,7 @@
 	(dolist (b ls) (add-byte b vec)))
    
 (defun output-int (int)
-   (assert (< int 2147483647))
+   (assert (<= int 2147483647))
    (loop for i upto 3
       collect (ldb (byte 8 (* i 8)) int)))
 (defun output-int64 (int)
@@ -62,12 +62,17 @@
 	(cond
 		((reg-p val) t)
 		((reg-dot-p val) t)
+      ((vm-int-p val) nil)
+      ((vm-float-p val) nil)
+      ((vm-nil-p val) nil)
+      ((vm-non-nil-p val) nil)
+      ((vm-host-id-p val) t)
 		((vm-pcounter-p val) t)
 		((vm-stack-p val) t)
 		((vm-list-p val)
 			(or (variable-value-p (vm-list-head val))
 				(variable-value-p (vm-list-tail val))))
-		(t nil)))
+		(t (assert nil))))
 		
 (defun output-value-data (val vec)
 	(cond
@@ -75,17 +80,17 @@
 		((vm-bool-p val) (if (vm-bool-val val)
 									(add-byte #b1 vec)
 									(add-byte #b0 vec)))
-		((vm-int-p val) (output-list-bytes vec (output-int (vm-int-val val))))
-		((vm-float-p val) (output-list-bytes vec (output-float (vm-float-val val))))
+		((vm-int-p val) (add-bytes vec (output-int (vm-int-val val))))
+		((vm-float-p val) (add-bytes vec (output-float (vm-float-val val))))
 		((vm-list-p val) (output-list val vec))
 		((vm-string-constant-p val)
 			(let* ((str (vm-string-constant-val val))
 					 (code (push-string-constant str)))
-				(output-list-bytes vec (output-int code))))
+				(add-bytes vec (output-int code))))
 		((vm-addr-p val)
 			(add-node-value vec) 
-			(output-list-bytes vec (output-addr val)))
-		((vm-ptr-p val) (output-list-bytes vec (output-int64 (vm-ptr-val val))))
+			(add-bytes vec (output-addr val)))
+		((vm-ptr-p val) (add-bytes vec (output-int64 (vm-ptr-val val))))
 		((vm-host-id-p val))
       ((vm-thread-id-p val))
 		((vm-nil-p val))
@@ -100,7 +105,7 @@
 		((vm-argument-p val)
 			(add-byte (vm-argument-id val) vec))
 		((vm-constant-p val)
-			(output-list-bytes vec (output-int (lookup-const-id (vm-constant-name val)))))
+			(add-bytes vec (output-int (lookup-const-id (vm-constant-name val)))))
 		(t (error 'output-invalid-error :text (tostring "invalid expression value: ~a" val)))))
 			
 (defun output-value (val vec)
@@ -124,7 +129,9 @@
 				      ((reg-dot-p val) #b000010)
 						((vm-argument-p val) #b00000111)
 						((vm-constant-p val) #b00001000)
-				      (t (error 'output-invalid-error :text (tostring "Invalid expression value: ~a" val))))))
+				      (t (assert nil)
+                   ;(error 'output-invalid-error :text (tostring "Invalid expression value: ~a" val))
+                   ))))
 		(add-byte flag vec)
 		(output-value-data val vec)))
 
@@ -137,7 +144,7 @@
 					
 (defun output-instr-and-values-extra (vec instr extra-bytes vals)
 	(add-byte instr vec)
-	(output-list-bytes vec extra-bytes)
+	(add-bytes vec extra-bytes)
 	(output-values vec vals))
 	
 (defun output-instr-and-values (vec instr &rest vals)
@@ -158,7 +165,7 @@
       (add-byte (logand *reg-mask* (reg-to-byte (vm-call-dest call))) vec)
       (add-byte (lookup-type-id typ) vec)
       (output-value-data (vm-call-gc call) vec)
-      (output-list-bytes vec extra-bytes)
+      (add-bytes vec extra-bytes)
       (output-values vec args)))
 
 (defun output-calle (vec call instr &optional extra-bytes)
@@ -168,7 +175,7 @@
          (add-byte (logand *extern-id-mask* extern-id) vec)
          (add-byte (logand *reg-mask* (reg-to-byte (vm-call-dest call))) vec)
          (output-value-data (vm-call-gc call) vec)
-			(output-list-bytes vec extra-bytes)
+			(add-bytes vec extra-bytes)
          (output-values vec args)))
       
 (defun reg-to-byte (reg) (reg-num reg))
@@ -191,10 +198,6 @@
           (field (reg-dot-field reg-dot)))
       (add-byte field vec)
 		(output-value (match-right match) vec)))
-
-(defun output-list-bytes (vec ls)
-	(dolist (b ls)
-      (add-byte b vec)))
 
 (defun output-matches (matches vec)
 	(let ((len (length matches)))
@@ -232,26 +235,26 @@
 			(write-offset ,vec
 				(- (length ,vec) ,pos) (- ,pos (+ ,jump-many +code-offset-size+))))))
 				
-(defun output-axiom-argument (arg vec subgoal intercept)
+(defun output-axiom-argument (arg vec intercept)
    (funcall intercept arg vec)
 	(cond
 		((addr-p arg)
-			(output-list-bytes vec (output-addr arg)))
+			(add-bytes vec (output-addr arg)))
 		((int-p arg)
 			(if (type-float-p (expr-type arg))
-				(output-list-bytes vec (output-float (int-val arg)))
-				(output-list-bytes vec (output-int (int-val arg)))))
-		((float-p arg) (output-list-bytes vec (output-float (float-val arg))))
-		((string-constant-p arg) (output-list-bytes vec (output-int (push-string-constant (string-constant-val arg)))))
+				(add-bytes vec (output-float (int-val arg)))
+				(add-bytes vec (output-int (int-val arg)))))
+		((float-p arg) (add-bytes vec (output-float (float-val arg))))
+		((string-constant-p arg) (add-bytes vec (output-int (push-string-constant (string-constant-val arg)))))
 		((nil-p arg) (add-byte #b0 vec))
 		((cons-p arg)
 			(add-byte #b1 vec)
-			(output-axiom-argument (cons-head arg) vec subgoal intercept)
-			(output-axiom-argument (cons-tail arg) vec subgoal intercept))
+			(output-axiom-argument (cons-head arg) vec intercept)
+			(output-axiom-argument (cons-tail arg) vec intercept))
       ((struct-p arg)
          (loop for x in (struct-list arg)
-               do (output-axiom-argument x vec subgoal intercept)))
-		(t (error 'output-invalid-error :text (tostring "don't know how to output this subgoal: ~a" subgoal)))))
+               do (output-axiom-argument x vec intercept)))
+		(t (error 'output-invalid-error :text (tostring "don't know how to output this arg ~a" arg)))))
 
 (defun constant-matches-p (iter-matches)
 	(loop for match in iter-matches
@@ -286,29 +289,47 @@
       (add-byte #b00000001 vec))) ; next
 
 (defun output-axioms (vec axioms intercept)
- (do-subgoals axioms (:name name :args args :subgoal axiom)
-  (add-byte (logand *tuple-id-mask* (lookup-def-id name)) vec)
-  (dolist (arg args)
-   (output-axiom-argument arg vec axiom intercept))))
+ (loop while axioms
+       for sub = (first axioms)
+       do (with-subgoal sub (:name name)
+            (multiple-value-bind (same rest) (split-mult-return #L(string-equal (subgoal-name !1) name) axioms)
+               (setf axioms rest)
+               (add-bytes vec (output-int (length same)))
+               (add-byte (logand *tuple-id-mask* (lookup-def-id name)) vec)
+               (loop for axiom in same
+                     do (with-subgoal axiom (:args args)
+                           (dolist (arg args)
+                              (output-axiom-argument arg vec intercept))))))))
+
+(defun intercept-axiom-argument (arg vec)
+ (when (addr-p arg) (add-node-value vec)))
 
 (defun output-instr (instr vec)
    (case (instr-type instr)
       (:return (add-byte #x0 vec))
       (:next (add-byte #x1 vec))
       (:return-linear (add-byte #b11010000 vec))
+      (:mark-rule
+         (add-byte #b11010001 vec)
+			(add-bytes vec (output-int (vm-mark-rule instr))))
       (:return-derived (add-byte #b11110000 vec))
 		(:new-axioms
 			(write-jump vec 1
 				(add-byte #b00010100 vec)
 				(jumps-here vec)
-            (output-axioms vec (vm-new-axioms-subgoals instr) #'(lambda (arg vec)
-                                                                  (when (addr-p arg)
-                                                                   (add-node-value vec))))))
+            (output-axioms vec (vm-new-axioms-subgoals instr) #'intercept-axiom-argument)))
+      (:literal-cons
+       (write-jump vec 3
+         (add-byte #b10111110 vec)
+			(add-byte (logand *reg-mask* (reg-to-byte (vm-literal-cons-dest instr))) vec)
+         (add-byte (lookup-type-id (expr-type (vm-literal-cons-expr instr))) vec)
+         (jumps-here vec)
+         (output-axiom-argument (vm-literal-cons-expr instr) vec #'intercept-axiom-argument)))
 		(:send-delay
 			(add-byte #b00010101 vec)
 			(add-byte (logand *reg-mask* (reg-to-byte (vm-send-delay-from instr))) vec)
          (add-byte (logand *reg-mask* (reg-to-byte (vm-send-delay-to instr))) vec)
-			(output-list-bytes vec (output-int (vm-send-delay-time instr))))
+			(add-bytes vec (output-int (vm-send-delay-time instr))))
       (:reset-linear
          (write-jump vec 1
             (add-byte #b00001110 vec)
@@ -332,7 +353,8 @@
                     (reg (reg-to-byte (vm-alloc-reg instr))))
                   (add-byte #b01000000 vec)
                   (add-byte (logand *tuple-id-mask* tuple-id) vec)
-                  (add-byte (logand *reg-mask* reg) vec)))
+                  (add-byte (logand *reg-mask* reg) vec)
+                  (add-byte (logand *reg-mask* (reg-to-byte (vm-alloc-node instr))) vec)))
       (:send (add-byte #b00001000 vec)
              (add-byte (logand *reg-mask* (reg-to-byte (send-from instr))) vec)
              (add-byte (logand *reg-mask* (reg-to-byte (send-to instr))) vec))
@@ -619,6 +641,7 @@
       (:facts-consumed
          (output-instr-and-values vec #b10110011 (vm-facts-consumed-node instr) (vm-facts-consumed-dest instr)))
 		(:thread-linear-iterate (output-iterate vec #b10110100 instr nil))
+		(:thread-rlinear-iterate (output-iterate vec #b10111101 instr nil))
 		(:add-thread-persistent
 			(output-instr-and-values vec #b10110101 (vm-add-persistent-reg instr)))
       (:schedule-next
@@ -644,46 +667,56 @@
 	   (:node-priority
 			(output-instr-and-values vec #b01111111 (vm-node-priority-node instr) (vm-node-priority-dest instr)))
      (:select-node
-							(when (vm-select-node-empty-p instr)
-								(return-from output-instr nil))
-							(let* ((total-nodes (number-of-nodes *nodes*))
-                           (size-header (* 2 +code-offset-size+))
-                           (hash (make-hash-table))
-                           (end-hash (make-hash-table)))
-                        (add-byte #b00001010 vec)
-                        (save-pos (start vec)
-                           (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) ; size of complete select instruction
-                           (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) ; table size
-                           (write-offset vec total-nodes (+ start +code-offset-size+))
-                           (loop for i from 0 to (1- total-nodes)
-                                 do (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec))
-                           (save-pos (begin-instrs vec)
-                              (vm-select-node-iterate instr (n instrs)
-                                 (save-pos (cur vec)
-                                    (setf (gethash n hash) (- cur begin-instrs))
-                                    (output-instrs instrs vec)
-                                    (save-pos (end vec)
-                                       (setf (gethash n end-hash) (- end +code-offset-size+))))))
-                           (save-pos (end-select vec)
-                              (loop for i from 0 to (1- total-nodes)
-                                    for pos = (* i +code-offset-size+)
-                                    do (alexandria:when-let ((offset (gethash i hash)))
-                                          ;; offset is always one more, since when 0 it means there is
-                                          ;; no code for the corresponding node
-                                          (write-offset vec (1+ offset) (+ start size-header pos)))
-                                    do (alexandria:when-let ((write-end (gethash i end-hash)))
-                                          (write-offset vec (- end-select (1- write-end)) write-end)))
-                              (write-offset vec (- end-select (1- start)) start)))))
+         (let* ((total-nodes (number-of-nodes *nodes*))
+               (size-header (* 2 +code-offset-size+))
+               (hash (make-hash-table))
+               (end-hash (make-hash-table)))
+            (add-byte #b00001010 vec)
+            (save-pos (start vec)
+               (add-bytes vec (output-int 0)) ; size of complete select instruction
+               (add-bytes vec (output-int 0)) ; table size
+               (write-offset vec total-nodes (+ start +code-offset-size+))
+               (loop for i from 0 to (1- total-nodes)
+                     do (add-bytes vec (output-int 0)))
+               (save-pos (begin-instrs vec)
+                  (vm-select-node-iterate instr (n instrs)
+                     (save-pos (cur vec)
+                        (setf (gethash n hash) (- cur begin-instrs))
+                        (output-instrs instrs vec)
+                        (save-pos (end vec)
+                           (setf (gethash n end-hash) (- end +code-offset-size+)))))
+                  (when *data-input*
+                    (loop for i from 0 upto total-nodes
+                          do (let ((axioms (data-input-node-axioms *data-input* i)))
+                               (when axioms
+                                (save-pos (cur vec)
+                                   (setf (gethash i hash) (- cur begin-instrs))
+                                   (output-instr (make-vm-new-axioms axioms) vec)
+                                   (output-instr (make-return-select) vec)
+                                   (save-pos (end vec)
+                                      (setf (gethash i end-hash) (- end +code-offset-size+)))))))))
+               (save-pos (end-select vec)
+                         (loop for i from 0 to (1- total-nodes)
+                               for pos = (* i +code-offset-size+)
+                               do (alexandria:when-let ((offset (gethash i hash)))
+                                                       ;; offset is always one more, since when 0 it means there is
+                                     ;; no code for the corresponding node
+                                     (write-offset vec (1+ offset) (+ start size-header pos)))
+                               do (alexandria:when-let ((write-end (gethash i end-hash)))
+                                                       (write-offset vec (- end-select (1- write-end)) write-end)))
+                         (write-offset vec (- end-select (1- start)) start)))))
       (:return-select (add-byte #b00001011 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec) (add-byte 0 vec))
       (:rule
          (add-byte #b00010000 vec)
-			(output-list-bytes vec (output-int (vm-rule-id instr))))
+			(add-bytes vec (output-int (vm-rule-id instr))))
       (:rule-done
          (add-byte #b00010001 vec))
 		(:new-node
 			(add-byte #b00010011 vec)
 			(add-byte (logand *reg-mask* (reg-num (vm-new-node-reg instr))) vec))
-      (otherwise (error 'output-invalid-error :text (tostring "Unknown instruction to output ~a" instr)))))
+      (otherwise
+       (assert nil)
+       (error 'output-invalid-error :text (tostring "Unknown instruction to output ~a" instr)))))
                 
 (defun output-instrs (ls vec)
    (dolist (instr ls)
@@ -728,6 +761,7 @@
 				(:type-bool '(#b0101))
             (:type-thread '(#b0110))
             ; #b0111 type-array
+            ; #b1000 type-set
 				(:type-string '(#b1001))
 				(otherwise (error 'output-invalid-error :text (tostring "invalid arg type: ~a" typ)))))
       ((type-node-p typ) '(#b0010))
@@ -739,6 +773,10 @@
          (let* ((sub (type-array-element typ))
                 (id (lookup-type-id sub)))
           `(,#b0111 ,id)))
+      ((type-set-p typ)
+         (let* ((sub (type-set-element typ))
+                (id (lookup-type-id sub)))
+          `(,#b1000 ,id)))
 		((type-struct-p typ)
 			(let ((ls (type-struct-list typ)))
 				(let ((x `(,#b0100 ,(length ls) ,@(loop for ty in ls collect (lookup-type-id ty)))))
@@ -778,6 +816,11 @@
                     (logand #b00001111 pos)))
          #b00000000)))
 
+(defun output-properties2 (def)
+   (letret (prop #b00000000)
+      (when (find-compact-name (definition-name def))
+         (setf prop (logior prop #b00000001)))
+      prop))
 (defun output-properties (def)
    (letret (prop #b00000000)
       (when (definition-aggregate def)
@@ -871,6 +914,7 @@
    (do-definitions (:definition def :name name :types types :operation collect)
       (letret (vec (create-bin-array))
          (add-byte (output-properties def) vec) ; property byte
+         (add-byte (output-properties2 def) vec) ; second property byte
          (add-byte (output-aggregate types) vec) ; aggregate byte
          (add-byte (output-stratification-level def) vec)
          (let ((index (find-index-name name)))

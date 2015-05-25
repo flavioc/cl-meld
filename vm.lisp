@@ -16,7 +16,8 @@
                      (:and :bool-and)
                      (:equal :int-equal)
 							(:or :bool-or)))
-      (:type-addr (case op
+      ((:type-thread :type-addr)
+                  (case op
                      (:equal :addr-equal)
 							(:not-equal :addr-not-equal)
 							(:greater :addr-greater)))
@@ -248,6 +249,13 @@
 (defun vm-cons-gc (c) (sixth c))
 (defun vm-cons-p (c) (tagged-p c :cons))
 
+(defun make-vm-literal-cons (c dest)
+   (assert (cons-p c))
+   (assert (reg-p dest))
+   `(:literal-cons ,c ,dest))
+(defun vm-literal-cons-expr (x) (second x))
+(defun vm-literal-cons-dest (x) (third x))
+
 (defun make-vm-head (con dest typ)
 	(assert (type-list-p typ))
 	(let* ((subtype (type-list-element typ))
@@ -411,15 +419,20 @@
 (defun make-linear-iterate (name reg matches instrs) `(:linear-iterate ,name ,reg ,matches ,instrs))
 (defun make-rlinear-iterate (name reg matches instrs) `(:rlinear-iterate ,name ,reg ,matches ,instrs))
 (defun make-thread-linear-iterate (name reg matches instrs) `(:thread-linear-iterate ,name ,reg ,matches ,instrs))
+(defun make-thread-rlinear-iterate (name reg matches instrs) `(:thread-rlinear-iterate ,name ,reg ,matches ,instrs))
 
 (defun order-iterate-subgoal (x) (sixth x))
 
 (defun make-vm-update (reg) `(:update ,reg))
 (defun vm-update-reg (x) (second x))
 
-(defun make-vm-alloc (tuple reg) `(:alloc ,tuple ,reg))
+(defun make-vm-alloc (tuple reg node-reg) `(:alloc ,tuple ,reg ,node-reg))
 (defun vm-alloc-tuple (alloc) (second alloc))
 (defun vm-alloc-reg (alloc) (third alloc))
+(defun vm-alloc-node (alloc) (fourth alloc))
+
+(defun make-vm-mark-rule (rule) `(:mark-rule ,rule))
+(defun vm-mark-rule (x) (second x))
 
 (defun make-vm-bool (v) `(:bool ,v))
 (defun vm-bool-val (v) (second v))
@@ -436,7 +449,7 @@
 (defun make-vm-fabs (flt dest) `(:fabs ,flt ,dest))
 (defun vm-fabs-float (x) (second x))
 (defun vm-fabs-dest (x) (third x))
-(defun vm-fabs-p (x) (tagged-p flt :float))
+(defun vm-fabs-p (flt) (tagged-p flt :float))
 
 (defun make-vm-type (ty) `(:type ,ty))
 (defun vm-type-get (x) (second x))
@@ -631,7 +644,10 @@
 (defun vm-set-affinity-target (x) (second x))
 (defun vm-set-affinity-node (x) (third x))
 
-(defun make-vm-cpu-id (node dest) `(:cpu-id ,node ,dest))
+(defun make-vm-cpu-id (node dest)
+   (assert (reg-p node))
+   (assert (reg-p dest))
+   `(:cpu-id ,node ,dest))
 (defun vm-cpu-id-node (x) (second x))
 (defun vm-cpu-id-dest (x) (third x))
 

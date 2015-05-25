@@ -98,6 +98,7 @@
                      ("thread" :type-thread)
                      ("string" :type-string)
                      ("list" :type-list)
+                     ("set" :type-set)
                      ("array" :type-array)
                      ("include" :include)
                      ("random" :random)
@@ -121,6 +122,7 @@
                      ("min" :min)
                      ("priority" (if *parsed-header* :const :prio))
                      ("index" (if *parsed-header* :const :index))
+                     ("compact" (if *parsed-header* :const :compact))
                      ("data" (if *parsed-header* :const :data))
                      ("true" :true)
                      ("false" :false)
@@ -207,11 +209,10 @@
 (defvar *parser-imported-predicates* nil)
 (defun add-imported-predicate (imp) (push imp *parser-imported-predicates*))
 
-(defvar *parser-node-types* nil)
 (defun add-node-type (name)
-   (push name *parser-node-types*))
+   (push name *node-types*))
 (defun has-node-type-p (name)
-   (member name *parser-node-types* :test #'string-equal))
+   (member name *node-types* :test #'string-equal))
    
 (defun generate-part-expression (final-type body fun-args args)
    (let ((this-fun-arg (first fun-args))
@@ -270,6 +271,12 @@
       (t
          (error (make-condition 'parse-failure-error :text (tostring "aggregate declaration not recognized ~a" str) :line *line-number*)))))
 
+(defun parse-filename (file)
+  (let* ((path (subseq file 1 (1- (length file)))))
+      (concatenate 'string
+                   (directory-namestring *default-pathname-defaults*)
+                   path)))
+
 (define-parser meld-parser
    (:muffle-conflicts t)
  	(:start-symbol program)
@@ -282,7 +289,7 @@
 								:lesser :lesser-equal :greater :greater-equal :equal
 								:extern :const-decl :arg :tilde :append
 								:lsparen :rsparen :nil :type-list :local
-                        :type-array
+                        :type-array :type-set
 								:route :include :file :world :cpus :action
 								:linear :dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :ins :fun :end :colon
@@ -292,7 +299,7 @@
 								:delay-seconds :delay-ms :question-mark
 								:static-priority :cluster-priority
 								:random-priority :lpaco :host :thread :index :type-name
-                        :data :no-initial-priorities :node-type))
+                        :compact :data :no-initial-priorities :node-type))
 
 	(program
 	  (includes definitions directives externs consts
@@ -355,6 +362,7 @@
 		()
       (data directives #'cons)
       (index directives #'cons)
+      (compact directives #'cons)
 		(priority directives #'cons))
 
    (index
@@ -362,14 +370,24 @@
                                           (declare (ignore i s d))
                                           (make-index name (parse-integer field)))))
 
+   (compact
+    (:compact :const :dot #'(lambda (c name d)
+                              (declare (ignore c d))
+                              (make-compact name))))
+
    (data
       (:data :const :string :dot #'(lambda (i name file d)
                                           (declare (ignore i d))
-                                          (let* ((path (subseq file 1 (1- (length file))))
-                                                 (full-path (concatenate 'string
-                                                            (directory-namestring *default-pathname-defaults*)
-                                                            path)))
-                                          (make-data-input name full-path)))))
+                                          (let ((path (parse-filename file)))
+                                             (make-data-input name path))))
+      (:data :const :string :lsparen string-list :rsparen :dot #'(lambda (i name file l args r d)
+                                                                   (declare (ignore i d l r))
+                                                                   (let ((path (parse-filename file)))
+                                                                    (make-data-input name path args)))))
+
+   (string-list
+    ()
+    (:string string-list #L(cons (subseq !1 1 (1- (length !1))) !2)))
 	
 	(priority
 		(:prio :static-priority :dot #'(lambda (p s d) (declare (ignore p s d)) (make-priority-static)))
@@ -418,7 +436,7 @@
                   
    (fun-args
       (fun-arg #'list)
-      (fun-arg :comma fun-args #'cons))
+      (fun-arg :comma fun-args #L(cons !1 !3)))
       
    (fun-arg
       (atype variable #'(lambda (typ var) (make-var (var-name var) typ))))
@@ -428,10 +446,11 @@
       (extern-definition externs #'cons))
 
    (extern-definition
-      (:extern atype const :lparen type-args :rparen :dot #'(lambda (e ret-type name l args r d)
-   	                                                         (declare (ignore e l r d))
-																					(add-needed-extern name)
-   	                                                         (make-extern name ret-type args (1- (length *needed-externs*))))))
+      (:extern atype const :lparen type-args :rparen :dot
+         #'(lambda (e ret-type name l args r d)
+             (declare (ignore e l r d))
+             (add-needed-extern name)
+             (make-extern name ret-type args (1- (length *needed-externs*))))))
 	(predicate-options
 		()
 		(predicate-option predicate-options #'cons))
@@ -471,6 +490,9 @@
 	 (:lpaco type-list :rparen #'(lambda (l tl r)
 												(declare (ignore l r))
 												(make-struct-type tl)))
+    (:type-set atype #'(lambda (l ty)
+                           (declare (ignore l))
+                           (make-set-type ty)))
 	 (:type-list atype #'(lambda (l ty)
 	                           (declare (ignore l))
 										(make-list-type ty)))
@@ -601,6 +623,10 @@
 			#'(lambda (l specs b1 body b2 head r)
 					(declare (ignore l b1 b2 r))
 					(make-agg-construct specs nil body head)))
+      (:lsparen multiple-aggregate-spec :bar terms :bar :bar terms :rsparen
+         #'(lambda (l specs b1 body b2 b3 head r)
+               (declare (ignore l b1 b2 b3 r))
+               (make-agg-construct specs nil body head nil)))
 		(:lsparen multiple-aggregate-spec :bar variable-list :bar terms :bar terms :rsparen
 			#'(lambda (l specs b1 vlist b2 body b3 head r)
 				(declare (ignore l r b1 b2 b3 r))
@@ -609,6 +635,10 @@
          #'(lambda (l specs b1 vlist b2 body b3 head0 b4 head r)
             (declare (ignore l r b1 b2 b3 b4 r))
             (make-agg-construct specs vlist body head head0)))
+      (:lsparen multiple-aggregate-spec :bar variable-list :bar terms :bar :bar terms :rsparen
+         #'(lambda (l specs b1 vlist b2 body b3 b4 head r)
+            (declare (ignore l r b1 b2 b3 b4 r))
+            (make-agg-construct specs vlist body head nil)))
       (:lsparen multiple-aggregate-spec :bar terms :bar terms :bar terms :rsparen
          #'(lambda (l specs b1 body b2 head0 b3 head r)
             (declare (ignore l r b1 b2 b3 r))

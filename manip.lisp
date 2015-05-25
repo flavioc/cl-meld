@@ -189,6 +189,10 @@
    (definition-add-tagged-option def :update (list updates count)))
 (defun definition-is-update-p (def)
    (definition-get-tagged-option def :update))
+(defun definition-set-type (def typ)
+   (definition-add-tagged-option def :type typ))
+(defun definition-get-type (def)
+   (definition-get-tagged-option def :type))
 (defun definition-get-update-count (def)
    (second (definition-get-tagged-option def :update)))
 (defun definition-get-update-definition (def)
@@ -227,6 +231,11 @@
 	(definition-has-option-p def :reused))
 (defun definition-set-reused (def)
 	(definition-add-option def :reused))
+(defun definition-is-instruction-p (def)
+   (definition-has-option-p def :instruction))
+(defun definition-is-special-p (def)
+   (definition-has-option-p def :special))
+
 (defun find-init-predicate (defs) (find-if #'is-init-p defs))
 (defun find-init-predicate-name (defs)
    (definition-name (find-init-predicate defs)))
@@ -334,7 +343,7 @@
 (defun argument-p (x) (tagged-p x :argument))
 (defun argument-id (x) (second x))
 
-(defun make-get-constant (name &optional type) `(:get-constant ,name ,type))
+(defun make-get-constant (name &optional (type :all)) `(:get-constant ,name ,type))
 (defun get-constant-p (c) (tagged-p c :get-constant))
 (defun get-constant-name (c) (second c))
    
@@ -440,7 +449,7 @@
 
 ;;;; ASSIGNMENTS
 
-(defun make-assignment (var expr) (list :assign var expr))
+(defun make-assignment (var expr) `(:assign ,var ,expr))
 (defun assignment-p (ls) (tagged-p ls :assign))
 (defun assignment-var (ls) (second ls))
 (defun assignment-expr (ls) (third ls))

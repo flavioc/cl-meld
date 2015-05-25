@@ -50,6 +50,7 @@
 		 			(:file "types"
 		 			         :depends-on ("package"
 		 			                      "util"
+                                     "context"
 		 			                      "macros"))
 		 			(:file "macros"
 		 			         :depends-on ("package"))
@@ -68,6 +69,8 @@
 		 			(:file "localize"
 		 			         :depends-on ("package"
 		 			                      "search"
+                                     "ast"
+                                     "context"
 		 			                      "macros"
 		 			                      "transform"))
 		 			(:file "vm"

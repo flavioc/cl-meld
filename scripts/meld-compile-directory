@@ -12,11 +12,29 @@ if [ -z "$TARGET" ]; then
 	exit 1
 fi
 
+should_be_recompiled()
+{
+   if [ "$1" -nt "$2" ]; then
+      return 0
+   else
+      if [ $(du -k $1 | cut -f1) -gt 50 ]; then
+         return 1
+      fi
+      for subfile in $(grep 'include #' $1|awk -F '#' '{print $2}'); do
+         filepath="$dir/$subfile"
+         if should_be_recompiled "`dirname $1`/$subfile" $2; then
+            return 0
+         fi
+      done
+   fi
+   return 1
+}
+
 ARG=""
 for file in $PWD/$DIR/*.meld; do
-	base=`basename $file .meld`
+   base=$(basename $file .meld)
    target="$TARGET/$base.m"
-   if [ "$file" -nt "$target" ]; then
+   if should_be_recompiled $file $target; then
       ARG="$ARG $file $PWD/$TARGET/$base"
       echo ">> Compiling $DIR/$base.meld to $target"
    fi

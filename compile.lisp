@@ -13,11 +13,12 @@
 
 (defun free-reg (regs reg)
    (remove reg regs :count 1 :test #'reg-eq-p))
-		
+
 (defun find-unused-reg (regs)
 	(loop for i upto (1- *num-regs*)
 		do (if (not (has-reg-p regs (make-reg i)))
 				(return-from find-unused-reg (make-reg i)))))
+
 (defun find-unused-n-regs (regs n)
    (let ((c 0))
       (loop for i upto (1- *num-regs*)
@@ -36,9 +37,11 @@
    (let ((new-regs (find-unused-n-regs regs n)))
       (values new-regs (append regs new-regs))))
 
+(defparameter *compiling-consts* nil)
 (defparameter *compiling-axioms* nil)
 (defparameter *compilation-clause* nil)
 (defparameter *compiling-rule* nil)
+(defparameter *compilation-rule-id* 0)
 (defparameter *starting-subgoal* nil)
 (defparameter *vars-places* nil)
 (defparameter *used-regs* nil)
@@ -74,8 +77,10 @@
 (defun lookup-used-var (var-name)
    (multiple-value-bind (data found) (gethash var-name *vars-places*)
       (when found data)))
-(defun add-used-var (var-name data) (setf (gethash var-name *vars-places*) data))
-(defun remove-used-var (var-name) (remhash var-name *vars-places*))
+(defun add-used-var (var-name data)
+   (setf (gethash var-name *vars-places*) data))
+(defun remove-used-var (var-name)
+   (remhash var-name *vars-places*))
 (defun all-used-var-names () (alexandria:hash-table-keys *vars-places*))
 
 (defun hash-table-to-stack (hash)
@@ -93,15 +98,44 @@
 `(let ((*vars-places* (hash-table-to-stack *vars-places*)))
 	,@body))
 
-(defun valid-constraint-p (all-vars) #L(subsetp (all-variable-names !1) all-vars))
+(defun valid-constraint-p (all-vars)
+   "Returns a function that returns true if constraint argument uses only variables from 'all-vars'."
+   #L(subsetp (all-variable-names !1) all-vars))
+
+(defun equal-ass-constraint-p (all-vars)
+   "Returns a function that returns constraints of the form NewVar = Expr and Expr uses only variables from 'all-vars'."
+   #'(lambda (constr)
+      (let ((expr (constraint-expr constr)))
+       (when (equal-p expr)
+        (let ((op1 (op-op1 expr))
+              (op2 (op-op2 expr)))
+         (flet ((check-arguments (op1 op2)
+                 (and (var-p op1) (not (member (var-name op1) all-vars)) (subsetp (all-variable-names op2) all-vars))))
+          (or (check-arguments op1 op2)
+              (check-arguments op2 op1))))))))
+
+(defun create-new-assignment-from-equal (all-vars)
+   "From a constraint of the form NewVar = Expr, create a new assignment."
+   #'(lambda (constraint)
+      (let* ((cexpr (constraint-expr constraint))
+             (v1 (op-op1 cexpr)) (v2 (op-op2 cexpr))
+             (is-v1-p (and (var-p v1) (not (member (var-name v1) all-vars))))
+             (var (if is-v1-p v1 v2))
+             (expr (if is-v1-p v2 v1)))
+        (make-assignment var expr))))
+
 (defun get-compile-constraints-and-assignments (body)
    "Return constraints and assignments that can be used from the body."
    (let* ((assignments (select-valid-assignments body nil (all-used-var-names)))
           (vars-ass (mapcar #L(var-name (assignment-var !1)) assignments))
           (all-vars (append vars-ass (all-used-var-names)))
           (constraints (filter (valid-constraint-p all-vars) (get-constraints body)))
-          (remain (remove-unneeded-assignments (append assignments constraints))))
-      (split-mult-return #'constraint-p remain)))
+          (equal-constraints (filter (equal-ass-constraint-p all-vars) (get-constraints body)))
+          (new-ass (mapcar (create-new-assignment-from-equal all-vars) equal-constraints))
+          (new-body (remove-all body `(,@assignments ,@constraints ,@equal-constraints))))
+    (values constraints
+            `(,@assignments ,@new-ass)
+            new-body)))
 
 (defun make-low-constraint (typ v1 v2) `(,typ ,v1 ,v2))
 (defun low-constraint-type (lc) (first lc))
@@ -234,7 +268,12 @@
       ((float-p expr) (return-expr (make-vm-float (float-val expr))))
 		((string-constant-p expr) (return-expr (make-vm-string-constant (string-constant-val expr))))
       ((addr-p expr) (return-expr (make-vm-addr (addr-num expr))))
-      ((or (host-p expr) (host-id-p expr)) (return-expr (make-vm-host-id)))
+      ((or (host-p expr) (host-id-p expr))
+       (cond
+        (dest
+            (return-expr dest `(,(make-move (make-vm-host-id) dest))))
+        (t
+            (return-expr (make-vm-host-id)))))
       ((thread-id-p expr) (return-expr (make-vm-thread-id)))
       ((argument-p expr)
 			(return-expr (make-vm-argument (argument-id expr))))
@@ -258,9 +297,15 @@
                      (t
                       (return-expr dest `(,@arg-code ,(make-vm-fabs arg-place arg-place) ,(make-move arg-place dest))))))))
 					((string-equal name "cpu-id")
+                (cond
+                 ((or (null dest) (reg-p dest))
 						(with-dest-or-new-reg (dest)
 							(with-compiled-expr (arg-place arg-code :force-dest dest) (first args)
 								(return-expr dest `(,@arg-code ,(make-vm-cpu-id arg-place dest))))))
+                 (t
+                  (with-reg (new-dest)
+                     (with-compiled-expr (arg-place arg-code :force-dest new-dest) (first args)
+                        (return-expr dest `(,@arg-code ,(make-vm-cpu-id arg-place new-dest) ,(make-move new-dest dest))))))))
                ((string-equal name "is-moving")
                   (with-dest-or-new-reg (dest)
                      (with-compiled-expr (arg-place arg-code :force-dest dest) (first args)
@@ -355,6 +400,11 @@
 				(with-dest-or-new-reg (dest)
 					(return-expr dest `(,@c ,(make-vm-head p dest (expr-type (vm-head-cons expr))))))))
       ((cons-p expr)
+       (cond
+        ((and *compiling-consts* (constant-cons-p expr))
+         (with-dest-or-new-reg (dest)
+          (return-expr dest `(,(make-vm-literal-cons expr dest)))))
+        (t
 			(let (ptail ctail phead chead d)
 				(with-compilation-on-rf (place-tail code-tail :top-level top-level) (cons-tail expr)
 						(setf ptail place-tail
@@ -364,7 +414,7 @@
                            chead code-head)))
             (with-dest-or-new-reg (dest)
                (return-expr dest `(,@ctail ,@chead ,(make-vm-cons phead ptail dest (expr-type expr)
-                                                     (make-vm-bool (not top-level))))))))
+                                                     (make-vm-bool (not top-level))))))))))
       ((not-p expr)
 			(let (p c)
 				(with-compilation-on-reg (place-expr code-expr) (not-expr expr)
@@ -405,7 +455,8 @@
 								c2 code2)))
 				(with-dest-or-new-reg (dest)
 					(compile-op-expr expr p1 p2 c1 c2 dest))))
-      (t (error 'compile-invalid-error :text (tostring "Unknown expression to compile: ~a" expr)))))
+      (t (assert nil)
+         (error 'compile-invalid-error :text (tostring "Unknown expression to compile: ~a" expr)))))
 
 (defun compile-op-expr (expr new-place1 new-place2 new-code1 new-code2 dest)
 	(cond
@@ -429,6 +480,10 @@
             (let ((place (if (nil-p op1) place2 place1))
                   (code (if (nil-p op1) code2 code1)))
                `(,@code ,(make-vm-test-nil place dest))))
+         ((and (not-equal-p expr) (or (nil-p op1) (nil-p op2)))
+            (let ((place (if (nil-p op1) place2 place1))
+                  (code (if (nil-p op1) code2 code1)))
+               `(,@code ,(make-vm-test-nil place dest) ,(make-vm-not dest dest))))
          (t
 				(let ((vm-op (set-type-to-op operand-type ret-type base-op)))
 					(assert (not (null vm-op)) (expr) "Cannot find operator for expression ~a" expr)
@@ -452,18 +507,36 @@
                (values new-reg `(,(make-move arg new-reg)))))) 
          default))
 
+(defmacro with-remote-reg-and-code ((reg code) subgoal default &body body)
+ (alexandria:with-gensyms (arg)
+    `(if (subgoal-is-remote-p ,subgoal)
+       (let ((,arg (get-remote-dest ,subgoal)))
+        (if (reg-p ,arg)
+         (let ((,reg ,arg)
+               (,code nil))
+             ,@body)
+         (with-reg (,reg)
+          (let ((,code (list (make-move ,arg ,reg))))
+           ,@body))))
+       (let ((,reg ,default)
+             (,code nil))
+        ,@body))))
+
 (defun find-matchable-constraint-for-var (body var reg level &optional i)
 	(cond
 		((int-p var) (values (make-vm-int (int-val var)) nil))
 		((float-p var) (values (make-vm-float (float-val var)) nil))
 		((var-p var)
 			(let ((already-defined (lookup-used-var (var-name var))))
-			 (multiple-value-bind (cs other-var) (when (zerop level) (find-first-assignment-constraint-to-var body var))
+			 (multiple-value-bind (cs other-var) (when (zerop level)
+                                               (find-first-assignment-constraint-to-var body var))
 		   	(cond
 		      	(already-defined
 						(cond
 							((zerop level)
 							 (values already-defined nil))
+                     ((vm-host-id-p already-defined)
+                      (values already-defined nil))
 							((not (reg-eq-p (reg-dot-reg already-defined) reg))
 								(values already-defined nil))))
 					((and (not already-defined) (zerop level) cs (lookup-used-var (var-name other-var)))
@@ -634,15 +707,16 @@
 			
 (defun do-compile-normal-subgoal (sub name args)
 	(with-reg (tuple-reg)
-      `(,(make-vm-alloc name tuple-reg)
-         ,@(loop for arg in args
-               for i upto (length args)
-               append (compile-head-move arg i tuple-reg))
-         ,@(multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub tuple-reg)
-            `(,@extra-code ,(if (subgoal-has-delay-p sub)
-											(make-vm-send-delay tuple-reg send-to (subgoal-delay-value sub))
-											(general-make-send sub name tuple-reg send-to
-                                     (subgoal-appears-in-any-body-p *compilation-clause* name))))))))
+    (with-remote-reg-and-code (send-to extra-code) sub tuple-reg
+         `(,@extra-code
+            ,(make-vm-alloc name tuple-reg send-to)
+            ,@(loop for arg in args
+                    for i upto (length args)
+                    append (compile-head-move arg i tuple-reg))
+            ,(if (subgoal-has-delay-p sub)
+                     (make-vm-send-delay tuple-reg send-to (subgoal-delay-value sub))
+                     (general-make-send sub name tuple-reg send-to
+                                        (subgoal-appears-in-any-body-p *compilation-clause* name)))))))
 											
 (defun subgoal-is-set-priority-p (name) (string-equal name "set-priority"))
 (defun subgoal-is-add-priority-p (name) (string-equal name "add-priority"))
@@ -663,6 +737,15 @@
 				(if (null send-to)
 					`(,@priority-instrs ,(make-vm-set-priority-here priority))
 					`(,@priority-instrs ,@extra-code ,(make-vm-set-priority priority send-to)))))))
+
+(defun do-compile-set-cpu (sub args)
+   (assert (= (length args) 1))
+   (with-compilation-on-reg (cpu cpu-instrs) (first args)
+      (with-old-reg (cpu)
+       (multiple-value-bind (send-to extra-code) (get-remote-reg-and-code sub nil)
+         (if (null send-to)
+            `(,@cpu-instrs ,(make-vm-set-cpu-here cpu))
+            `(,@cpu-instrs ,@extra-code ,(make-vm-set-cpu cpu send-to)))))))
 				
 (defun do-compile-add-priority (sub args)
 	(assert (= (length args) 1))
@@ -752,6 +835,8 @@
                (do-compile-set-static sub args))
             ((subgoal-is-set-moving-p name)
                (do-compile-set-moving sub args))
+            ((subgoal-is-set-cpu-p name)
+               (do-compile-set-cpu sub args))
             ((subgoal-is-set-affinity-p name)
                (do-compile-set-affinity sub args))
             ((subgoal-is-stop-program-p name)
@@ -872,6 +957,7 @@
        (with-agg-spec spec (:var var)
 			(let ((src (lookup-used-var (var-name var)))
                (typ (var-type var)))
+            (assert src)
             (cond
              ((reg-p src)
                `(,(make-vm-op acc acc (if (type-int-p typ) :int-plus :float-plus) src)))
@@ -900,13 +986,13 @@
 			(let ((inner-code (compile-iterate (agg-construct-body c) (agg-construct-body c) nil nil
 									:head-compiler #'(lambda (h d sr s)
 																(declare (ignore h d sr s))
-                                                (let ((step-code (loop for var-reg in vars-regs
+                                                (let ((step-code (loop for var-reg in (reverse vars-regs)
                                                                         for spec in (agg-construct-specs c)
                                                                         for gc in gcs
                                                                         append (agg-construct-step (third var-reg) (second var-reg) (first var-reg) gc spec))))
                                                  `(,@step-code ,@(do-compile-head-code (agg-construct-head0 c) nil nil nil)))))))
-				(dolist (var-reg vars-regs)
-					(add-used-var (var-name (first var-reg)) (second var-reg)))
+            (dolist (var-reg vars-regs)
+               (add-used-var (var-name (first var-reg)) (second var-reg)))
 				(let ((head-code (do-compile-head-code (agg-construct-head c) sub-regs nil nil)))
 					(dolist (var-reg vars-regs)
 						(remove-used-var (var-name (first var-reg))))
@@ -994,7 +1080,82 @@
           (return-from subgoal-to-change-p t)))
 		nil))
         
-(defun compile-linear-deletes-and-returns (subgoal def sub-regs inside head)
+(defun get-body-subgoal-names (clause)
+   "Return linear subgoals that appear in the body."
+   (let (ls)
+      (do-subgoals (clause-body clause) (:name name)
+         (let ((def (lookup-definition name)))
+          (when (and (is-linear-p def)
+                     (not (unless (member name ls :test #'string-equal))))
+            (push name ls))))
+      ls))
+
+(defun get-derived-head-subgoals (clause)
+   "Get linear subgoal names from head of the clause that are *truly* derived.
+   We ignore reused linear subgoals."
+  (let (ls)
+   (labels ((aux (h)
+              (do-subgoals h (:name name :subgoal sub)
+               (let ((def (lookup-definition name)))
+                (when (and (is-linear-p def)
+                           (not (subgoal-is-remote-p sub))
+                           (not (subgoal-is-thread-p sub))
+                           (not (member name ls :test #'string-equal)))
+                 (push name ls))))
+              (do-comprehensions h (:right right)
+                  (aux right))
+              (do-agg-constructs h (:head0 h0 :head h1)
+                  (aux h0)
+                  (aux h1))
+              (do-exists h (:body body)
+                  (aux body))))
+      (with-clause clause (:head head)
+         (cond
+          ((clause-head-is-recursive-p head)
+           (loop for h in head
+                 do (aux h)))
+          (t (aux head))))
+      ls)))
+
+(defun get-clauses-before (clause)
+   (let (ls)
+      (do-clauses *clauses* (:clause before)
+         (when (eq clause before)
+            (return-from get-clauses-before ls))
+         (push before ls))
+      ls))
+
+(defun one-subgoal-name-part-of-p (set1 set2)
+   (some #'(lambda (name) (member name set2 :test #'string-equal)) set1))
+
+(defun clauses-use-body-and-head-facts-p (body-facts head-facts before)
+   (loop for c in before
+         do (let ((body (get-body-subgoal-names c)))
+               (when (and (one-subgoal-name-part-of-p body-facts body)
+                          (one-subgoal-name-part-of-p head-facts body))
+                (return-from clauses-use-body-and-head-facts-p t))))
+   nil)
+
+(defun clause-rec-derived-aux-p (body-facts head-facts before)
+  ;; find clauses that use something from body-facts and something from the head-facts.
+  (when (clauses-use-body-and-head-facts-p body-facts head-facts before)
+   (return-from clause-rec-derived-aux-p t))
+  (let ((start-head-facts (length head-facts)))
+     ;; find clauses that use head-facts.
+     (loop for c in before
+           do (let ((body (get-body-subgoal-names c)))
+               (when (one-subgoal-name-part-of-p head-facts body)
+                (setf head-facts (union (get-derived-head-subgoals c) head-facts :test #'string-equal)))))
+     (when (eq start-head-facts (length head-facts))
+      (return-from clause-rec-derived-aux-p nil))
+     (clause-rec-derived-aux-p body-facts head-facts before)))
+
+(defun clause-rec-derived-p (clause before)
+ (let ((body-facts (get-body-subgoal-names clause))
+        (head-facts (get-derived-head-subgoals clause)))
+   (clause-rec-derived-aux-p body-facts head-facts before)))
+               
+(defun compile-linear-deletes-and-returns (subgoal def sub-regs inside head &key top-p)
 	(let* ((delete-regs (mapcar #'cdr (remove-if-not #L(let ((def (lookup-definition (subgoal-name !1))))
 																						(and (subgoal-to-be-deleted-p !1 def)
 																							  (not (subgoal-to-change-p !1 head))))
@@ -1006,19 +1167,35 @@
           (updates (mapcar #'make-vm-update update-regs))
           (reg-instrs `(,@deletes ,@updates)))
 		(cond
-			(*compiling-axioms* reg-instrs)
-			((and subgoal def) reg-instrs)
-			((and *compiling-rule* (clause-is-persistent-p *compilation-clause*)) reg-instrs)
-			((and (null def) (null subgoal)) `(,@reg-instrs ,@(unless (null sub-regs) (list (make-return-derived)))))
+			(*compiling-axioms* reg-instrs) ;; axioms
+			((and subgoal def) reg-instrs) ;; persistent rule starting from a subgoal
+			((and *compiling-rule* (clause-is-persistent-p *compilation-clause*))
+          (warn "here")
+          (assert nil)
+          reg-instrs)
+			((and (null def) (null subgoal) *compiling-rule*)
+          ;; regular rule with linear facts
+          (let* ((clauses-before (get-clauses-before *compilation-clause*))
+                 (rec-derived-p (clause-rec-derived-p *compilation-clause* clauses-before))
+                 (ret (if (and rec-derived-p top-p) `(,(make-vm-mark-rule *compilation-rule-id*)
+                                                      ,(make-return-linear))
+                         `(,(make-return-derived)))))
+           ;;; XXX: fix
+          `(,@reg-instrs ,@(when sub-regs `(,(make-return-derived))))))
 			((and (not *compilation-clause*) (and subgoal) (subgoal-to-be-deleted-p subgoal def))
-				`(,@reg-instrs ,(make-return-linear)))
-			(t	`(,@reg-instrs ,@(if inside `(,(make-return-derived)) nil))))))
+          (warn "here2")
+          (assert nil)
+          `(,@reg-instrs ,(make-return-linear)))
+			(t
+             (warn "here3 ~a" *compiling-rule*)
+            (assert nil)
+            `(,@reg-instrs ,@(if inside `(,(make-return-derived)) nil))))))
 
-(defun do-compile-head (head sub-regs inside head-compiler)
-   ;; head-compiler is isually do-compile-head-code
+(defun do-compile-head (head sub-regs inside head-compiler &key top-p)
+   ;; head-compiler is usually do-compile-head-code
    (let* ((def (if (subgoal-p *starting-subgoal*) (lookup-definition (subgoal-name *starting-subgoal*)) nil))
           (head-code (funcall head-compiler head sub-regs def *starting-subgoal*))
-          (linear-code (compile-linear-deletes-and-returns *starting-subgoal* def sub-regs inside head))
+          (linear-code (compile-linear-deletes-and-returns *starting-subgoal* def sub-regs inside head :top-p top-p))
           (delete-code (compile-inner-delete *compilation-clause*)))
       `(,@head-code ,@delete-code ,@linear-code)))
 
@@ -1067,6 +1244,7 @@
    (if (null assignments)
        (funcall head-fun)
        (let ((ass (find-if (valid-assignment-p (all-used-var-names)) assignments)))
+         (assert ass)
          (with-reg (new-reg)
             (with-assignment ass (:var var :expr expr)
                (with-compiled-expr (place instrs
@@ -1080,31 +1258,44 @@
    "Removes all defined variables from the context."
    (mapcar #L(remove-used-var (var-name (assignment-var !1))) assignments))
 
-(defun compile-head (body head sub-regs inside head-compiler)
+(defun compile-head (body head sub-regs inside head-compiler &key top-p)
     (let ((assigns (get-assignments body)))
       (cond
          ((and (not (null head)) (clause-head-is-recursive-p head))
-            (let ((code (compile-assignments-and-head assigns head #L(loop for clause in head
-                                                                     append (with-compile-context (compile-iterate (clause-body clause) (clause-body clause)
-                                                                                          (clause-head clause) sub-regs :inside inside))))))
-               (remove-defined-assignments assigns)
+            (let ((code (compile-assignments-and-head assigns
+                         head #L(loop for clause in head
+                                      append (with-compile-context (compile-iterate (clause-body clause) (clause-body clause)
+                                                                                    (clause-head clause) sub-regs
+                                                                                    :inside inside
+                                                                                    :top-p t))))))
+              (remove-defined-assignments assigns)
                code))
          (t
-            (let ((head-code (compile-assignments-and-head assigns head #L(do-compile-head head sub-regs inside head-compiler))))
+            (let ((head-code (compile-assignments-and-head assigns head #L(do-compile-head head sub-regs inside head-compiler :top-p top-p))))
                (remove-defined-assignments assigns)
                (if *starting-subgoal*
                   `(,(make-vm-rule-done) ,@head-code)
             	head-code))))))
 
+(defun subgoal-has-modifier-p (sub)
+   (or (subgoal-has-random-p sub)
+      (subgoal-has-min-p sub)))
+
 (defun select-next-subgoal-for-compilation (body)
 	"Selects next subgoal for compilation. We give preference to subgoals with modifiers (random/min/etc)."
-	(let ((no-args (find-if #'(lambda (sub) (and (subgoal-p sub) (null (subgoal-args sub)))) body)))
-		(if no-args
-			no-args
-			(let ((with-mod (find-if #'(lambda (sub) (and (subgoal-p sub) (or (subgoal-has-random-p sub) (subgoal-has-min-p sub)))) body)))
-				(if with-mod
-					with-mod
-					(find-if #'subgoal-p body))))))
+   (let ((sorted (stable-sort (get-subgoals body)
+                               #'(lambda (sub1 sub2)
+                                   (let ((args1 (length (subgoal-args sub1)))
+                                         (args2 (length (subgoal-args sub2)))
+                                         (index1 (find-index-name (subgoal-name sub1)))
+                                         (index2 (find-index-name (subgoal-name sub2))))
+                                    (cond
+                                     ((subgoal-has-modifier-p sub1) t)
+                                     ((and index2 (not index1)) t)
+                                     ((and index1 (not index2)) nil)
+                                     (t nil)))))))
+      (when sorted
+       (first sorted))))
 
 (defun constraints-in-the-same-subgoal-p (reg)
 	#'(lambda (c)
@@ -1125,6 +1316,8 @@
 (defun create-iterate-instruction (sub def match-constraints tuple-reg iterate-code)
 	(with-subgoal sub (:name name)
 		(cond
+         ((and (subgoal-is-thread-p sub) (is-linear-p def) (not (subgoal-to-be-deleted-p sub def)))
+          (make-thread-rlinear-iterate name tuple-reg match-constraints iterate-code))
          ((and (subgoal-is-thread-p sub) (is-linear-p def))
           (make-thread-linear-iterate name tuple-reg match-constraints iterate-code))
          ((and (subgoal-is-thread-p sub) (not (is-linear-p def)))
@@ -1156,18 +1349,20 @@
                
 (defun do-compile-constraints-and-assignments (constraints assignments body head rest-compiler tmp-assignments)
    (cond
-    ((null constraints)
-     (assert (not assignments))
-      (remove-defined-assignments (mapcar #'car tmp-assignments))
-      (let ((unneeded-regs (mapcar #'cdr tmp-assignments)))
-         (loop for reg in unneeded-regs
-               do (setf *used-regs* (free-reg *used-regs* reg))))
-     (funcall rest-compiler))
+    ((and (null constraints)
+          (null assignments))
+     (let ((code (funcall rest-compiler)))
+        (remove-defined-assignments (mapcar #'car tmp-assignments))
+        (let ((unneeded-regs (mapcar #'cdr tmp-assignments)))
+          (loop for reg in unneeded-regs
+                do (setf *used-regs* (free-reg *used-regs* reg))))
+        code))
     (t
       (let* ((all-vars (all-used-var-names))
             (new-constraint (select-best-constraint constraints all-vars)))
          (if (null new-constraint)
             (let* ((ass (find-if (valid-assignment-p all-vars) assignments)))
+               (assert ass)
                (with-assignment ass (:var var :expr expr)
                   (with-compiled-expr (place instrs) expr
                    (let* ((ass-used-after-p (expr-uses-var-p (append body head) var))
@@ -1185,29 +1380,28 @@
 (defun compile-constraints-and-assignments (constraints assignments body head rest-compiler)
    (do-compile-constraints-and-assignments constraints assignments body head rest-compiler nil))
 
-(defun compile-iterate (body orig-body head sub-regs &key (inside nil) (head-compiler #'do-compile-head-code))
-   (multiple-value-bind (constraints assignments) (get-compile-constraints-and-assignments body)
-		(let ((body0 (remove-all body (append constraints assignments))))
-         (compile-constraints-and-assignments constraints assignments body0 head
-            #'(lambda ()
-               (let* ((next-sub (select-next-subgoal-for-compilation body0))
-                      (body1 (remove-tree-first next-sub body0)))
-                  (if (not next-sub)
-                     (compile-head body1 head sub-regs inside head-compiler)
-                     (let ((next-sub-name (subgoal-name next-sub)))
-                        (with-reg (reg)
-                           (multiple-value-bind (low-constraints body2) (add-subgoal next-sub reg body1 :match)
-                              ; body2 may have a reduced number of constraints
-                              (let* ((match-constraints (mapcar #'rest (remove-if (constraints-in-the-same-subgoal-p reg) low-constraints)))
-                                    ;; these constraints related arguments inside the matching subgoal
-                                    (inner-constraints (mapcar (transform-reg-matches reg) (filter (constraints-in-the-same-subgoal-p reg) low-constraints)))
-                                    (def (lookup-definition next-sub-name))
-                                    (iterate-code (compile-low-constraints inner-constraints
-                                                         (compile-iterate body2 orig-body head
-                                                                     (acons next-sub reg sub-regs)
-                                                                     :inside t :head-compiler head-compiler))))
-                              `(,(create-iterate-instruction next-sub def match-constraints reg iterate-code)))))))))))))
-     
+(defun compile-iterate (body orig-body head sub-regs &key (inside nil) top-p (head-compiler #'do-compile-head-code))
+   (multiple-value-bind (constraints assignments body0) (get-compile-constraints-and-assignments body)
+      (compile-constraints-and-assignments constraints assignments body0 head
+         #'(lambda ()
+            (let* ((next-sub (select-next-subgoal-for-compilation body0))
+                   (body1 (remove-tree-first next-sub body0)))
+               (if (not next-sub)
+                  (compile-head body1 head sub-regs inside head-compiler :top-p top-p)
+                  (let ((next-sub-name (subgoal-name next-sub)))
+                     (with-reg (reg)
+                        (multiple-value-bind (low-constraints body2) (add-subgoal next-sub reg body1 :match)
+                           ; body2 may have a reduced number of constraints
+                           (let* ((match-constraints (mapcar #'rest (remove-if (constraints-in-the-same-subgoal-p reg) low-constraints)))
+                                 ;; these constraints related arguments inside the matching subgoal
+                                 (inner-constraints (mapcar (transform-reg-matches reg) (filter (constraints-in-the-same-subgoal-p reg) low-constraints)))
+                                 (def (lookup-definition next-sub-name))
+                                 (iterate-code (compile-low-constraints inner-constraints
+                                                      (compile-iterate body2 orig-body head
+                                                                  (acons next-sub reg sub-regs)
+                                                                  :inside t :top-p top-p :head-compiler head-compiler))))
+                           `(,(create-iterate-instruction next-sub def match-constraints reg iterate-code))))))))))))
+  
 (defun select-best-constraint (constraints all-vars)
    (let ((all (filter (valid-constraint-p all-vars) constraints)))
       (if (null all)
@@ -1249,11 +1443,11 @@
 	(let ((*starting-subgoal* subgoal)
 			(body1 (remove-tree subgoal body)))
       (if (null (subgoal-args subgoal))
-         (compile-iterate body1 orig-body head nil)
+         (compile-iterate body1 orig-body head nil :top-p t)
          (with-reg (sub-reg)
 				(assert (= (reg-num sub-reg) 0))
 				(multiple-value-bind (low-constraints body2) (add-subgoal subgoal sub-reg body1)
-	            (let ((inner-code (compile-iterate body2 orig-body head nil)))
+	            (let ((inner-code (compile-iterate body2 orig-body head nil :top-p t)))
 	               `(,@(compile-low-constraints low-constraints inner-code))))))))
 
 (defun get-my-subgoals (body name)
@@ -1263,10 +1457,9 @@
 
 (defun compile-with-starting-subgoal (body head &optional subgoal)
    (with-empty-compile-context
-      (multiple-value-bind (first-constraints first-assignments) (get-compile-constraints-and-assignments body)
-         (let* ((remaining (remove-all body (append first-constraints first-assignments))))
-				(compile-constraints-and-assignments first-constraints first-assignments remaining head
-               #'(lambda () (compile-initial-subgoal remaining body head subgoal)))))))
+      (multiple-value-bind (first-constraints first-assignments remaining) (get-compile-constraints-and-assignments body)
+         (compile-constraints-and-assignments first-constraints first-assignments remaining head
+            #'(lambda () (compile-initial-subgoal remaining body head subgoal))))))
 				
 (defun compile-subgoal-clause (name clause)
    (with-clause clause (:body body :head head)
@@ -1322,32 +1515,69 @@
          `(,@spec ,(make-vm-new-axioms regular))
          spec)))
       
-(defun compile-const-axioms ()
+(defun compile-const-axioms (type-reg)
 	"Take all constant axioms in the program and map them to an hash table (per node).
 	Then, create a SELECT NODE instruction and add NEW-AXIOM with each set of node axioms."
-	(let ((hash (make-hash-table)))
+	(let ((hash (make-hash-table))
+         (*compiling-axioms* t))
 		(do-node-const-axioms (:subgoal sub)
 			(with-subgoal sub (:args args)
 				(let* ((fst (first args))
 					    (node (addr-num fst)))
 					(setf (subgoal-args sub) (rest args)) ; remove home argument
 					(push sub (gethash node hash)))))
+      (loop for i from 0 upto (number-of-nodes *nodes*)
+            do (multiple-value-bind (axioms found-p) (gethash i hash)
+                  (when axioms
+                     (setf (gethash i hash) (compile-node-axioms axioms)))
+                  (when *node-types*
+                     (let* ((node-type (get-node-constraint i))
+                            (id (find-node-type-id node-type)))
+                      (push (make-move (make-int id) type-reg) (gethash i hash))))))
 		(let ((vm (make-vm-select-node)))
 			(loop for key being the hash-keys of hash
 					using (hash-value value)
-               do (vm-select-node-push vm key (compile-node-axioms value)))
+               do (vm-select-node-push vm key value))
 			(list vm))))
+
+(defun find-var-axiom-type (clause)
+   (with-clause clause (:head head)
+    (let (typ)
+      (do-subgoals head (:name name)
+       (let ((def (lookup-definition name)))
+        (let ((this-type (definition-get-type def)))
+           (cond
+            (typ
+               (assert (equal typ this-type)))
+            (t
+               (setf typ this-type))))))
+      typ)))
 	
 (defun compile-init-process ()
-	(let ((const-axiom-code (compile-const-axioms))
-			(*compiling-axioms* t))
-   	(append const-axiom-code
-			(do-node-var-axioms (:body body :head head :clause clause :operation :append)
-      		(compile-with-starting-subgoal body head)))))
+   (with-reg (type-reg)
+      (let ((const-axiom-code (compile-const-axioms type-reg))
+            (*compiling-axioms* t))
+         `(,@(when *node-types* (list (make-move (make-int 0) type-reg)))
+            ,@const-axiom-code
+            ,@(do-node-var-axioms (:body body :head head :clause clause :operation :append)
+               (let ((type (find-var-axiom-type clause)))
+                (let ((inner (compile-with-starting-subgoal body head))
+                      (id (find-node-type-id type)))
+                 (cond
+                  ((= 0 id) inner)
+                  (t
+                    (let ((code (with-reg (code)
+                            (with-reg (cmp)
+                         `(,(make-move (make-vm-int id) code)
+                            ,(make-vm-op cmp code :int-equal type-reg)
+                            ,(make-vm-if cmp inner))))))
+                     (warn "~a" code)
+                     code))))))))))
 
 (defun compile-init-thread-process ()
-   (do-thread-var-axioms (:body body :head head :clause clause :operation :append)
-      (compile-with-starting-subgoal body head)))
+   (let ((*compiling-axioms* t))
+      (do-thread-var-axioms (:body body :head head :clause clause :operation :append)
+         (compile-with-starting-subgoal body head))))
 
 (defun compile-processes ()
 	(do-definitions (:definition def :name name :operation append)
@@ -1359,9 +1589,10 @@
              nil)))))
 
 (defun compile-consts ()
-	(do-constant-list *consts* (:name name :expr expr :operation append)
-		(with-compiled-expr (place code) expr
-			`(,@code ,(make-move place (make-vm-constant name) (expr-type expr))))))
+   (let ((*compiling-consts* t))
+      (do-constant-list *consts* (:name name :expr expr :operation append)
+         (with-compiled-expr (place code) expr
+            `(,@code ,(make-move place (make-vm-constant name) (expr-type expr)))))))
 			
 (defun compile-function-arguments (body args n)
 	(if (null args)
@@ -1393,11 +1624,12 @@
 			ids)))
 
 (defun compile-ast-rules ()
-   (let (init-rules)
+   (let (init-rules (count 0))
       (when (ast-has-thread-facts-p *ast*)
+         (incf count)
          (push (make-rule-code (with-empty-compile-context
                                   (with-reg (reg)
-                                    `(,(make-vm-rule 1)
+                                    `(,(make-vm-rule (1- count))
                                        ,(make-thread-linear-iterate "_init_thread"
                                           reg
                                           nil
@@ -1407,9 +1639,10 @@
                                              ,(make-return-derived)))
                                        ,(make-return)))) (list (lookup-def-id "_init_thread")) nil "_init_thread -o thread-axioms.")
                init-rules))
+      (incf count)
       (push (make-rule-code (with-empty-compile-context
 										(with-reg (reg)
-											`(,(make-vm-rule 0)
+											`(,(make-vm-rule (1- count))
 											  	,(make-linear-iterate "_init"
 													reg
 													nil 
@@ -1424,10 +1657,12 @@
 		  ,@(do-rules (:clause clause :id id :operation append :body body :head head)
                        (unless (clause-is-persistent-p clause)
                            (let ((*compilation-clause* clause)
+                                 (*compilation-rule-id* count)
                                  (*compiling-rule* t))
+                              (incf count)
                               (list (make-rule-code (with-empty-compile-context
-                                       `(,(make-vm-rule (+ id (length init-rules)))
-                                          ,@(compile-iterate body body head nil) ,(make-return)))
+                                       `(,(make-vm-rule (1- count))
+                                          ,@(compile-iterate body body head nil :top-p t) ,(make-return)))
                                        (rule-subgoal-ids clause)
                                        clause))))))))
 		
@@ -1578,8 +1813,7 @@
 (defun find-reusable-facts-body (body head)
 	(do-subgoals body (:subgoal sub :name name)
 		(let ((def (lookup-definition name)))
-			(when (and (is-linear-p def)
-                    (not (definition-is-thread-p def)))
+			(when (is-linear-p def)
 				(unless (subgoal-is-reused-p sub)
 					(find-reusable-fact-in-head head sub))))))
 	
@@ -1637,7 +1871,7 @@
           (cond
            ((subgoal-is-reused-p sub))
            (t
-            (let ((found(find-same-subgoal tmp-head sub constraints)))
+            (let ((found (find-same-subgoal tmp-head sub constraints)))
              (when found
               (push sub mark-subgoals)
               (push found to-remove)
@@ -1776,7 +2010,7 @@
 	(find-persistent-rules)
 	(number-clauses)
 	(find-reusable-facts)
-   (find-remote-updates)
+   ;(find-remote-updates)
 	(let ((procs (compile-processes))
 			(consts (compile-consts))
 			(functions (compile-functions)))
