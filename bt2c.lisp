@@ -1752,7 +1752,8 @@
      (let ((variables (create-variable-context))
            (allocated-tuples (create-allocated-tuples-context)))
        (loop for instr in *consts-code*
-             do (do-output-c-instr stream instr nil allocated-tuples variables :is-linear-p nil))))
+             do (do-output-c-instr stream instr nil allocated-tuples variables :is-linear-p nil)))
+     (format-code stream "return;~%"))
   (format-code stream "}~%"))
 
 (defun do-output-c-predicates (stream)
