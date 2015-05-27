@@ -22,6 +22,16 @@
      :initform 0
      :accessor snap-search-id)))
 
+(defun snap-extend-edges (edge-table edges found-p node1 node2)
+  (cond
+    (found-p
+     (unless (position node2 edges)
+      (vector-push-extend node2 edges)))
+    (t
+      (setf edges (make-array 16 :fill-pointer 0 :adjustable t))
+      (vector-push node2 edges)
+      (setf (gethash node1 edge-table) edges))))
+
 (defun read-snap-file (filename)
    (let ((edge-table (make-hash-table))
          (ids (make-hash-table)))
@@ -31,13 +41,7 @@
           (setf (gethash node1 ids) node1)
           (setf (gethash node2 ids) node2)
           (multiple-value-bind (edges found-p) (gethash node1 edge-table)
-           (cond
-            (found-p
-             (vector-push-extend node2 edges))
-            (t
-             (setf edges (make-array 16 :fill-pointer 0 :adjustable t))
-             (vector-push node2 edges)
-             (setf (gethash node1 edge-table) edges))))))
+           (snap-extend-edges edge-table edges found-p node1 node2))))
       (values ids edge-table)))
 
 (defun snap-file-read (filename)
@@ -47,6 +51,16 @@
 (defun snap-basic-file-read (filename)
    (multiple-value-bind (ids edge-table) (read-snap-file filename)
     (make-instance 'snap-basic-data :nodes ids :edges edge-table)))
+
+(defun snap-undirected-file-read (filename)
+   (multiple-value-bind (ids edge-table) (read-snap-file filename)
+      (loop for n being the hash-keys of ids
+            do (multiple-value-bind (vec found-p) (gethash n edge-table)
+               (when found-p
+                 (loop for other-node across vec
+                       do (multiple-value-bind (vec2 found2-p) (gethash other-node edge-table)
+                            (snap-extend-edges edge-table vec2 found2-p other-node n))))))
+      (make-instance 'snap-basic-data :nodes ids :edges edge-table)))
 
 (defun snap-search-file-read (filename num-searches fraction)
  (multiple-value-bind (ids edge-table) (read-snap-file filename)
