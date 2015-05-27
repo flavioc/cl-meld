@@ -1732,8 +1732,6 @@
    (format-code stream "~%")
    (format-code stream "#include \"vm/order.cpp\"~%")
    (format-code stream "#include \"vm/helpers.cpp\"~%")
-   (format-code stream "~%")
-   (format-code stream "INCBIN(Axioms, \"~a.data\");~%" file)
    (format-code stream "~%"))
 
 (defun do-output-c-types (stream)
@@ -2021,8 +2019,8 @@
          (format-code stream "default: abort(); break;~%"))
       (format-code stream "}~%"))
    (format-code stream "}~%~%")
-   
-   (do-c-references-function stream))
+   (do-c-references-function stream)
+   (format-code stream "INCBIN(Axioms, \"~a.data\");~%" file))
 
 (defun do-output-c-code (stream file)
    (write-nodes *data-stream* *nodes*)
