@@ -8,6 +8,9 @@
      :initarg :nodes
      :accessor snap-nodes)))
 
+(defclass snap-basic-data (snap-data)
+   ())
+
 (defclass snap-search-data (snap-data)
    ((nodes-search
      :initarg :nodes-search
@@ -41,6 +44,10 @@
  (multiple-value-bind (ids edge-table) (read-snap-file filename)
    (make-instance 'snap-data :nodes ids :edges edge-table)))
 
+(defun snap-basic-file-read (filename)
+   (multiple-value-bind (ids edge-table) (read-snap-file filename)
+    (make-instance 'snap-basic-data :nodes ids :edges edge-table)))
+
 (defun snap-search-file-read (filename num-searches fraction)
  (multiple-value-bind (ids edge-table) (read-snap-file filename)
   (let ((source (make-hash-table))
@@ -70,6 +77,13 @@
              collect (make-subgoal "edge" (list (make-addr other-node)
                          (let ((weight (compute-snap-edge-weight rnd)))
                           (make-float weight))))))))
+
+(defmethod data-input-node-axioms ((obj snap-basic-data) (n integer))
+   (multiple-value-bind (vec found-p) (gethash n (snap-edges obj))
+    (unless found-p
+     (return-from data-input-node-axioms nil))
+    (loop for other-node across vec
+          collect (make-subgoal "edge" (list (make-addr other-node))))))
 
 (defmethod data-input-dump ((obj snap-data) filename)
  (with-open-file (stream filename :direction :output)
