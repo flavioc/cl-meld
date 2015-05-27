@@ -65,7 +65,7 @@
 (define-external-function "priority" :type-float '(:type-addr))
 (define-external-function "lreverse" '(:type-list :all) '((:type-list :all)) :poly-p t)
 (define-external-function "llast" :all '((:type-list :all)))
-(define-external-function "cpu-id" :type-int '(:type-addr))
+(define-external-function "cpu-id" :type-thread '(:type-addr))
 (define-external-function "node2int" :type-int '(:type-addr))
 (define-external-function "intpower" :type-int '(:type-int :type-int))
 (define-external-function "lsort" '(:type-list :all) '((:type-list :all)) :poly-p t)

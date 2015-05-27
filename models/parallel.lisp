@@ -12,7 +12,7 @@
 (deftuple set-moving (:type-addr) :action :linear :instruction)
 (deftuple set-static (:type-addr) :action :linear :instruction)
 (deftuple set-affinity (:type-addr :type-addr) :action :linear :instruction)
-(deftuple set-cpu (:type-addr :type-int) :action :linear :instruction)
+(deftuple set-cpu (:type-addr :type-thread) :action :linear :instruction)
 (deftuple remove-priority (:type-addr) :action :linear :instruction)
 (deftuple just-moved (:type-addr) :linear :special)
 (deftuple thread-list (:type-thread (:type-list :type-thread)) :special :thread)

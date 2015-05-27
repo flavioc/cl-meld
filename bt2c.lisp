@@ -1647,7 +1647,7 @@
       (:set-cpu-here
          (let* ((rcpu (vm-set-cpu-cpu instr))
                 (cpu (find-c-variable variables rcpu)))
-          (format-code stream "state.sched->set_node_cpu(node, (vm::int_val)~a);~%" (c-variable-name cpu))))
+          (format-code stream "state.sched->set_node_cpu(node, (sched::thread*)~a);~%" (c-variable-name cpu))))
       (:is-static
        (let* ((node (vm-is-static-node instr))
               (dest (vm-is-static-dest instr))
@@ -1686,8 +1686,8 @@
        (let* ((rnode (vm-cpu-id-node instr))
               (rdest (vm-cpu-id-dest instr))
               (node (find-c-variable variables rnode)))
-        (multiple-value-bind (var new-p) (allocate-c-variable variables rdest :type-addr)
-            (format-code stream "~a = (vm::node_val)(((db::node*)~a)->get_owner());~%" (declare-c-variable var new-p)
+        (multiple-value-bind (var new-p) (allocate-c-variable variables rdest :type-thread)
+            (format-code stream "~a = (vm::thread_val)(((db::node*)~a)->get_owner());~%" (declare-c-variable var new-p)
              (c-variable-name node))
             (add-c-variable variables var))))
       (:schedule-next
