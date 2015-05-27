@@ -1773,7 +1773,7 @@
    (format *header-stream* "#define COMPILED_NUM_RULES_UINT ~a~%" (next-multiple-of-uint (length *code-rules*)))
    (format-code stream "prog->number_rules_uint = next_multiple_of_uint(prog->num_rules());~%")
    (format-code stream "prog->num_args = ~a;~%" (args-needed *ast*))
-   (format-code stream "prog->const_code_size = ~a;~%" (if *consts-code* "1" "0"))
+   (format-code stream "prog->const_code_size = ~a;~%" (if (> (length *consts-code*) 1) "1" "0"))
    (format-code stream "All->check_arguments(prog->num_args);~%")
    (format-code stream "prog->priority_order = ~a;~%" (case (get-priority-order) (:asc "PRIORITY_ASC") (:desc "PRIORITY_DESC")))
    (format-code stream "prog->initial_priority = ~20$L;~%" (get-initial-priority))
