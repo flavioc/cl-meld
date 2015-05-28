@@ -759,7 +759,7 @@
       (cond
        ((and *c-processing-rule* (not (definition-aggregate-p def)))
         (unless (find-compact-name (definition-name def))
-           (format-code stream "state.~a->pers_store.add_tuple(~a, ~a, state.depth);~%" node (allocated-tuple-tpl p) (allocated-tuple-pred p)))
+           (format-code stream "~a->pers_store.add_tuple(~a, ~a, state.depth);~%" node (allocated-tuple-tpl p) (allocated-tuple-pred p)))
         (format-code stream "state.matcher->new_persistent_fact(~a);~%" (lookup-def-id (definition-name def))))
        (t
          (format-code stream "full_tuple *~a(new vm::full_tuple(~a, ~a, state.direction, state.depth));~%"
