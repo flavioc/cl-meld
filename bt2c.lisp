@@ -428,7 +428,7 @@
     (with-separate-c-context (variables allocated-tuples)
      (cond
       (compact-p
-         (format-code stream "vm::tuple *~a(*~a);~%" tpl it))
+         (format-code stream "vm::tuple *~a(*~a); (void)~a;~%" tpl it tpl))
       (t
         (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
         (format-code stream "tuple *~a(~aleaf->get_underlying_tuple()); (void)~a;~%" tpl tpl tpl)))
