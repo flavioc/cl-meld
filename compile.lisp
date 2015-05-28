@@ -1170,7 +1170,6 @@
 			(*compiling-axioms* reg-instrs) ;; axioms
 			((and subgoal def) reg-instrs) ;; persistent rule starting from a subgoal
 			((and *compiling-rule* (clause-is-persistent-p *compilation-clause*))
-          (warn "here")
           (assert nil)
           reg-instrs)
 			((and (null def) (null subgoal) *compiling-rule*)
@@ -1183,11 +1182,9 @@
            ;;; XXX: fix
           `(,@reg-instrs ,@(when sub-regs `(,(make-return-derived))))))
 			((and (not *compilation-clause*) (and subgoal) (subgoal-to-be-deleted-p subgoal def))
-          (warn "here2")
           (assert nil)
           `(,@reg-instrs ,(make-return-linear)))
 			(t
-             (warn "here3 ~a" *compiling-rule*)
             (assert nil)
             `(,@reg-instrs ,@(if inside `(,(make-return-derived)) nil))))))
 
@@ -1571,7 +1568,6 @@
                          `(,(make-move (make-vm-int id) code)
                             ,(make-vm-op cmp code :int-equal type-reg)
                             ,(make-vm-if cmp inner))))))
-                     (warn "~a" code)
                      code))))))))))
 
 (defun compile-init-thread-process ()
