@@ -11,6 +11,14 @@
 (defclass snap-basic-data (snap-data)
    ())
 
+(defclass snap-pagerank-data (snap-data)
+   ((reverse-edges
+     :initarg :reverse-edges
+     :accessor snap-reverse-edges)
+    (reverse-weights
+     :initarg :reverse-weights
+     :accessor snap-reverse-weights)))
+
 (defclass snap-search-data (snap-data)
    ((nodes-search
      :initarg :nodes-search
@@ -22,15 +30,15 @@
      :initform 0
      :accessor snap-search-id)))
 
-(defun snap-extend-edges (edge-table edges found-p node1 node2)
+(defun snap-extend-vec (table vec found-p key data &key (force-p nil))
   (cond
     (found-p
-     (unless (position node2 edges)
-      (vector-push-extend node2 edges)))
+     (when (or force-p (not (position data vec)))
+      (vector-push-extend data vec)))
     (t
-      (setf edges (make-array 16 :fill-pointer 0 :adjustable t))
-      (vector-push node2 edges)
-      (setf (gethash node1 edge-table) edges))))
+      (setf vec (make-array 16 :fill-pointer 0 :adjustable t))
+      (vector-push data vec)
+      (setf (gethash key table) vec))))
 
 (defun read-snap-file (filename)
    (let ((edge-table (make-hash-table))
@@ -41,7 +49,7 @@
           (setf (gethash node1 ids) node1)
           (setf (gethash node2 ids) node2)
           (multiple-value-bind (edges found-p) (gethash node1 edge-table)
-           (snap-extend-edges edge-table edges found-p node1 node2))))
+           (snap-extend-vec edge-table edges found-p node1 node2))))
       (values ids edge-table)))
 
 (defun snap-file-read (filename)
@@ -59,8 +67,26 @@
                (when found-p
                  (loop for other-node across vec
                        do (multiple-value-bind (vec2 found2-p) (gethash other-node edge-table)
-                            (snap-extend-edges edge-table vec2 found2-p other-node n))))))
+                            (snap-extend-vec edge-table vec2 found2-p other-node n))))))
       (make-instance 'snap-basic-data :nodes ids :edges edge-table)))
+
+(defun snap-pagerank-file-read (filename)
+   (multiple-value-bind (ids edge-table) (read-snap-file filename)
+      (let ((rev-edges (make-hash-table))
+            (rev-weights (make-hash-table)))
+      (loop for n being the hash-keys of ids
+            do (multiple-value-bind (vec found-p) (gethash n edge-table)
+               (when found-p
+                (let* ((len (length vec))
+                       (frac (/ 1.0 len)))
+                    (loop for other-node across vec
+                         do (multiple-value-bind (rev-vec found2-p) (gethash other-node rev-edges)
+                              (snap-extend-vec rev-edges rev-vec found2-p other-node n))
+                         do (multiple-value-bind (rweight-vec found2-p) (gethash other-node rev-weights)
+                              (snap-extend-vec rev-weights rweight-vec found2-p other-node frac :force-p t)))))))
+      (make-instance 'snap-pagerank-data :nodes ids :edges edge-table
+                                         :reverse-edges rev-edges
+                                         :reverse-weights rev-weights))))
 
 (defun snap-search-file-read (filename num-searches fraction)
  (multiple-value-bind (ids edge-table) (read-snap-file filename)
@@ -98,6 +124,25 @@
      (return-from data-input-node-axioms nil))
     (loop for other-node across vec
           collect (make-subgoal "edge" (list (make-addr other-node))))))
+
+(defmethod data-input-node-axioms ((obj snap-pagerank-data) (n integer))
+  (let (axioms)
+   (multiple-value-bind (vec found-p) (gethash n (snap-edges obj))
+    (when found-p
+       (let* ((len (length vec))
+              (frac (/ 1.0 len)))
+          (loop for other-node across vec
+                do (push (make-subgoal "output" (list (make-addr other-node) (make-float frac)))
+                         axioms)))))
+   (multiple-value-bind (vec found-p) (gethash n (snap-reverse-edges obj))
+    (when found-p
+     (multiple-value-bind (weights donotcare) (gethash n (snap-reverse-weights obj))
+      (assert donotcare)
+      (loop for other-node across vec
+            for weight across weights
+            do (push (make-subgoal "input" (list (make-addr other-node) (make-float weight)))
+                     axioms)))))
+   axioms))
 
 (defmethod data-input-dump ((obj snap-data) filename)
  (with-open-file (stream filename :direction :output)
