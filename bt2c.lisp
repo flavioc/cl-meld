@@ -757,11 +757,12 @@
      node (allocated-tuple-tpl p) (allocated-tuple-pred p)))
    (let ((def (allocated-tuple-definition p)))
       (cond
-       ((and (not (find-persistent-clauses-for-subgoal-name (definition-name def))) (definition-aggregate-p def))
+       ((and (not (find-persistent-clauses-for-subgoal-name (definition-name def))) (not (definition-aggregate-p def)))
         (unless (find-compact-name (definition-name def))
            (format-code stream "~a->pers_store.add_tuple(~a, ~a, state.depth);~%" node (allocated-tuple-tpl p) (allocated-tuple-pred p)))
         (format-code stream "state.matcher->new_persistent_fact(~a);~%" (lookup-def-id (definition-name def))))
        (t
+         (assert (not (find-compact-name (definition-name def))))
          (format-code stream "full_tuple *~a(new vm::full_tuple(~a, ~a, state.direction, state.depth));~%"
            name (allocated-tuple-tpl p) (allocated-tuple-pred p))
          (format-code stream "state.~a(~a);~%" add-fun name)))))))
