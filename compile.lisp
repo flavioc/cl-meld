@@ -1575,11 +1575,14 @@
       (do-thread-var-axioms (:body body :head head :clause clause :operation :append)
          (compile-with-starting-subgoal body head))))
 
+(defun find-persistent-clauses-for-subgoal-name (name)
+   (filter #'clause-is-persistent-p (find-clauses-with-subgoal-in-body name)))
+
 (defun compile-processes ()
 	(do-definitions (:definition def :name name :operation append)
 		(if (is-init-p def)
          nil
-         (let ((clauses (filter #'clause-is-persistent-p (find-clauses-with-subgoal-in-body name))))
+         (let ((clauses (find-persistent-clauses-for-subgoal-name name)))
             (if clauses
              (list (make-process name `(,@(compile-normal-process name clauses) ,(make-return))))
              nil)))))
