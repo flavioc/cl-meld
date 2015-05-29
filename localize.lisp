@@ -71,7 +71,7 @@
          (if (is-fact-p route)
 				(let ((new-ones (add-inverse-route-facts route new-name)))
 					(if new-ones
-                 	(setf *axioms* (append new-ones *axioms*))
+                 	(setf *node-const-axioms* (append new-ones *node-const-axioms*))
 						(create-inverse-non-fact-route route new-name new-definition)))
             (create-inverse-non-fact-route route new-name new-definition)))))
          

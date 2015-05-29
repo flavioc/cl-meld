@@ -243,7 +243,7 @@
    (do-definitions (:name name :types typs)
       (format t "~A [~A]~%" name (print-types typs)))
    (format t "I found the following axioms:~%")
-   (do-axioms (:clause clause :id id)
+   (do-all-var-axioms (:clause clause)
       (print-clause t clause)
       (format t "~%"))
    (format t "I found the following rules:~%")

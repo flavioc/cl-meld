@@ -21,11 +21,13 @@
    (let ((head-subs (filter #L(equal (subgoal-name !1) agg-name) (get-subgoals head))))
       (when head-subs
          (multiple-value-bind (node thread) (find-host-nodes-head-only head)
-            (let* ((routes (filter #L(equal (subgoal-name !1) edge-name) (get-subgoals body))))
+            (let* ((routes (filter #L(equal (subgoal-name !1) edge-name) (get-subgoals body)))
+                   host)
                (if routes
                   (setf host (funcall get-fun (subgoal-args (first routes))))
                   (unless (aggregate-mod-includes-home-p modifier)
                      (aggregate-mod-include-home modifier)))
+               (assert host)
                (loop for sub in head-subs
                      do (push-end host (subgoal-args sub))))))))
          
@@ -33,7 +35,9 @@
 (defun update-aggregate-input (modifier edge-name agg-name get-fun)
    "For an aggregate that has an INPUT/OUTPUT modifier, executes source code transformations
    that puts the input/output node as the last argument of the aggregate"
-   (do-axioms (:head head)
+   (do-all-const-axioms (:subgoal sub)
+      (update-aggregate-head (list sub) nil modifier edge-name agg-name get-fun))
+   (do-all-var-axioms (:head head)
       (update-aggregate-head head nil modifier edge-name agg-name get-fun))
    (do-rules (:head head :body body)
       (update-aggregate-head head body modifier edge-name agg-name get-fun)
@@ -130,7 +134,7 @@
             (let* ((new-subgoal-0 (make-subgoal sub-name
                                  `(,host ,(make-int 0 (var-type to)))))
                 (axiom (make-axiom `(,new-subgoal-0))))
-            (push-end axiom *axioms*))))
+            (push-end axiom *node-const-axioms*))))
       agg-options))
 
 (defun transform-agg-construct (clause construct)
