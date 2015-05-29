@@ -2039,4 +2039,3 @@
             (format-code *header-stream* "#define COMPILED_HEADER_HPP~%")
             (do-output-c-code stream file)
             (format-code *header-stream* "#endif~%"))))))
-
