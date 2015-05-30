@@ -1776,6 +1776,8 @@
    (format-code stream "All->check_arguments(prog->num_args);~%")
    (format-code stream "prog->priority_order = ~a;~%" (case (get-priority-order) (:asc "PRIORITY_ASC") (:desc "PRIORITY_DESC")))
    (format-code stream "prog->initial_priority = ~20$L;~%" (get-initial-priority))
+   (format-code stream "prog->default_priority = ~20$L;~%" (get-default-priority))
+   (format-code stream "prog->no_priority = ~20$L;~%" (get-no-priority-value))
    (format-code stream "prog->priority_static = ~a;~%" (if (get-priority-static) "true" "false"))
    (let ((has-aggs-p nil))
      (do-definitions (:definition def :name name :types types :id id)
