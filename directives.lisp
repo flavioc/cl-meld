@@ -29,6 +29,14 @@
 (defun initial-priority-value (p) (second p))
 (defun initial-priority-p (p) (tagged-p p :initial-prio))
 
+(defun make-default-priority (num) `(:default-prio ,num))
+(defun default-priority-p (p) (tagged-p p :default-prio))
+(defun default-priority-value (p) (second p))
+
+(defun make-no-priority (num) `(:no-priority ,num))
+(defun no-priority-p (p) (tagged-p p :no-priority))
+(defun no-priority-value (p) (second p))
+
 (defun make-priority-no-initial () `(:no-initial-priorities))
 (defun priority-no-initial-p (p) (tagged-p p :no-initial-priorities))
 
@@ -69,9 +77,12 @@
 
 (defun get-default-priority ()
 	"Returns default priority for nodes of the program."
-	(case (get-priority-order)
+   (let ((found (find-if #'default-priority-p *directives*)))
+    (if found
+     (default-priority-value found)
+     (case (get-priority-order)
 		(:asc most-positive-double-float)
-		(:desc most-negative-double-float)))
+      (:desc most-negative-double-float)))))
 
 (defun get-initial-priority ()
 	"Returns initial priority for nodes of the program."
@@ -84,6 +95,15 @@
             (case (get-priority-order)
              (:asc most-negative-double-float)
              (:desc most-positive-double-float)))))))
+
+(defun get-no-priority-value ()
+   "Returns the value that represents base priorities."
+   (let ((found (find-if #'no-priority-p *directives*)))
+    (if found
+     (no-priority-value found)
+     (case (get-priority-order)
+      (:asc most-positive-double-float)
+      (:desc most-negative-double-float)))))
 
 (defun assign-priorities (base priorities)
 	"Using the start priority 'base', it assigns increasing priorities taking into

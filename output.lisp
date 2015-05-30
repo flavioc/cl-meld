@@ -998,7 +998,9 @@
 		(when static
 			(setf byt (logior byt #b00000010)))
 		(write-hexa stream byt))
-	(write-float-stream stream (get-initial-priority)))
+	(write-float-stream stream (get-initial-priority))
+   (write-float-stream stream (get-default-priority))
+   (write-float-stream stream (get-no-priority-value)))
 		
 (defun output-data-file-info (stream)
 	(write-hexa stream 3))

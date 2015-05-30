@@ -16,6 +16,8 @@
 	("@cluster"								(return (values :cluster-priority $@)))
 	("@random"								(return (values :random-priority $@)))
    ("@no_initial_priorities"        (return (values :no-initial-priorities $@)))
+   ("@no_priority"                  (return (values :no-priority $@)))
+   ("@default"                      (return (values :default-priority $@)))
 	("@asc"									(return (values :asc $@)))
 	("@desc"									(return (values :desc $@)))
 	("@type"									(return (values :priority-type $@)))
@@ -296,10 +298,11 @@
 								:not-equal :if :then :else :otherwise :prio :random
 								:min :asc :desc :or :and :export :custom :import :as :from
 								:exists :initial-priority :priority-type :priority-order
-								:delay-seconds :delay-ms :question-mark
+                        :no-priority :delay-seconds :delay-ms :question-mark
 								:static-priority :cluster-priority
 								:random-priority :lpaco :host :thread :index :type-name
-                        :compact :data :no-initial-priorities :node-type))
+                        :compact :data :no-initial-priorities
+                        :default-priority :node-type))
 
 	(program
 	  (includes definitions directives externs consts
@@ -400,6 +403,12 @@
 				#'(lambda (p i s d) (declare (ignore p i s d))
 					(make-priority-cluster :random)))
 		(:prio :initial-priority :number :dot #'(lambda (p i n dot) (declare (ignore p i dot)) (make-initial-priority (parse-base-number n))))
+      (:prio :default-priority :number :dot #'(lambda (p i n dot)
+                                               (declare (ignore p i dot))
+                                               (make-default-priority (parse-base-number n))))
+      (:prio :no-priority :number :dot #'(lambda (p i n dot)
+                                               (declare (ignore p i dot))
+                                               (make-no-priority (parse-base-number n))))
 		(:prio :priority-order asc-desc :dot #'(lambda (p o ad dot) (declare (ignore p o dot)) (make-priority-order ad)))
 		(:prio const :lesser const :dot #'(lambda (p name1 l name2 d) (declare (ignore p l d)) (make-descending-priority name1 name2)))
 		(:prio const :greater const :dot #'(lambda (p name1 g name2 d) (declare (ignore p g d)) (make-ascending-priority name1 name2))))
