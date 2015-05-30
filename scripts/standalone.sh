@@ -28,7 +28,7 @@ EOF
 
 old_dir=$PWD
 cd dists/quicklisp/software/cl-yacc-* || exit 1
-patch -p0 < $LISP_MELD/yacc-comments.patch || exit 1
+patch -p0 < $old_dir/../../yacc-comments.patch || exit 1
 cd $old_dir
 sbcl --no-userinit --control-stack-size 128 --dynamic-space-size 2048 --noprint --noinform --load setup.lisp <<EOF
 (require 'asdf)
