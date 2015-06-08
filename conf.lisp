@@ -8,5 +8,7 @@
 ;(defparameter *ordering-type* :naive)
 ;(defparameter *ordering-type* :in-file)
 
-;; Enable compact and index directives.
-(defparameter *use-dsopt* t)
+;; Enable index directives.
+(defparameter *use-index* nil)
+;; Enable compact directives.
+(defparameter *use-compact* t)

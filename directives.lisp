@@ -5,15 +5,15 @@
 (defun index-field (x) (third x))
 (defun index-p (x) (tagged-p x :index))
 (defun find-index-name (name)
- (when *use-dsopt*
+ (when *use-index*
     (find-if #L(and (index-p !1) (string-equal name (index-name !1))) *directives*)))
 
 (defun make-compact (name) `(:compact ,name))
 (defun compact-name (x) (second x))
 (defun compact-p (x) (tagged-p x :compact))
 (defun find-compact-name (name)
-   (when *use-dsopt*
-    (find-if #L(and (compact-p !1) (string-equal name (compact-name !1))) *directives*)))
+ (when *use-compact*
+  (find-if #L(and (compact-p !1) (string-equal name (compact-name !1))) *directives*)))
 
 (defun make-data-input (template file &optional args) `(:data-input ,template ,file ,args))
 (defun data-input-template (x) (second x))
