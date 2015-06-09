@@ -9,6 +9,6 @@
 ;(defparameter *ordering-type* :in-file)
 
 ;; Enable index directives.
-(defparameter *use-index* nil)
+(defparameter *use-index* t)
 ;; Enable compact directives.
 (defparameter *use-compact* t)
