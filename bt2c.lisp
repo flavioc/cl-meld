@@ -5,6 +5,7 @@
 (defparameter *header-stream* nil)
 (defparameter *c-num-linear-predicates* 0)
 (defparameter *c-num-persistent-predicates* 0)
+(defparameter *c-changes-owner* nil)
 (defparameter *c-processing-rule* nil)
 
 (defparameter *tab-level* 0)
@@ -1640,12 +1641,14 @@
                 (format-code stream "set_node_priority(state, (db::node*)~a, ~a);~%" (c-variable-name vnode) (c-variable-name vprio)))
              (format-code stream "}~%")))))
       (:set-affinity
+         (setf *c-changes-owner* t)
          (let* ((rnode (vm-set-affinity-node instr))
                 (rtarget (vm-set-affinity-target instr))
                 (node (find-c-variable variables rnode))
                 (target (find-c-variable variables rtarget)))
           (format-code stream "state.sched->set_node_affinity((db::node*)~a, (db::node*)~a);~%" (c-variable-name node) (c-variable-name target))))
       (:set-cpu-here
+         (setf *c-changes-owner* t)
          (let* ((rcpu (vm-set-cpu-cpu instr))
                 (cpu (find-c-variable variables rcpu)))
           (format-code stream "state.sched->set_node_cpu(node, (sched::thread*)~a);~%" (c-variable-name cpu))))
@@ -2032,6 +2035,7 @@
 (defun output-c-code (file &key (write-ast nil) (write-code nil))
    (let ((c-file (concatenate 'string file ".cpp"))
          (*c-node-references* (make-hash-table))
+         (*c-changes-owner* nil)
          (header-file (concatenate 'string file ".hpp"))
          (data-file (concatenate 'string file ".data")))
 		(with-binary-file (*data-stream* data-file)
@@ -2040,4 +2044,6 @@
             (format-code *header-stream* "#ifndef COMPILED_HEADER_HPP~%")
             (format-code *header-stream* "#define COMPILED_HEADER_HPP~%")
             (do-output-c-code stream file)
+            (when *c-changes-owner*
+               (format *header-stream* "#define COMPILED_CHANGES_OWNER~%"))
             (format-code *header-stream* "#endif~%"))))))
