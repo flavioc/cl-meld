@@ -6,6 +6,7 @@
 (defparameter *c-num-linear-predicates* 0)
 (defparameter *c-num-persistent-predicates* 0)
 (defparameter *c-changes-owner* nil)
+(defparameter *c-derives-persistent* nil)
 (defparameter *c-processing-rule* nil)
 
 (defparameter *tab-level* 0)
@@ -1515,8 +1516,12 @@
                      (format-code stream "node->matcher.new_linear_fact(~a);~%" (lookup-def-id (definition-name (allocated-tuple-definition p))))
                      (format-code stream "node->linear.add_fact(~a, ~a);~%" (allocated-tuple-tpl p) (allocated-tuple-pred p))
                      (format-code stream "state.linear_facts_generated++;~%"))))
-      (:add-persistent (add-c-node-persistent stream instr variables allocated-tuples))
-      (:add-thread-persistent (add-c-thread-persistent stream instr variables allocated-tuples))
+      (:add-persistent
+         (setf *c-derives-persistent* t)
+         (add-c-node-persistent stream instr variables allocated-tuples))
+      (:add-thread-persistent
+         (setf *c-derives-persistent* t)
+         (add-c-thread-persistent stream instr variables allocated-tuples))
       (:update (do-c-update stream instr allocated-tuples variables frames))
       (:push )
       (:pop )
@@ -1808,6 +1813,8 @@
                (format-code stream "p->id2 = ~a;~%" (definition-get-linear-id def))
                (format-code stream "prog->linear_predicates[~a] = p;~%" (definition-get-linear-id def)))
             (t
+               (unless (find-compact-name (definition-name def))
+                  (setf *c-derives-persistent* t))
                (format-code stream "p->id2 = ~a;~%" (definition-get-persistent-id def))
                (format-code stream "prog->persistent_predicates[~a] = p;~%" (definition-get-persistent-id def))))
          (when (definition-is-special-p def)
@@ -2036,6 +2043,7 @@
    (let ((c-file (concatenate 'string file ".cpp"))
          (*c-node-references* (make-hash-table))
          (*c-changes-owner* nil)
+         (*c-derives-persistent* nil)
          (header-file (concatenate 'string file ".hpp"))
          (data-file (concatenate 'string file ".data")))
 		(with-binary-file (*data-stream* data-file)
@@ -2046,4 +2054,6 @@
             (do-output-c-code stream file)
             (when *c-changes-owner*
                (format *header-stream* "#define COMPILED_CHANGES_OWNER~%"))
+            (when *c-derives-persistent*
+               (format *header-stream* "#define COMPILED_DERIVES_PERSISTENT~%"))
             (format-code *header-stream* "#endif~%"))))))
