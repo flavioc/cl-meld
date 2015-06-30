@@ -8,6 +8,8 @@
 (defparameter *c-changes-owner* nil)
 (defparameter *c-derives-persistent* nil)
 (defparameter *c-processing-rule* nil)
+(defparameter *c-thread-facts* nil)
+(defparameter *c-exists-construct* nil)
 
 (defparameter *tab-level* 0)
 (defun current-c-tab ()
@@ -1505,6 +1507,7 @@
                                                           (tostring "((db::node*)~a)" (c-variable-name var))))
                                                         pred)))))
       (:new-node (let* ((r (vm-new-node-reg instr)))
+                  (setf *c-exists-construct* t)
                   (multiple-value-bind (var new-p) (allocate-c-variable variables r :type-addr)
                      (format-code stream "~a = (vm::node_val)state.sched->create_node();~%" (declare-c-variable var new-p))
                      (add-c-variable variables var))))
@@ -1806,6 +1809,7 @@
                                                          (vm-find name))
                                                     "true" "false"))
          (when (definition-is-thread-p def)
+            (setf *c-thread-facts* t)
             (format-code stream "prog->thread_predicates.push_back(p);~%")
             (format-code stream "prog->thread_predicates_map.set_bit(~a);~%" id))
          (cond
@@ -2044,6 +2048,7 @@
          (*c-node-references* (make-hash-table))
          (*c-changes-owner* nil)
          (*c-derives-persistent* nil)
+         (*c-thread-facts* nil)
          (header-file (concatenate 'string file ".hpp"))
          (data-file (concatenate 'string file ".data")))
 		(with-binary-file (*data-stream* data-file)
@@ -2051,9 +2056,17 @@
           (with-output-file (*header-stream* header-file)
             (format-code *header-stream* "#ifndef COMPILED_HEADER_HPP~%")
             (format-code *header-stream* "#define COMPILED_HEADER_HPP~%")
+            (format *header-stream* "#include \"vm/rule.hpp\"~%")
+            (format *header-stream* "#include \"utils/types.hpp\"~%")
+            (format *header-stream* "#include \"vm/bitmap_static.hpp\"~%")
             (do-output-c-code stream file)
             (when *c-changes-owner*
                (format *header-stream* "#define COMPILED_CHANGES_OWNER~%"))
             (when *c-derives-persistent*
                (format *header-stream* "#define COMPILED_DERIVES_PERSISTENT~%"))
+            (when *c-thread-facts*
+               (format *header-stream* "#define COMPILED_THREAD_FACTS~%"))
+            (if *c-exists-construct*
+               (format *header-stream* "#define COMPILE_EXISTS_CONSTRUCT~%")
+               (format *header-stream* "#ifdef GC_NODES~%#undef GC_NODES~%#endif~%"))
             (format-code *header-stream* "#endif~%"))))))
