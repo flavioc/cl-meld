@@ -323,34 +323,28 @@
          (format-code stream "}~%"))
        (add-c-variable variables var)))))
 
-(defun create-c-match-code (stream obj value typ variables allocated-tuples skip-code &key (does-not-match-p nil))
+(defun create-c-match-code (stream obj value typ variables allocated-tuples skip-code)
  (cond
   ((vm-any-p value) )
   ((vm-int-p value)
-   (when does-not-match-p
-      (let ((val (vm-int-val value)))
-       (format-code stream "if(~a != ~a) { ~a }~%" obj val skip-code))))
+   (let ((val (vm-int-val value)))
+    (format-code stream "if(~a != ~a) { ~a }~%" obj val skip-code)))
   ((vm-float-p value)
-   (when does-not-match-p
-      (let ((val (vm-float-val value)))
-       (format-code stream "if(~a != ~20$L) { ~a }~%" obj val skip-code))))
+   (let ((val (vm-float-val value)))
+    (format-code stream "if(~a != ~20$L) { ~a }~%" obj val skip-code)))
   ((vm-nil-p value)
-   (when does-not-match-p
-      (format-code stream "if(!runtime::cons::is_null(~a)) { ~a }~%" obj skip-code)))
+   (format-code stream "if(!runtime::cons::is_null(~a)) { ~a }~%" obj skip-code))
   ((reg-p value)
-    (when does-not-match-p
-     (let ((var (find-c-variable variables value)))
-       (format-code stream "if(~a != ~a) { ~a }~%" obj (c-variable-name var) skip-code))))
+   (let ((var (find-c-variable variables value)))
+    (format-code stream "if(~a != ~a) { ~a }~%" obj (c-variable-name var) skip-code)))
   ((reg-dot-p value)
      (multiple-value-bind (other found) (gethash (reg-num (reg-dot-reg value)) allocated-tuples)
       (assert found)
       (format-code stream "if(~a != ~a->~a(~a)) { ~a }~%"
        obj (allocated-tuple-tpl other) (type-to-tuple-get typ) (reg-dot-field value) skip-code)))
   ((vm-host-id-p value)
-   (when does-not-match-p
-      (format-code stream "if(~a != (vm::node_val)node) { ~a }~%" obj skip-code)))
+   (format-code stream "if(~a != (vm::node_val)node) { ~a }~%" obj skip-code))
   ((vm-list-p value)
-   (when does-not-match-p
       (let ((head (vm-list-head value))
             (tail (vm-list-tail value))
             (ltyp (type-list-element typ))
@@ -362,9 +356,9 @@
           (format-code stream "~a ~a(~a->get_head().~a);~%" (type-to-c-type ltyp) head-var obj (type-to-union-field ltyp))
           (format-code stream "~a ~a(~a->get_tail());~%" (type-to-c-type typ) tail-var obj)
           (format-code stream "(void)~a; (void)~a;~%" head-var tail-var)
-          (create-c-match-code stream head-var head ltyp variables allocated-tuples skip-code :does-not-match-p does-not-match-p)
-          (create-c-match-code stream tail-var tail typ variables allocated-tuples skip-code :does-not-match-p does-not-match-p))
-       (format-code stream "}~%"))))
+          (create-c-match-code stream head-var head ltyp variables allocated-tuples skip-code)
+          (create-c-match-code stream tail-var tail typ variables allocated-tuples skip-code))
+       (format-code stream "}~%")))
   ((vm-non-nil-p value)
    (format-code stream "if(runtime::cons::is_null(~a)) { ~a }~%" obj skip-code))
   (t
@@ -375,11 +369,12 @@
          do (let* ((reg-dot (match-left match))
                    (field (reg-dot-field reg-dot))
                    (value (match-right match))
-                   (does-not-match-p (or (not match-field) (not (= field match-field)))))
-               (with-definition def (:types typs)
-                 (let* ((typ (nth field typs))
-                        (obj (tostring "~a->~a(~a)" tpl (type-to-tuple-get typ) field)))
-                  (create-c-match-code stream obj value typ variables allocated-tuples skip-code :does-not-match-p does-not-match-p))))))
+                   (already-matched-p (and match-field (= field match-field))))
+               (unless already-matched-p
+                  (with-definition def (:types typs)
+                    (let* ((typ (nth field typs))
+                           (obj (tostring "~a->~a(~a)" tpl (type-to-tuple-get typ) field)))
+                     (create-c-match-code stream obj value typ variables allocated-tuples skip-code)))))))
 
 (defun iterate-match-constant-p (val)
    (cond
@@ -437,7 +432,7 @@
         (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
         (format-code stream "tuple *~a(~aleaf->get_underlying_tuple()); (void)~a;~%" tpl tpl tpl)))
      (setf (gethash (reg-num reg) allocated-tuples) (make-allocated-tuple tpl predicate def))
-     (create-c-matches-code stream tpl def (iterate-matches instr) variables allocated-tuples)
+     (create-c-matches-code stream tpl def (iterate-matches instr) variables allocated-tuples nil)
      (with-debug stream "DEBUG_ITERS"
       (format-code stream "std::cout << \"\\titerate \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl predicate))
      (dolist (inner (iterate-instrs instr))
@@ -504,15 +499,17 @@
                       (match-field (reg-dot-field (match-left match)))
                       (tuple-field (create-c-tuple-field-from-val stream allocated-tuples variables (arg-type (nth match-field types)) value)))
                 (format-code stream "// search hash table for ~a~%" tuple-field)
-                (format-code stream "utils::intrusive_list<vm::tuple> *~a(~a->lookup_list(~a));~%"
+                (format-code stream "db::hash_table::tuple_list *~a(~a->lookup_list(~a));~%"
                  lsname table tuple-field)
-                (create-list-loop)))
+                (format-code stream "if(~a != nullptr) {~%" lsname)
+                (with-tab (create-list-loop))
+                (format-code stream "}~%")))
               (t
                (let ((it2 (generate-mangled-name "it")))
                 (format-code stream "// go through hash table~%")
                 (format-code stream "for(hash_table::iterator ~a(~a->begin()); !~a.end(); ++~a) {~%" it2 table it2 it2)
                 (with-tab
-                 (format-code stream "utils::intrusive_list<vm::tuple> *~a(*~a);~%" lsname it2)
+                 (format-code stream "utils::intrusive_list<vm::tuple> *~a(db::hash_table::underlying_list(*~a));~%" lsname it2)
                  (create-list-loop))
                 (format-code stream "}~%"))))))
               (format-code stream "}~%")))
@@ -582,7 +579,7 @@
       (with-tab
         (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
         (format-code stream "tuple *~a(~aleaf->get_underlying_tuple()); (void)~a;~%" tpl tpl tpl)
-        (create-c-matches-code stream tpl def (iterate-matches instr) variables allocated-tuples)
+        (create-c-matches-code stream tpl def (iterate-matches instr) variables allocated-tuples nil)
         (format-code stream "~a.push_back(~aleaf);~%" vec tpl))
       (format-code stream "}~%"))
    (format-code stream "}~%"))
@@ -673,15 +670,18 @@
                       (match-field (reg-dot-field (match-left match)))
                       (tuple-field (create-c-tuple-field-from-val stream allocated-tuples variables (arg-type (nth match-field types)) value)))
                 (format-code stream "// search hash table for ~a~%" tuple-field)
-                (format-code stream "utils::intrusive_list<vm::tuple> *~a(~a->lookup_list(~a));~%"
+                (format-code stream "db::hash_table::tuple_list *~a(~a->lookup_list(~a));~%"
                  lsname table tuple-field)
-                (create-list-loop table match-field)))
+                (format-code stream "if(~a != nullptr) {~%" lsname)
+                (with-tab
+                   (create-list-loop table match-field))
+                (format-code stream "}~%")))
               (t
                (let ((it2 (generate-mangled-name "it")))
                 (format-code stream "// go through hash table~%")
                 (format-code stream "for(hash_table::iterator ~a(~a->begin()); !~a.end(); ++~a) {~%" it2 table it2 it2)
                 (with-tab
-                 (format-code stream "utils::intrusive_list<vm::tuple> *~a(*~a);~%" lsname it2)
+                 (format-code stream "vm::tuple_list *~a(db::hash_table::underlying_list(*~a));~%" lsname it2)
                  (create-list-loop table nil))
                 (format-code stream "}~%"))))))
               (format-code stream "}~%")))
@@ -922,8 +922,12 @@
                  ((< (- (index-field index) 2) common)
                   (let* ((idx (- (index-field index) 2))
                          (typ (arg-type (nth idx (definition-types target))))
-                         (field (create-c-tuple-field-from-val stream allocated-tuples variables typ (nth idx regs))))
-                     (loop-list (tostring "table->lookup_list(~a)" field) "break")))
+                         (field (create-c-tuple-field-from-val stream allocated-tuples variables typ (nth idx regs)))
+                         (lsname (generate-mangled-name "ls")))
+                   (format-code stream "auto *~a(table->lookup_list(~a));~%" lsname field)
+                   (format-code stream "if(~a != nullptr) {~%" lsname)
+                   (with-tab (loop-list lsname "break"))
+                   (format-code stream "}~%")))
                  (t
                   (let ((jump (generate-mangled-name "goto")))
                      (format-code stream "for(auto it(table->begin()); !it.end(); ++it) {~%")
