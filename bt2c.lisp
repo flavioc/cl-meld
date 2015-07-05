@@ -848,11 +848,13 @@
                       (tbl (frame-hash frame))
                       (tpl (frame-tuple frame))
                       (pred (frame-predicate frame))
+                      (def (frame-definition frame))
                       (it (frame-iterator frame)))
                   (with-debug stream "DEBUG_REMOVE"
                      (format-code stream "std::cout << \"\\tdelete \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl pred))
                   (if tbl
-                     (format-code stream "~a = ~a->erase_from_list(~a, ~a);~%" it tbl ls it)
+                     (format-code stream "~a = ~a->erase_from_list(~a, ~a, &(~a->alloc));~%" it tbl ls it
+                        (if (definition-is-thread-p def) "thread_node" "node"))
                      (format-code stream "~a = ~a->erase(~a);~%" it ls it))
                   (do-output-c-destroy stream tpl def)
                   (when *facts-generated*
@@ -1523,7 +1525,7 @@
                       (format-code stream "std::cout << \"\\tadd linear \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%"
                        (allocated-tuple-tpl p) (allocated-tuple-pred p)))
                      (format-code stream "node->matcher.new_linear_fact(~a);~%" (lookup-def-id (definition-name (allocated-tuple-definition p))))
-                     (format-code stream "node->linear.add_fact(~a, ~a);~%" (allocated-tuple-tpl p) (allocated-tuple-pred p))
+                     (format-code stream "node->linear.add_fact(~a, ~a, &(node->alloc));~%" (allocated-tuple-tpl p) (allocated-tuple-pred p))
                      (format-code stream "state.linear_facts_generated++;~%"))))
       (:add-persistent
          (setf *c-derives-persistent* t)
