@@ -122,6 +122,7 @@
                      ("else" :else)
                      ("otherwise" :otherwise)
                      ("min" :min)
+                     ("allocator" (if *parsed-header* :const :allocator))
                      ("priority" (if *parsed-header* :const :prio))
                      ("index" (if *parsed-header* :const :index))
                      ("compact" (if *parsed-header* :const :compact))
@@ -295,7 +296,7 @@
 								:route :include :file :world :cpus :action
 								:linear :dollar :lcparen :rcparen :lolli
 								:bang :to :let :in :ins :fun :end :colon
-								:not-equal :if :then :else :otherwise :prio :random
+								:not-equal :if :then :else :otherwise :prio :allocator :random
 								:min :asc :desc :or :and :export :custom :import :as :from
 								:exists :initial-priority :priority-type :priority-order
                         :no-priority :delay-seconds :delay-ms :question-mark
@@ -393,6 +394,7 @@
     (:string string-list #L(cons (subseq !1 1 (1- (length !1))) !2)))
 	
 	(priority
+      (:allocator :string :dot #'(lambda (a typ d) (declare (ignore a d)) (make-allocator typ)))
 		(:prio :static-priority :dot #'(lambda (p s d) (declare (ignore p s d)) (make-priority-static)))
 		(:prio :cluster-priority :static-priority :dot
 				#'(lambda (p i s d) (declare (ignore p i s d))

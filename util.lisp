@@ -145,6 +145,13 @@
    "Returns the intersection of all sub-lists in 'lists'."
    (reduce #'intersection (rest lists) :initial-value (first lists)))
 
+(defun split-string (string &key (delimiterp #'delimiterp))
+  (loop :for beg = (position-if-not delimiterp string)
+    :then (position-if-not delimiterp string :start (1+ end))
+    :for end = (and beg (position-if delimiterp string :start beg))
+    :when beg :collect (subseq string beg end)
+    :while end))
+
 (defun split (fn l)
 	(let (y n)
 		(loop for el in l

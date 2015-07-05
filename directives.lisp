@@ -1,5 +1,18 @@
 (in-package :cl-meld)
 
+(defun make-allocator (typ)
+	(let* ((remain1 (subseq typ 1))
+			 (remain (subseq remain1 0 (1- (length remain1)))))
+    (let ((vec (split-string remain :delimiterp #'(lambda (x) (char= x #\Space))))
+          opts)
+     (if (find-if #'(lambda (a) (string-equal a "basic")) vec)
+      (push :basic opts))
+     `(:allocator ,opts))))
+(defun allocator-has-option-p (alloc opt)
+   (find opt (second alloc)))
+(defun find-allocator ()
+   (find-if #L(tagged-p !1 :allocator) *directives*))
+
 (defun make-index (name field) `(:index ,name ,field))
 (defun index-name (x) (second x))
 (defun index-field (x) (third x))

@@ -324,6 +324,7 @@
        (add-c-variable variables var)))))
 
 (defun create-c-match-code (stream obj value typ variables allocated-tuples skip-code)
+ (assert (stringp skip-code))
  (cond
   ((vm-any-p value) )
   ((vm-int-p value)
@@ -365,6 +366,7 @@
    (error 'output-invalid-error :text (tostring "create-c-match-code: can't create code for value ~a" value)))))
 
 (defun create-c-matches-code (stream tpl def matches variables allocated-tuples &optional (skip-code "continue;") (match-field nil))
+ (assert (stringp skip-code))
    (loop for match in matches
          do (let* ((reg-dot (match-left match))
                    (field (reg-dot-field reg-dot))
@@ -432,7 +434,7 @@
         (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
         (format-code stream "tuple *~a(~aleaf->get_underlying_tuple()); (void)~a;~%" tpl tpl tpl)))
      (setf (gethash (reg-num reg) allocated-tuples) (make-allocated-tuple tpl predicate def))
-     (create-c-matches-code stream tpl def (iterate-matches instr) variables allocated-tuples nil)
+     (create-c-matches-code stream tpl def (iterate-matches instr) variables allocated-tuples)
      (with-debug stream "DEBUG_ITERS"
       (format-code stream "std::cout << \"\\titerate \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl predicate))
      (dolist (inner (iterate-instrs instr))
@@ -579,7 +581,7 @@
       (with-tab
         (format-code stream "tuple_trie_leaf *~aleaf(*~a);~%" tpl it)
         (format-code stream "tuple *~a(~aleaf->get_underlying_tuple()); (void)~a;~%" tpl tpl tpl)
-        (create-c-matches-code stream tpl def (iterate-matches instr) variables allocated-tuples nil)
+        (create-c-matches-code stream tpl def (iterate-matches instr) variables allocated-tuples)
         (format-code stream "~a.push_back(~aleaf);~%" vec tpl))
       (format-code stream "}~%"))
    (format-code stream "}~%"))
@@ -2073,4 +2075,10 @@
             (if *c-exists-construct*
                (format *header-stream* "#define COMPILE_EXISTS_CONSTRUCT~%")
                (format *header-stream* "#ifdef GC_NODES~%#undef GC_NODES~%#endif~%"))
+            (let ((allocator (find-allocator)))
+              (cond
+               ((and allocator (allocator-has-option-p allocator :basic)))
+               (t
+                (format *header-stream* "#define NODE_ALLOCATOR~%")
+                (format *header-stream* "#define NODE_REFCOUNT~%"))))
             (format-code *header-stream* "#endif~%"))))))
