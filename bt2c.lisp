@@ -853,7 +853,7 @@
                   (with-debug stream "DEBUG_REMOVE"
                      (format-code stream "std::cout << \"\\tdelete \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl pred))
                   (if tbl
-                     (format-code stream "~a = ~a->erase_from_list(~a, ~a, &(~a->alloc));~%" it tbl ls it
+                     (format-code stream "~a = ~a->erase_from_list(db::hash_table::cast_list(~a), ~a, &(~a->alloc));~%" it tbl ls it
                         (if (definition-is-thread-p def) "thread_node" "node"))
                      (format-code stream "~a = ~a->erase(~a);~%" it ls it))
                   (do-output-c-destroy stream tpl def)
