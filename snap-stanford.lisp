@@ -19,6 +19,11 @@
      :initarg :reverse-weights
      :accessor snap-reverse-weights)))
 
+(defclass snap-sssp-data (snap-data)
+ ((weights
+   :initarg :edge-weights
+   :accessor snap-edge-weights)))
+
 (defclass snap-search-data (snap-data)
    ((nodes-search
      :initarg :nodes-search
@@ -88,6 +93,22 @@
                                          :reverse-edges rev-edges
                                          :reverse-weights rev-weights))))
 
+(defun snap-sssp-file-read (filename)
+   (let ((edge-table (make-hash-table))
+         (ids (make-hash-table))
+         (weights (make-hash-table)))
+      (cl-csv:do-csv (row (pathname filename) :separator #\Tab :quote #\#)
+         (let ((node1 (parse-integer (first row)))
+               (node2 (parse-integer (second row)))
+               (weight (parse-integer (third row))))
+          (setf (gethash node1 ids) node1)
+          (setf (gethash node2 ids) node2)
+          (multiple-value-bind (edges found-p) (gethash node1 edge-table)
+           (snap-extend-vec edge-table edges found-p node1 node2))
+          (multiple-value-bind (my-weights found-p) (gethash node1 weights)
+           (snap-extend-vec weights my-weights found-p node1 weight))))
+      (make-instance 'snap-sssp-data :nodes ids :edges edge-table :edge-weights weights)))
+
 (defun snap-search-file-read (filename num-searches fraction)
  (multiple-value-bind (ids edge-table) (read-snap-file filename)
   (let ((source (make-hash-table))
@@ -117,6 +138,16 @@
              collect (make-subgoal "edge" (list (make-addr other-node)
                          (let ((weight (compute-snap-edge-weight rnd)))
                           (make-float weight))))))))
+
+(defmethod data-input-node-axioms ((obj snap-sssp-data) (n integer))
+   (multiple-value-bind (vec found-p) (gethash n (snap-edges obj))
+   (multiple-value-bind (my-weights found2-p) (gethash n (snap-edge-weights obj))
+    (unless (and found-p found2-p)
+     (return-from data-input-node-axioms nil))
+    (let ((rnd (sb-ext:seed-random-state 0)))
+       (loop for other-node across vec
+             for edge-weight across my-weights
+             collect (make-subgoal "edge" (list (make-addr other-node) (make-float edge-weight))))))))
 
 (defmethod data-input-node-axioms ((obj snap-basic-data) (n integer))
    (multiple-value-bind (vec found-p) (gethash n (snap-edges obj))
