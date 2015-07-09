@@ -2057,6 +2057,7 @@
          (*c-changes-owner* nil)
          (*c-derives-persistent* nil)
          (*c-thread-facts* nil)
+         (*c-exists-construct* nil)
          (header-file (concatenate 'string file ".hpp"))
          (data-file (concatenate 'string file ".data")))
 		(with-binary-file (*data-stream* data-file)
