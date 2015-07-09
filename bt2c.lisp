@@ -2078,10 +2078,10 @@
             (if *c-exists-construct*
                (format *header-stream* "#define COMPILE_EXISTS_CONSTRUCT~%")
                (format *header-stream* "#ifdef GC_NODES~%#undef GC_NODES~%#endif~%"))
-            (let ((allocator (find-allocator)))
-              (cond
-               ((and allocator (allocator-has-option-p allocator :basic)))
-               (t
-                (format *header-stream* "#define NODE_ALLOCATOR~%")
-                (format *header-stream* "#define NODE_REFCOUNT~%"))))
+            ;(let ((allocator (find-allocator)))
+            ;  (cond
+            ;   ((and allocator (allocator-has-option-p allocator :basic)))
+            ;   (t
+            ;    (format *header-stream* "#define NODE_ALLOCATOR~%")
+            ;    (format *header-stream* "#define NODE_REFCOUNT~%"))))
             (format-code *header-stream* "#endif~%"))))))
