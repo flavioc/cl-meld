@@ -750,7 +750,8 @@
      (format stream "#else~%")
      (format-code stream "state.sched->new_work(node, (db::node*)~a, ~a, ~a, state.direction, state.depth);~%"
       to tpl pred)
-     (format stream "#endif~%"))
+     (format stream "#endif~%")
+     (format-code stream "LOG_FACT_SENT();~%"))
     (format-code stream "}~%")))))
 
 (defun add-c-persistent (stream instr variables allocated-tuples add-fun node)
@@ -850,6 +851,7 @@
                       (pred (frame-predicate frame))
                       (def (frame-definition frame))
                       (it (frame-iterator frame)))
+                  (format-code stream "LOG_DELETED_FACT();~%")
                   (with-debug stream "DEBUG_REMOVE"
                      (format-code stream "std::cout << \"\\tdelete \"; ~a->print(std::cout, ~a); std::cout << std::endl;~%" tpl pred))
                   (if tbl
