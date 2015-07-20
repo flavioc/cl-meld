@@ -861,7 +861,11 @@
                   (do-output-c-destroy stream tpl def)
                   (when *facts-generated*
                    (format-code stream "if (state.direction == POSITIVE_DERIVATION) state.linear_facts_consumed++;~%"))
-                  (format-code stream "if(~a->empty()~a) node->matcher.empty_predicate(~a);~%" ls (if tbl (tostring " && ~a->empty()" tbl) "") id))))))
+                  (if tbl
+                   (format-code stream "if(~a->empty())" tbl)
+                   (format-code stream "if(~a->empty())" ls))
+                  (with-tab
+                     (format-code stream "node->matcher.empty_predicate(~a);~%" id)))))))
 
 (defun do-c-update (stream instr allocated-tuples variables frames)
  (let* ((reg (vm-update-reg instr))
