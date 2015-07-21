@@ -295,8 +295,13 @@
 (defsetf constraint-expr set-constraint-expr)
 
 (defun complex-const-p (s)
- (and (struct-p s)
-  (every #'literal-p (struct-list s))))
+ (or (and (struct-p s)
+      (every #'literal-p (struct-list s)))
+     (when (cons-p s)
+      (loop while (cons-p s)
+            while (literal-p (cons-head s))
+            do (setf s (cons-tail s)))
+      (nil-p s))))
 
 (defun literal-p (s)
 	(or (int-p s) (float-p s)
