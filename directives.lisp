@@ -26,7 +26,9 @@
 (defun compact-p (x) (tagged-p x :compact))
 (defun find-compact-name (name)
  (when *use-compact*
-  (find-if #L(and (compact-p !1) (string-equal name (compact-name !1))) *directives*)))
+  (or (let ((def (lookup-definition name)))
+         (definition-is-compact-p def))
+     (find-if #L(and (compact-p !1) (string-equal name (compact-name !1))) *directives*))))
 
 (defun make-data-input (template file &optional args) `(:data-input ,template ,file ,args))
 (defun data-input-template (x) (second x))

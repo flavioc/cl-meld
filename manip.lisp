@@ -183,6 +183,7 @@
    (definition-add-option def `(,name ,@rest)))
 (defun definition-set-cyclical (def) (definition-add-option def :cycle))
 (defun definition-is-cyclical-p (def) (definition-has-option-p def :cycle))
+(defun definition-is-compact-p (def) (definition-has-option-p def :compact))
 (defun definition-set-thread (def) (definition-add-option def :thread))
 (defun definition-is-thread-p (def) (definition-has-option-p def :thread))
 (defun definition-set-update (def updates count)
