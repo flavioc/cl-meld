@@ -1523,19 +1523,15 @@
 					    (node (addr-num fst)))
 					(setf (subgoal-args sub) (rest args)) ; remove home argument
 					(push sub (gethash node hash)))))
-      (loop for i from 0 upto (number-of-nodes *nodes*)
+      (loop for i from 0 upto (1- (number-of-nodes *nodes*))
             do (multiple-value-bind (axioms found-p) (gethash i hash)
                   (when axioms
-                     (setf (gethash i hash) (compile-node-axioms axioms)))
-                  (when *node-types*
-                     (let* ((node-type (get-node-constraint i))
-                            (id (find-node-type-id node-type)))
-                      (push (make-move (make-int id) type-reg) (gethash i hash))))))
+                     (setf (gethash i hash) (compile-node-axioms axioms)))))
 		(let ((vm (make-vm-select-node)))
 			(loop for key being the hash-keys of hash
 					using (hash-value value)
                do (vm-select-node-push vm key value))
-			(list vm))))
+			`(,(make-vm-node-type type-reg) ,vm))))
 
 (defun find-var-axiom-type (clause)
    (with-clause clause (:head head)

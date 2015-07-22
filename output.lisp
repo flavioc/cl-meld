@@ -313,6 +313,16 @@
          (add-byte #b11010001 vec)
 			(add-bytes vec (output-int (vm-mark-rule instr))))
       (:return-derived (add-byte #b11110000 vec))
+      (:node-type
+       (when *node-types*
+        (let ((reg (vm-node-type-reg instr)))
+         (add-byte #b10111111 vec)
+			(add-byte (logand *reg-mask* (reg-to-byte reg)) vec)
+			(add-bytes vec (output-int (number-of-nodes *nodes*)))
+         (loop for i from 0 upto (1- (number-of-nodes *nodes*))
+               do (let* ((node-type (get-node-constraint i))
+                         (id (find-node-type-id node-type)))
+                   (add-byte id vec))))))
 		(:new-axioms
 			(write-jump vec 1
 				(add-byte #b00010100 vec)
@@ -686,7 +696,7 @@
                         (save-pos (end vec)
                            (setf (gethash n end-hash) (- end +code-offset-size+)))))
                   (when *data-input*
-                    (loop for i from 0 upto total-nodes
+                    (loop for i from 0 upto (1- total-nodes)
                           do (let ((axioms (data-input-node-axioms *data-input* i)))
                                (when axioms
                                 (save-pos (cur vec)

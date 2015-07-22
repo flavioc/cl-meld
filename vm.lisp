@@ -501,6 +501,9 @@
 (defun make-vm-add-linear (reg) `(:add-linear ,reg))
 (defun vm-add-linear-reg (x) (second x))
 
+(defun make-vm-node-type (type-reg) `(:node-type ,type-reg))
+(defun vm-node-type-reg (x) (second x))
+
 (defun make-vm-add-persistent (reg) `(:add-persistent ,reg))
 (defun make-vm-add-thread-persistent (reg) `(:add-thread-persistent ,reg))
 (defun vm-add-persistent-reg (x) (second x))

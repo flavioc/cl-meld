@@ -1451,6 +1451,16 @@
                         (multiple-value-bind (tp found2-p) (gethash (reg-num from) allocated-tuples)
                            (format-code stream "execute_thread_send0((sched::thread*)~a, ~a, ~a, state);~%" (c-variable-name th)
                               (allocated-tuple-tpl tp) (allocated-tuple-pred tp))))))
+      (:node-type
+       (when *node-types*
+         (let ((dest (vm-node-type-reg instr)))
+          (multiple-value-bind (var new-p) (allocate-c-variable variables dest :type-int)
+           (format-code stream "~a = read_node_type(node, ~a, ~a);~%" (declare-c-variable var new-p)
+               *total-written* (number-of-nodes *nodes*))
+            (loop for i from 0 upto (1- (number-of-nodes *nodes*))
+               do (let* ((node-type (get-node-constraint i))
+                         (id (find-node-type-id node-type)))
+                  (write-hexa *data-stream* id)))))))
       (:select-node
           ;; write axioms first.
           (let ((node-table (make-hash-table))
@@ -1463,7 +1473,7 @@
                      (incf count)
                      (setf (gethash n node-table) (list start len)))))))
              (when *data-input*
-               (loop for i from 0 upto (number-of-nodes *nodes*)
+               (loop for i from 0 upto (1- (number-of-nodes *nodes*))
                      do (let ((axioms (data-input-node-axioms *data-input* i)))
                            (when axioms
                               (multiple-value-bind (start len) (do-output-c-new-axioms axioms)
