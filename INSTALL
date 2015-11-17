@@ -12,7 +12,11 @@
    $ bash standalone.sh
 # Move quick lisp to home directory
    $ mv compile ~/quicklisp
-# Installs compiler scripts
+# Install compiler scripts
    $ sudo make install
    $ cd ..
    $ ln -sf $PWD/cl-meld.asd ~/quicklisp/local-projects/
+
+- Compile and run programs
+
+   Go to 'meld', the virtual machine directory, and read the README file.
