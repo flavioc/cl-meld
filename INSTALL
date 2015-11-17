@@ -1,0 +1,18 @@
+- Requirements:
+   sbcl, g++, make, git
+
+- Download compiler and virtual machine:
+   git clone http://github.com/flavioc/cl-meld (compiler)
+   git clone http://github.com/flavioc/meld (virtual machine)
+
+- Install compiler
+
+   $ cd cl-meld/scripts
+# Will install quicklisp and all required packages
+   $ bash standalone.sh
+# Move quick lisp to home directory
+   $ mv compile ~/quicklisp
+# Installs compiler scripts
+   $ sudo make install
+   $ cd ..
+   $ ln -sf $PWD/cl-meld.asd ~/quicklisp/local-projects/
