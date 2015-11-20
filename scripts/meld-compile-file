@@ -1,6 +1,6 @@
 #!/bin/sh
 #|
-exec sbcl --noinform --dynamic-space-size 2048 --script "$0" $@
+exec sbcl --noinform --dynamic-space-size 4096 --script "$0" $@
 |#
 
 
